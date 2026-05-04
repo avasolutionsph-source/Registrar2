@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Map shadcn CSS variables to Style A — Soft & Clean palette.
+   shadcn components (e.g. Button) read --primary, --background, etc. */
+@layer base {
+  :root {
+    --background: #f8f8f5;
+    --foreground: #1f1f1b;
+    --card: #ffffff;
+    --card-foreground: #1f1f1b;
+    --popover: #ffffff;
+    --popover-foreground: #1f1f1b;
+    --primary: #1f1f1b;
+    --primary-foreground: #ffffff;
+    --secondary: #fafaf6;
+    --secondary-foreground: #1f1f1b;
+    --muted: #f0ede4;
+    --muted-foreground: #8a8478;
+    --accent: #f1efea;
+    --accent-foreground: #1f1f1b;
+    --destructive: #8a6c1d;
+    --destructive-foreground: #ffffff;
+    --border: #e7e3da;
+    --input: #e7e3da;
+    --ring: #d8d3c5;
+    --radius: 0.5rem;
+    --radius-md: 0.5rem;
+  }
+
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-app text-ink-primary font-sans;
+    font-feature-settings: 'tnum' 1;
+  }
+}

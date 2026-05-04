@@ -1,0 +1,71 @@
+import type { ClassRecord } from '@/types';
+import { teachers } from './teachers';
+
+// Real SY 2025-2026 Grade I · St. John Vianney class (per Batch 11/12 catalog),
+// plus a few mocks for other grade levels so the sidebar / classes list has
+// variety to test.
+export const classes: ClassRecord[] = [
+  {
+    id: 'cls-grade1-vianney-2526',
+    sy: '2025-2026',
+    gradeLevel: 'I',
+    sectionName: 'St. John Vianney',
+    adviser: teachers[0],
+    curriculum: 'Kto12-B',
+    studentLrns: [
+      '403875240001',
+      '403870240018',
+      '403875240028',
+      '403875240010',
+      '403875240029',
+      '410553240008',
+      '403875240031',
+      '403875240011',
+      '403875240035',
+      '403875240005',
+      '433591240005',
+      '403875240021',
+      '403875240041',
+      '436513240035',
+      '410553240015',
+      '403875240008',
+      '436534240018',
+    ],
+  },
+  {
+    id: 'cls-grade1-camillus-2526',
+    sy: '2025-2026',
+    gradeLevel: 'I',
+    sectionName: 'St. Camillus de Lellis',
+    adviser: teachers[2],
+    curriculum: 'Kto12-B',
+    studentLrns: [],
+  },
+  {
+    id: 'cls-grade7-padrepio-2526',
+    sy: '2025-2026',
+    gradeLevel: 'VII',
+    sectionName: 'San Pedro Calungsod',
+    adviser: teachers[1],
+    curriculum: 'Kto12-B',
+    studentLrns: [],
+  },
+  {
+    id: 'cls-grade11-padrepio-2526',
+    sy: '2025-2026',
+    gradeLevel: 'XI-GAS',
+    sectionName: 'St. Padre Pio',
+    adviser: teachers[3],
+    curriculum: 'Kto12-B',
+    studentLrns: [],
+  },
+  {
+    id: 'cls-spedgerald-2526',
+    sy: '2025-2026',
+    gradeLevel: 'S',
+    sectionName: 'St. Gerald',
+    adviser: teachers[4],
+    curriculum: 'Kto12-B',
+    studentLrns: [],
+  },
+];
