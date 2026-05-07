@@ -1,9 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, GraduationCap, UserCog, Settings, BarChart3, LogOut, HeartHandshake } from 'lucide-react';
+import { Users, GraduationCap, UserCog, Settings, BarChart3, LogOut } from 'lucide-react';
 import { SchoolYearSelector } from './SchoolYearSelector';
 import npsLogo from '@/assets/nps-logo.png';
 import type { SchoolYear } from '@/types';
-import { useAuth } from '@/lib/auth';
 
 interface Props {
   currentSY: SchoolYear;
@@ -17,12 +16,10 @@ const navItems = [
   { to: '/teachers', label: 'Teachers', icon: UserCog },
   { to: '/setup', label: 'Setup', icon: Settings },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/guidance', label: 'Guidance Office', icon: HeartHandshake },
 ];
 
 export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
   return (
     <aside className="w-[200px] shrink-0 bg-sidebar border-r border-border p-3 flex flex-col gap-3 h-full">
       <div className="flex items-center gap-2 px-1 py-1">
@@ -68,9 +65,8 @@ export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
         </div>
         <button
           type="button"
-          onClick={async () => {
+          onClick={() => {
             onNavigate?.();
-            await signOut();
             navigate('/login');
           }}
           className="flex items-center gap-2 px-2 py-1.5 rounded text-[12px] text-ink-secondary hover:bg-panel/60 hover:text-ink-primary"

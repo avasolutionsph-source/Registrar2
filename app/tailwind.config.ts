@@ -21,9 +21,6 @@ export default {
           dark: '#a51730',
           light: '#e3324f',
         },
-        // Aliases used by the Guidance Office PDS module
-        npsRed: '#C8102E',
-        npsYellow: '#F2C94C',
         ok: { bg: '#ecf3e9', fg: '#3f6233' },
         pending: { bg: '#fbf3e3', fg: '#8a6c1d' },
         na: { bg: '#f0ede4', fg: '#8a8478' },
