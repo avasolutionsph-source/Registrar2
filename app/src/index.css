@@ -35,3 +35,238 @@
     font-feature-settings: 'tnum' 1;
   }
 }
+/* ========== PDS document — mirrors the source PDF layout ========== */
+
+.pds-document {
+  background: white;
+  color: #111;
+  padding: 24px 32px;
+  font-family: "Calibri", "Segoe UI", system-ui, sans-serif;
+  font-size: 11pt;
+  line-height: 1.35;
+  max-width: 8.5in;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.pds-header {
+  display: grid;
+  grid-template-columns: 1.4fr 2fr 1fr;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.pds-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pds-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.pds-school-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 12pt;
+}
+
+.pds-school-sub {
+  font-style: italic;
+  font-size: 9pt;
+  color: #444;
+}
+
+.pds-header-mid {
+  font-size: 9.5pt;
+  color: #222;
+  line-height: 1.3;
+}
+
+.pds-photo-box {
+  width: 110px;
+  height: 130px;
+  border: 1.5px solid #555;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 8pt;
+  color: #777;
+  justify-self: end;
+  overflow: hidden;
+}
+
+.pds-photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pds-title {
+  font-size: 22pt;
+  font-weight: 800;
+  margin: 12px 0 14px 0;
+  letter-spacing: 0.01em;
+}
+
+.pds-section {
+  margin-bottom: 10px;
+}
+
+.pds-section-bar {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  font-size: 10.5pt;
+  color: white;
+}
+
+.pds-section-bar--red {
+  background: #d94d57;
+}
+
+.pds-section-bar--yellow {
+  background: #f3c44d;
+  color: #1a1a1a;
+}
+
+.pds-section-bar--center {
+  text-align: center;
+}
+
+.pds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+  table-layout: fixed;
+}
+
+.pds-table th,
+.pds-table td {
+  border: 1px solid #c4c4c4;
+  padding: 6px 8px;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+
+.pds-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  text-align: left;
+}
+
+.pds-label {
+  background: #fafafa;
+  color: #1a1a1a;
+  font-weight: 600;
+  width: 22%;
+}
+
+.pds-label-center {
+  background: #f3f4f6;
+  color: #1a1a1a;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pds-privacy-body {
+  font-size: 9pt;
+  padding: 8px 10px;
+  border: 1px solid #c4c4c4;
+  border-top: none;
+  background: white;
+}
+
+.pds-privacy-body p {
+  margin: 4px 0;
+}
+
+.pds-privacy-intro {
+  font-weight: 600;
+}
+
+.pds-signature-table {
+  margin-top: 0;
+}
+
+.pds-signature-cell {
+  text-align: center;
+  padding: 18px 8px 6px 8px !important;
+}
+
+.pds-signature-name {
+  font-family: "Brush Script MT", "Segoe Script", cursive;
+  font-size: 14pt;
+  border-bottom: 1px solid #555;
+  display: inline-block;
+  min-width: 60%;
+  padding: 0 8px 2px 8px;
+  margin-bottom: 4px;
+}
+
+.pds-signature-label {
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.pds-privacy-confidential {
+  margin-top: 6px;
+  font-size: 9pt;
+  font-style: italic;
+  color: #c8102e;
+}
+
+/* ========== Print: PDF-style page output ========== */
+
+@media print {
+  @page {
+    size: Letter;
+    margin: 0.5in;
+  }
+
+  html,
+  body {
+    background: white !important;
+  }
+
+  /* Hide app shell */
+  body * {
+    visibility: hidden;
+  }
+  .pds-document,
+  .pds-document * {
+    visibility: visible;
+  }
+  .pds-document {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    max-width: 100%;
+    box-shadow: none;
+  }
+
+  .pds-section {
+    page-break-inside: avoid;
+  }
+
+  /* Force colors to print (Chrome/Edge) */
+  .pds-section-bar,
+  .pds-label,
+  .pds-label-center,
+  .pds-table th,
+  .pds-privacy-confidential,
+  .pds-logo {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

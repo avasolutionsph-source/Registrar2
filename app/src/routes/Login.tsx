@@ -1,19 +1,34 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import npsLogo from '@/assets/nps-logo.png';
 import cover from '@/assets/cover.jpeg';
+import { useAuth } from '@/lib/auth';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('registrar@nps.edu.ph');
-  const [password, setPassword] = useState('············');
+  const { session, signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent) {
+  if (session) return <Navigate to="/students" replace />;
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate('/students');
+    setBusy(true);
+    setError(null);
+    const { error: err } = await signIn(email, password);
+    setBusy(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    const target = email.toLowerCase().includes('guidance') ? '/guidance' : '/students';
+    navigate(target);
   }
 
   return (
@@ -141,12 +156,19 @@ export default function Login() {
                 </div>
               </div>
 
+              {error && (
+                <p className="text-[12.5px] text-nps-red font-medium" role="alert">
+                  {error}
+                </p>
+              )}
+
               {/* Sign in */}
               <button
                 type="submit"
-                className="group w-full h-12 2xl:h-[52px] mt-2 rounded-md bg-nps-red hover:bg-nps-red-dark text-white font-semibold text-[15px] 2xl:text-[16px] transition-colors shadow-md shadow-nps-red/25 flex items-center justify-center relative"
+                disabled={busy}
+                className="group w-full h-12 2xl:h-[52px] mt-2 rounded-md bg-nps-red hover:bg-nps-red-dark text-white font-semibold text-[15px] 2xl:text-[16px] transition-colors shadow-md shadow-nps-red/25 flex items-center justify-center relative disabled:opacity-60"
               >
-                <span>Sign in</span>
+                <span>{busy ? 'Signing in…' : 'Sign in'}</span>
                 <ArrowRight className="w-4 h-4 absolute right-5 transition-transform group-hover:translate-x-0.5" />
               </button>
 
