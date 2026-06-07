@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ClassForm } from '@/components/forms/ClassForm';
+import { saveClass } from '@/lib/db';
 
 export default function AddClass() {
   const navigate = useNavigate();
@@ -14,7 +15,10 @@ export default function AddClass() {
         </p>
       </div>
       <ClassForm
-        onSubmit={() => navigate('/classes')}
+        onSubmit={async (data) => {
+          await saveClass(data);
+          navigate('/classes');
+        }}
         onCancel={() => navigate('/classes')}
         submitLabel="Create Class"
       />

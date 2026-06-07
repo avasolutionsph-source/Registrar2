@@ -1,11 +1,11 @@
-import type { FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { teachers } from '@/mocks';
-import type { ClassRecord } from '@/types';
+import { listTeachers, getActiveSchoolYear, type ClassInput } from '@/lib/db';
+import type { ClassRecord, Teacher } from '@/types';
 
 const GRADE_OPTIONS: { value: string; label: string }[] = [
   { value: 'N1', label: 'Nursery 1' },
@@ -34,15 +34,70 @@ const GRADE_OPTIONS: { value: string; label: string }[] = [
 
 interface Props {
   klass?: ClassRecord;
-  onSubmit: () => void;
+  onSubmit: (data: ClassInput) => Promise<void>;
   onCancel: () => void;
   submitLabel: string;
 }
 
 export function ClassForm({ klass, onSubmit, onCancel, submitLabel }: Props) {
-  function handleSubmit(e: FormEvent) {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [adviserId, setAdviserId] = useState<string>(klass?.adviser.id ? String(klass.adviser.id) : '');
+  const [syCode, setSyCode] = useState<string>(klass?.sy ?? '');
+  const [syLabel, setSyLabel] = useState<string>('Active school year');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [t, sy] = await Promise.all([listTeachers(), getActiveSchoolYear()]);
+        if (cancelled) return;
+        setTeachers(t.filter((x) => x.yearEnded === 0));
+        if (sy) {
+          setSyLabel(sy.label);
+          if (!klass) setSyCode(sy.code);
+        }
+      } catch {
+        /* dropdown stays empty — saving still works */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [klass]);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    onSubmit();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    const get = (k: string) => String(fd.get(k) ?? '').trim();
+
+    const input: ClassInput = {
+      sy: syCode,
+      gradeLevel: get('gradeLevel'),
+      sectionName: get('sectionName'),
+      adviserId: adviserId ? Number(adviserId) : null,
+      curriculum: get('curriculum') || 'Kto12-B',
+    };
+
+    if (!input.gradeLevel) {
+      setError('Grade level is required.');
+      return;
+    }
+    if (!input.sectionName) {
+      setError('Section name is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onSubmit(input);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save the class.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -50,13 +105,13 @@ export function ClassForm({ klass, onSubmit, onCancel, submitLabel }: Props) {
       <SectionCard heading="Class">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="School Year" required>
-            <Input value="SY 2025–2026" disabled />
+            <Input value={syLabel} disabled />
           </Field>
           <Field label="Curriculum">
-            <Input defaultValue={klass?.curriculum ?? 'Kto12-B'} />
+            <Input name="curriculum" defaultValue={klass?.curriculum ?? 'Kto12-B'} />
           </Field>
           <Field label="Grade Level" required>
-            <Select defaultValue={klass?.gradeLevel ?? ''}>
+            <Select name="gradeLevel" defaultValue={klass?.gradeLevel ?? ''} required>
               <option value="" disabled>
                 Choose…
               </option>
@@ -68,30 +123,34 @@ export function ClassForm({ klass, onSubmit, onCancel, submitLabel }: Props) {
             </Select>
           </Field>
           <Field label="Section Name" required hint="Saint or province name (e.g. St. John Vianney)">
-            <Input placeholder="Section name" defaultValue={klass?.sectionName} />
+            <Input name="sectionName" placeholder="Section name" defaultValue={klass?.sectionName} required />
           </Field>
-          <Field label="Adviser" required span={2}>
-            <Select defaultValue={klass?.adviser.id ?? ''}>
-              <option value="" disabled>
-                Choose a teacher…
-              </option>
-              {teachers
-                .filter((t) => t.yearEnded === 0)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} {t.familyName}, {t.firstName} {t.middleInitial}
-                  </option>
-                ))}
+          <Field label="Adviser" span={2} hint="Optional until teachers are added.">
+            <Select value={adviserId} onChange={(e) => setAdviserId(e.target.value)}>
+              <option value="">— None / unassigned —</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title} {t.familyName}, {t.firstName} {t.middleInitial}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>
       </SectionCard>
 
+      {error && (
+        <p className="text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      )}
+
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>
-        <Button type="submit">{submitLabel}</Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Saving…' : submitLabel}
+        </Button>
       </div>
     </form>
   );

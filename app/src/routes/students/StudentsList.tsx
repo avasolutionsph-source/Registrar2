@@ -1,15 +1,39 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { students, classes } from '@/mocks';
-import type { Student } from '@/types';
+import { listStudents, listClasses } from '@/lib/db';
+import type { Student, ClassRecord } from '@/types';
 import { formatLastFirstMiddle } from '@/lib/format';
 
 export default function StudentsList() {
   const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classById, setClassById] = useState<Map<string, ClassRecord>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [st, cls] = await Promise.all([listStudents(), listClasses()]);
+        if (cancelled) return;
+        setStudents(st);
+        setClassById(new Map(cls.map((c) => [c.id, c])));
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load students.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const cols: Column<Student>[] = [
     {
@@ -29,7 +53,7 @@ export default function StudentsList() {
       header: 'Class',
       width: '24%',
       render: (s) => {
-        const c = classes.find((c) => c.id === s.currentClassId);
+        const c = classById.get(s.currentClassId);
         return c ? `Grade ${c.gradeLevel} · ${c.sectionName}` : '—';
       },
     },
@@ -48,21 +72,29 @@ export default function StudentsList() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-ink-primary">Students</h1>
         <p className="text-[13px] text-ink-secondary mt-1">
-          {students.length} learners in SY 2025–2026
+          {loading ? 'Loading…' : `${students.length} learner${students.length === 1 ? '' : 's'}`}
         </p>
       </div>
-      <DataTable<Student>
-        data={students}
-        columns={cols}
-        searchableText={(s) => `${formatLastFirstMiddle(s)} ${s.lrn} ${s.studentNo}`}
-        onRowClick={(s) => navigate(`/students/${s.lrn}`)}
-        searchPlaceholder="Search by name, LRN, or Student No.…"
-        rightActions={
-          <Button onClick={() => navigate('/students/new')}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
-          </Button>
-        }
-      />
+
+      {error ? (
+        <p className="text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      ) : (
+        <DataTable<Student>
+          data={students}
+          columns={cols}
+          searchableText={(s) => `${formatLastFirstMiddle(s)} ${s.lrn} ${s.studentNo}`}
+          onRowClick={(s) => navigate(`/students/${s.lrn}`)}
+          searchPlaceholder="Search by name, LRN, or Student No.…"
+          emptyText={loading ? 'Loading…' : 'No students yet. Click “Add Student” to create one.'}
+          rightActions={
+            <Button onClick={() => navigate('/students/new')}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
+            </Button>
+          }
+        />
+      )}
     </>
   );
 }

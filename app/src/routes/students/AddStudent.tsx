@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { StudentForm } from '@/components/forms/StudentForm';
+import { saveStudent } from '@/lib/db';
 
 export default function AddStudent() {
   const navigate = useNavigate();
@@ -14,7 +15,10 @@ export default function AddStudent() {
         </p>
       </div>
       <StudentForm
-        onSubmit={() => navigate('/students')}
+        onSubmit={async (data) => {
+          await saveStudent(data);
+          navigate(`/students/${data.lrn}`);
+        }}
         onCancel={() => navigate('/students')}
         submitLabel="Save Student"
       />

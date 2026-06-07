@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Users, GraduationCap, UserCog, Settings, BarChart3, LogOut } from 'lucide-react';
 import { SchoolYearSelector } from './SchoolYearSelector';
+import { useAuth } from '@/lib/auth';
 import npsLogo from '@/assets/nps-logo.png';
 import type { SchoolYear } from '@/types';
 
@@ -20,6 +21,7 @@ const navItems = [
 
 export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
   const navigate = useNavigate();
+  const { signOut, email } = useAuth();
   return (
     <aside className="w-[200px] shrink-0 bg-sidebar border-r border-border p-3 flex flex-col gap-3 h-full">
       <div className="flex items-center gap-2 px-1 py-1">
@@ -58,15 +60,16 @@ export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
           <div className="w-7 h-7 rounded-full bg-panel border border-border grid place-items-center text-[11px] font-bold text-ink-secondary">
             R
           </div>
-          <div className="leading-tight">
+          <div className="leading-tight min-w-0">
             <div className="text-[12px] text-ink-primary font-medium">Registrar</div>
-            <div className="text-[10.5px] text-ink-muted">Single role · prototype</div>
+            <div className="text-[10.5px] text-ink-muted truncate max-w-[120px]">{email ?? 'Signed in'}</div>
           </div>
         </div>
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             onNavigate?.();
+            await signOut();
             navigate('/login');
           }}
           className="flex items-center gap-2 px-2 py-1.5 rounded text-[12px] text-ink-secondary hover:bg-panel/60 hover:text-ink-primary"

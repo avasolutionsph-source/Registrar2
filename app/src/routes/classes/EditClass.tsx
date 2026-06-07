@@ -1,12 +1,42 @@
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ClassForm } from '@/components/forms/ClassForm';
-import { getClassById } from '@/lib/studentLookup';
+import { getClass, saveClass } from '@/lib/db';
+import type { ClassRecord } from '@/types';
 
 export default function EditClass() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const klass = id ? getClassById(id) : undefined;
+  const [klass, setKlass] = useState<ClassRecord | null | undefined>(undefined); // undefined = loading
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!id) {
+        setKlass(null);
+        return;
+      }
+      try {
+        const c = await getClass(id);
+        if (!cancelled) setKlass(c);
+      } catch {
+        if (!cancelled) setKlass(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (klass === undefined) {
+    return (
+      <div>
+        <Breadcrumb items={[{ label: 'Classes', to: '/classes' }, { label: '…' }]} />
+        <p className="text-ink-secondary text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!klass) {
     return (
@@ -32,10 +62,18 @@ export default function EditClass() {
       <div className="mb-5">
         <h1 className="text-xl font-bold text-ink-primary">Edit {label}</h1>
         <p className="text-[13px] text-ink-secondary mt-1">
-          Adviser, curriculum, and section name. Roster is managed from the class detail page.
+          Adviser, curriculum, and section name. Roster is managed from each student's record.
         </p>
       </div>
-      <ClassForm klass={klass} onSubmit={back} onCancel={back} submitLabel="Save changes" />
+      <ClassForm
+        klass={klass}
+        onSubmit={async (data) => {
+          await saveClass(data, klass.id);
+          back();
+        }}
+        onCancel={back}
+        submitLabel="Save changes"
+      />
     </>
   );
 }

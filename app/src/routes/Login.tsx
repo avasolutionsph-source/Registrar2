@@ -1,19 +1,34 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth';
 import npsLogo from '@/assets/nps-logo.png';
 import cover from '@/assets/cover.jpeg';
 
 export default function Login() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('registrar@nps.edu.ph');
-  const [password, setPassword] = useState('············');
+  const { signIn, signOut, session, allowed, roleLoading, email } = useAuth();
+  const [emailInput, setEmailInput] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  // Already signed in as a registrar → straight into the app.
+  if (session && allowed) return <Navigate to="/students" replace />;
+
+  // Signed in, but the account's role isn't registrar/admin.
+  const wrongRole = !!session && !roleLoading && !allowed;
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate('/students');
+    setSubmitting(true);
+    setError(null);
+    const res = await signIn(emailInput.trim(), password);
+    setSubmitting(false);
+    if (res.error) setError(res.error);
+    // On success the auth provider resolves the role; the redirect/denied
+    // states above take over on the next render.
   }
 
   return (
@@ -82,92 +97,123 @@ export default function Login() {
               <div className="w-10 2xl:w-12 h-[2px] bg-nps-red/30 mt-3" aria-hidden="true" />
             </div>
 
-            <div className="mt-7 2xl:mt-9 flex flex-col gap-4 2xl:gap-5">
-              {/* Email */}
-              <div>
-                <label
-                  className="text-[12.5px] font-medium text-ink-primary block mb-1.5"
-                  htmlFor="email"
-                >
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="firstname.lastname@nps.edu.ph"
-                    autoComplete="username"
-                    className="pl-10 h-11 2xl:h-12 text-[13.5px] 2xl:text-[14.5px]"
-                  />
+            {wrongRole ? (
+              /* Signed in but not a registrar — explain and let them sign out. */
+              <div className="mt-7 flex flex-col items-center text-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-nps-red/10 grid place-items-center">
+                  <ShieldAlert className="w-5 h-5 text-nps-red" />
                 </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label
-                  className="text-[12.5px] font-medium text-ink-primary block mb-1.5"
-                  htmlFor="password"
+                <p className="text-[13.5px] text-ink-primary font-medium">No registrar access</p>
+                <p className="text-[12.5px] text-ink-secondary">
+                  {email ? (
+                    <>
+                      <span className="font-medium">{email}</span> is signed in, but{' '}
+                    </>
+                  ) : null}
+                  this account isn't assigned the registrar role. Contact the school admin.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="mt-1 h-11 px-6 rounded-md border border-border text-[13.5px] font-semibold text-ink-primary hover:bg-app"
                 >
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Your password"
-                    autoComplete="current-password"
-                    className="pl-10 pr-11 h-11 2xl:h-12 text-[13.5px] 2xl:text-[14.5px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink-primary"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <div className="mt-7 2xl:mt-9 flex flex-col gap-4 2xl:gap-5">
+                {/* Email */}
+                <div>
+                  <label className="text-[12.5px] font-medium text-ink-primary block mb-1.5" htmlFor="email">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="firstname.lastname@nps.edu.ph"
+                      autoComplete="username"
+                      required
+                      className="pl-10 h-11 2xl:h-12 text-[13.5px] 2xl:text-[14.5px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="text-[12.5px] font-medium text-ink-primary block mb-1.5" htmlFor="password">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Your password"
+                      autoComplete="current-password"
+                      required
+                      className="pl-10 pr-11 h-11 2xl:h-12 text-[13.5px] 2xl:text-[14.5px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((s) => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink-primary"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <p className="text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                {/* Sign in */}
+                <button
+                  type="submit"
+                  disabled={submitting || roleLoading}
+                  className="group w-full h-12 2xl:h-[52px] mt-2 rounded-md bg-nps-red hover:bg-nps-red-dark text-white font-semibold text-[15px] 2xl:text-[16px] transition-colors shadow-md shadow-nps-red/25 flex items-center justify-center relative disabled:opacity-60"
+                >
+                  <span>{submitting ? 'Signing in…' : 'Sign in'}</span>
+                  {!submitting && (
+                    <ArrowRight className="w-4 h-4 absolute right-5 transition-transform group-hover:translate-x-0.5" />
+                  )}
+                </button>
+
+                {/* "or" divider */}
+                <div className="flex items-center gap-3 my-1 text-[11.5px] text-ink-muted">
+                  <div className="flex-1 h-px bg-border-soft" />
+                  <span>or</span>
+                  <div className="flex-1 h-px bg-border-soft" />
+                </div>
+
+                <p className="text-[12.5px] text-ink-secondary text-center">
+                  Forgot your password?{' '}
+                  <a
+                    href="#"
+                    onClick={(e) => e.preventDefault()}
+                    className="text-nps-red hover:text-nps-red-dark font-semibold"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                    Contact the school admin.
+                  </a>
+                </p>
               </div>
-
-              {/* Sign in */}
-              <button
-                type="submit"
-                className="group w-full h-12 2xl:h-[52px] mt-2 rounded-md bg-nps-red hover:bg-nps-red-dark text-white font-semibold text-[15px] 2xl:text-[16px] transition-colors shadow-md shadow-nps-red/25 flex items-center justify-center relative"
-              >
-                <span>Sign in</span>
-                <ArrowRight className="w-4 h-4 absolute right-5 transition-transform group-hover:translate-x-0.5" />
-              </button>
-
-              {/* "or" divider */}
-              <div className="flex items-center gap-3 my-1 text-[11.5px] text-ink-muted">
-                <div className="flex-1 h-px bg-border-soft" />
-                <span>or</span>
-                <div className="flex-1 h-px bg-border-soft" />
-              </div>
-
-              <p className="text-[12.5px] text-ink-secondary text-center">
-                Forgot your password?{' '}
-                <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="text-nps-red hover:text-nps-red-dark font-semibold"
-                >
-                  Contact the school admin.
-                </a>
-              </p>
-            </div>
+            )}
           </form>
         </div>
       </div>

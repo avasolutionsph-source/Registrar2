@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Pencil, KeyRound, FileText, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,12 +7,56 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { teachers, classes, students } from '@/mocks';
+import { getTeacher, listClasses, listStudents } from '@/lib/db';
+import type { Teacher, ClassRecord } from '@/types';
 
 export default function TeacherDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const teacher = teachers.find((t) => String(t.id) === id);
+  const [teacher, setTeacher] = useState<Teacher | null | undefined>(undefined); // undefined = loading
+  const [advisedClasses, setAdvisedClasses] = useState<ClassRecord[]>([]);
+  const [rosterByClass, setRosterByClass] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const numId = Number(id);
+      if (!id || Number.isNaN(numId)) {
+        setTeacher(null);
+        return;
+      }
+      try {
+        const [t, classes, students] = await Promise.all([
+          getTeacher(numId),
+          listClasses(),
+          listStudents(),
+        ]);
+        if (cancelled) return;
+        setTeacher(t);
+        const advised = classes.filter((c) => c.adviser.id === numId);
+        setAdvisedClasses(advised);
+        const counts = new Map<string, number>();
+        for (const c of advised) {
+          counts.set(c.id, students.filter((s) => s.currentClassId === c.id).length);
+        }
+        setRosterByClass(counts);
+      } catch {
+        if (!cancelled) setTeacher(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (teacher === undefined) {
+    return (
+      <div>
+        <Breadcrumb items={[{ label: 'Teachers', to: '/teachers' }, { label: '…' }]} />
+        <p className="text-ink-secondary text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!teacher) {
     return (
@@ -22,10 +67,9 @@ export default function TeacherDetail() {
     );
   }
 
-  const advisedClasses = classes.filter((c) => c.adviser.id === teacher.id);
   const isActive = teacher.yearEnded === 0;
   const fullName = `${teacher.title} ${teacher.familyName}, ${teacher.firstName} ${teacher.middleInitial}`;
-  const initials = teacher.firstName.charAt(0) + teacher.familyName.charAt(0);
+  const initials = (teacher.firstName.charAt(0) + teacher.familyName.charAt(0)) || '?';
 
   return (
     <>
@@ -75,10 +119,10 @@ export default function TeacherDetail() {
                 { label: 'Title', value: teacher.title },
                 { label: 'Family Name', value: teacher.familyName },
                 { label: 'First Name', value: teacher.firstName },
-                { label: 'M.I.', value: teacher.middleInitial },
+                { label: 'M.I.', value: teacher.middleInitial || '—' },
                 { label: 'Year started', value: `${teacher.yearStarted}` },
                 { label: 'Year ended', value: isActive ? '— (still active)' : `${teacher.yearEnded}` },
-                { label: 'Curriculum', value: teacher.curriculum ?? '—' },
+                { label: 'Curriculum', value: teacher.curriculum || '—' },
                 { label: 'Email', value: teacher.email },
               ]}
             />
@@ -90,7 +134,7 @@ export default function TeacherDetail() {
             ) : (
               <div className="flex flex-col gap-2">
                 {advisedClasses.map((c) => {
-                  const roster = students.filter((s) => c.studentLrns.includes(s.lrn));
+                  const count = rosterByClass.get(c.id) ?? 0;
                   return (
                     <button
                       key={c.id}
@@ -108,7 +152,7 @@ export default function TeacherDetail() {
                           </div>
                         </div>
                       </div>
-                      <span className="text-[11.5px] text-ink-secondary">{roster.length} learners →</span>
+                      <span className="text-[11.5px] text-ink-secondary">{count} learners →</span>
                     </button>
                   );
                 })}
@@ -118,7 +162,7 @@ export default function TeacherDetail() {
 
           <SectionCard id="gradesheet" heading="Class Grade-Sheet">
             <p className="text-[12.5px] text-ink-secondary px-1">
-              Grade encoding workflow is deferred to phase 2 (teacher-facing). Click an advisory class above to view the roster.
+              Grade encoding workflow is deferred to a later phase. Click an advisory class above to view the roster.
             </p>
           </SectionCard>
         </div>

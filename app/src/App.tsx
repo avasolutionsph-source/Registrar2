@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, RequireRegistrar } from '@/lib/auth';
 import { AppShell } from '@/components/shell/AppShell';
 import StudentDetail from '@/routes/students/StudentDetail';
 import StudentsList from '@/routes/students/StudentsList';
@@ -32,9 +33,11 @@ import Login from '@/routes/Login';
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<AppShell />}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<RequireRegistrar />}>
+            <Route path="/" element={<AppShell />}>
           <Route index element={<Navigate to="/students" replace />} />
           <Route path="students" element={<StudentsList />} />
           <Route path="students/new" element={<AddStudent />} />
@@ -66,8 +69,10 @@ export default function App() {
           <Route path="reports/not-enrolled" element={<NotEnrolled />} />
           <Route path="reports/*" element={<ComingSoon />} />
           <Route path="*" element={<ComingSoon />} />
-        </Route>
-      </Routes>
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

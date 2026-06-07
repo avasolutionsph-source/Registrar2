@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Printer, FileText, IdCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,11 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getStudentByLrn, getClassById } from '@/lib/studentLookup';
+import { getStudent, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
-import type { CredentialState } from '@/types';
+import type { CredentialState, ClassRecord, Student } from '@/types';
 
-const REF_DATE = '2026-05-04'; // mocked "today"
+const REF_DATE = '2026-05-04'; // reference "today" for age display
 
 const credLabels: Record<string, string> = {
   bc: 'BC · Birth Certificate',
@@ -33,25 +33,53 @@ const credText = (s: CredentialState) =>
 export default function StudentDetail() {
   const { lrn } = useParams<{ lrn: string }>();
   const navigate = useNavigate();
-  const student = lrn ? getStudentByLrn(lrn) : undefined;
+  const [student, setStudent] = useState<Student | null | undefined>(undefined); // undefined = loading
+  const [klass, setKlass] = useState<ClassRecord | undefined>();
   const [printDoc, setPrintDoc] = useState<string | null>(null);
   const openPrintPreview = (docName: string) => setPrintDoc(docName);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!lrn) {
+        setStudent(null);
+        return;
+      }
+      try {
+        const [s, classes] = await Promise.all([getStudent(lrn), listClasses()]);
+        if (cancelled) return;
+        setStudent(s);
+        setKlass(s ? classes.find((c) => c.id === s.currentClassId) : undefined);
+      } catch {
+        if (!cancelled) setStudent(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lrn]);
+
+  if (student === undefined) {
+    return (
+      <div>
+        <Breadcrumb items={[{ label: 'Students', to: '/students' }, { label: '…' }]} />
+        <p className="text-ink-secondary text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!student) {
     return (
       <div>
-        <Breadcrumb
-          items={[{ label: 'Students', to: '/students' }, { label: 'Not found' }]}
-        />
+        <Breadcrumb items={[{ label: 'Students', to: '/students' }, { label: 'Not found' }]} />
         <p className="text-ink-secondary text-sm">No student with LRN {lrn}.</p>
       </div>
     );
   }
 
-  const klass = getClassById(student.currentClassId);
   const fullName = formatLastFirstMiddle(student);
-  const initials = student.firstName.charAt(0) + student.lastName.charAt(0);
-  const age = ageOnDate(student.birthdate, REF_DATE);
+  const initials = (student.firstName.charAt(0) + student.lastName.charAt(0)) || '?';
+  const age = student.birthdate ? ageOnDate(student.birthdate, REF_DATE) : null;
 
   const anchors = [
     { id: 'profile', label: 'Profile' },
@@ -78,7 +106,7 @@ export default function StudentDetail() {
           subtitle={klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—'}
           ids={[
             { label: 'LRN', value: <span className="font-mono">{student.lrn}</span> },
-            { label: 'Student No.', value: <span className="font-mono">{student.studentNo}</span> },
+            { label: 'Student No.', value: <span className="font-mono">{student.studentNo || '—'}</span> },
             { label: 'Status', value: <StatusBadge tone="ok">{student.status}</StatusBadge> },
           ]}
           actions={
@@ -114,7 +142,7 @@ export default function StudentDetail() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => openPrintPreview('SF 10 — Learner\'s Permanent Record')}
+                onClick={() => openPrintPreview("SF 10 — Learner's Permanent Record")}
               >
                 <FileText className="w-3.5 h-3.5" /> SF 10
               </Button>
@@ -129,13 +157,15 @@ export default function StudentDetail() {
               rows={[
                 {
                   label: 'Birthdate',
-                  value: `${formatBirthdate(student.birthdate)} (${age} yrs)`,
+                  value: student.birthdate
+                    ? `${formatBirthdate(student.birthdate)}${age != null ? ` (${age} yrs)` : ''}`
+                    : '—',
                 },
                 { label: 'Gender', value: student.gender },
-                { label: 'Religion', value: student.religion },
-                { label: 'Address', value: student.address },
-                { label: 'Contact', value: student.contactNumber },
-                { label: 'Curriculum', value: student.curriculum },
+                { label: 'Religion', value: student.religion || '—' },
+                { label: 'Address', value: student.address || '—' },
+                { label: 'Contact', value: student.contactNumber || '—' },
+                { label: 'Curriculum', value: student.curriculum || '—' },
               ]}
             />
           </SectionCard>
@@ -143,10 +173,10 @@ export default function StudentDetail() {
           <SectionCard id="family" heading="Family">
             <KeyValueGrid
               rows={[
-                { label: 'Father', value: student.fatherName },
-                { label: 'Mother (maiden)', value: student.motherMaidenName },
+                { label: 'Father', value: student.fatherName || '—' },
+                { label: 'Mother (maiden)', value: student.motherMaidenName || '—' },
                 { label: 'Guardian', value: student.guardianRelation },
-                { label: 'Parent contact', value: student.contactNumber },
+                { label: 'Parent contact', value: student.contactNumber || '—' },
               ]}
             />
           </SectionCard>
@@ -154,7 +184,7 @@ export default function StudentDetail() {
           <SectionCard id="enrolment" heading="Enrolment">
             <KeyValueGrid
               rows={[
-                { label: 'Current SY', value: student.currentSY },
+                { label: 'Current SY', value: student.currentSY || '—' },
                 {
                   label: 'Class',
                   value: klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—',

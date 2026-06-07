@@ -1,19 +1,43 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { teachers, classes } from '@/mocks';
-import type { Teacher } from '@/types';
-
-function advisedSection(t: Teacher) {
-  const klass = classes.find((c) => c.adviser.id === t.id);
-  return klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—';
-}
+import { listTeachers, listClasses } from '@/lib/db';
+import type { Teacher, ClassRecord } from '@/types';
 
 export default function TeachersList() {
   const navigate = useNavigate();
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [t, c] = await Promise.all([listTeachers(), listClasses()]);
+        if (cancelled) return;
+        setTeachers(t);
+        setClasses(c);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load teachers.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const advisedSection = (t: Teacher) => {
+    const klass = classes.find((c) => c.adviser.id === t.id);
+    return klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—';
+  };
 
   const cols: Column<Teacher>[] = [
     {
@@ -42,20 +66,30 @@ export default function TeachersList() {
       <Breadcrumb items={[{ label: 'Teachers' }]} />
       <div className="mb-4">
         <h1 className="text-xl font-bold text-ink-primary">Teachers</h1>
-        <p className="text-[13px] text-ink-secondary mt-1">{teachers.length} on roster</p>
+        <p className="text-[13px] text-ink-secondary mt-1">
+          {loading ? 'Loading…' : `${teachers.length} on roster`}
+        </p>
       </div>
-      <DataTable<Teacher>
-        data={teachers}
-        columns={cols}
-        searchableText={(t) => `${t.familyName} ${t.firstName} ${t.email}`}
-        onRowClick={(t) => navigate(`/teachers/${t.id}`)}
-        searchPlaceholder="Search by name or email…"
-        rightActions={
-          <Button onClick={() => navigate('/teachers/new')}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Add Teacher
-          </Button>
-        }
-      />
+
+      {error ? (
+        <p className="text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      ) : (
+        <DataTable<Teacher>
+          data={teachers}
+          columns={cols}
+          searchableText={(t) => `${t.familyName} ${t.firstName} ${t.email}`}
+          onRowClick={(t) => navigate(`/teachers/${t.id}`)}
+          searchPlaceholder="Search by name or email…"
+          emptyText={loading ? 'Loading…' : 'No teachers yet. Click “Add Teacher” to create one.'}
+          rightActions={
+            <Button onClick={() => navigate('/teachers/new')}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Teacher
+            </Button>
+          }
+        />
+      )}
     </>
   );
 }

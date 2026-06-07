@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, FileText, Users as UsersIcon, Check, X, Pencil } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,9 +8,10 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { classes, students } from '@/mocks';
+import { getClass, listStudents } from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
 import { formatLastFirstMiddle } from '@/lib/format';
+import type { ClassRecord, Student } from '@/types';
 
 const TAB_KEYS = [
   'list',
@@ -55,9 +56,40 @@ const CRED_KEYS: ['bc', 'bp', 'hc', 'pix', 'rf', 'f137', 'rc', 'gmc'] = [
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
-  const klass = classes.find((c) => c.id === id);
   const navigate = useNavigate();
+  const [klass, setKlass] = useState<ClassRecord | null | undefined>(undefined); // undefined = loading
+  const [roster, setRoster] = useState<Student[]>([]);
   const [printDoc, setPrintDoc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!id) {
+        setKlass(null);
+        return;
+      }
+      try {
+        const [c, students] = await Promise.all([getClass(id), listStudents()]);
+        if (cancelled) return;
+        setKlass(c);
+        setRoster(c ? students.filter((s) => s.currentClassId === c.id) : []);
+      } catch {
+        if (!cancelled) setKlass(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (klass === undefined) {
+    return (
+      <div>
+        <Breadcrumb items={[{ label: 'Classes', to: '/classes' }, { label: '…' }]} />
+        <p className="text-ink-secondary text-sm">Loading…</p>
+      </div>
+    );
+  }
 
   if (!klass) {
     return (
@@ -68,7 +100,6 @@ export default function ClassDetail() {
     );
   }
 
-  const roster = students.filter((s) => klass.studentLrns.includes(s.lrn));
   const males = roster.filter((s) => s.gender === 'Male');
   const females = roster.filter((s) => s.gender === 'Female');
   const adviserName = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`;
@@ -176,6 +207,11 @@ export default function ClassDetail() {
                     ))}
                   </div>
                 </div>
+                {roster.length === 0 && (
+                  <p className="text-[12.5px] text-ink-secondary px-1 pt-3">
+                    No learners assigned to this class yet. Set a student's class from their record.
+                  </p>
+                )}
               </SectionCard>
             </TabsContent>
 
@@ -462,7 +498,7 @@ export default function ClassDetail() {
             <TabsContent value="reportcard">
               <SectionCard heading="Report Card — batch print queue">
                 <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-                  Generates SF 9 / Form 138 PDFs for the entire roster. PDF generation is wired to the backend in phase 2.
+                  Generates SF 9 / Form 138 PDFs for the entire roster. PDF generation is wired to the backend in a later phase.
                 </p>
                 <div className="flex justify-end mb-3">
                   <Button variant="outline" className="gap-2">
@@ -545,7 +581,7 @@ export default function ClassDetail() {
                   <tbody>
                     <tr>
                       <td colSpan={4} className="py-6 text-center text-ink-secondary">
-                        No transferees recorded for this section in SY 2025–2026.
+                        No transferees recorded for this section.
                       </td>
                     </tr>
                   </tbody>

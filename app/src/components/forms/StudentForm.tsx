@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { classes } from '@/mocks';
-import type { Student } from '@/types';
+import { listClasses, getActiveSchoolYear, type StudentInput } from '@/lib/db';
+import type { Student, ClassRecord, Gender, CredentialStatus } from '@/types';
 
 const RELIGIONS = [
   'Roman Catholic',
@@ -30,7 +30,7 @@ const CRED_FIELDS: { key: keyof Student['credentials']; label: string; gradeNote
 
 interface Props {
   student?: Student;
-  onSubmit: () => void;
+  onSubmit: (data: StudentInput) => Promise<void>;
   onCancel: () => void;
   submitLabel: string;
 }
@@ -41,14 +41,93 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       ? Object.fromEntries(Object.entries(student.credentials).map(([k, v]) => [k, v === 'on-file']))
       : {},
   );
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [classId, setClassId] = useState<string>(student?.currentClassId ?? '');
+  const [syCode, setSyCode] = useState<string>(student?.currentSY ?? '');
+  const [syLabel, setSyLabel] = useState<string>('Active school year');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reference data for the dropdowns (classes) and the active SY.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cls, sy] = await Promise.all([listClasses(), getActiveSchoolYear()]);
+        if (cancelled) return;
+        setClasses(cls);
+        if (sy) {
+          setSyLabel(sy.label);
+          if (!student) setSyCode(sy.code);
+        }
+      } catch {
+        /* dropdown stays empty — saving still works */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [student]);
 
   function toggleCred(key: string) {
     setCredentials((c) => ({ ...c, [key]: !c[key] }));
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    onSubmit();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    const get = (k: string) => String(fd.get(k) ?? '').trim();
+
+    const creds = Object.fromEntries(
+      CRED_FIELDS.map((c) => [c.key, credentials[c.key] ? 'on-file' : 'na']),
+    ) as unknown as CredentialStatus;
+
+    const input: StudentInput = {
+      lrn: get('lrn'),
+      studentNo: get('studentNo'),
+      firstName: get('firstName'),
+      middleName: get('middleName'),
+      lastName: get('lastName'),
+      extension: get('extension'),
+      gender: (get('gender') || 'Male') as Gender,
+      birthdate: get('birthdate'),
+      religion: get('religion') || 'Roman Catholic',
+      address: get('address'),
+      contactNumber: get('contactNumber'),
+      fatherName: get('fatherName'),
+      motherMaidenName: get('motherMaidenName'),
+      guardianRelation: (get('guardianRelation') || 'Father') as Student['guardianRelation'],
+      currentSY: syCode,
+      currentClassId: classId,
+      curriculum: get('curriculum') || 'Kto12-B',
+      status: student?.status ?? 'Active',
+      elemSchoolGraduatedFrom: get('elemSchoolGraduatedFrom'),
+      schoolType: get('schoolType') as Student['schoolType'],
+      credentials: creds,
+    };
+
+    if (!/^\d{12}$/.test(input.lrn)) {
+      setError('LRN must be exactly 12 digits.');
+      return;
+    }
+    if (!input.firstName || !input.lastName) {
+      setError('First name and last name are required.');
+      return;
+    }
+    if (!input.motherMaidenName) {
+      setError("Mother's maiden name is required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onSubmit(input);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save the student.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -56,29 +135,30 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       <SectionCard heading="Identity">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="LRN" hint="12 digits. First 6 = origin school ID." required>
-            <Input maxLength={12} placeholder="403875240042" defaultValue={student?.lrn} />
+            <Input name="lrn" maxLength={12} placeholder="403875240042" defaultValue={student?.lrn} required />
           </Field>
           <Field label="Student No.">
             <Input
+              name="studentNo"
               defaultValue={student?.studentNo}
-              placeholder={student ? '' : 'Auto-generated on save'}
+              placeholder={student ? '' : 'Optional'}
               disabled={!student}
             />
           </Field>
           <Field label="First Name" required>
-            <Input placeholder="e.g. Maria Clara" defaultValue={student?.firstName} />
+            <Input name="firstName" placeholder="e.g. Maria Clara" defaultValue={student?.firstName} required />
           </Field>
           <Field label="Middle Name (Mother's Maiden Surname)">
-            <Input placeholder="e.g. Reyes" defaultValue={student?.middleName} />
+            <Input name="middleName" placeholder="e.g. Reyes" defaultValue={student?.middleName} />
           </Field>
           <Field label="Last Name" required>
-            <Input placeholder="e.g. Dela Cruz" defaultValue={student?.lastName} />
+            <Input name="lastName" placeholder="e.g. Dela Cruz" defaultValue={student?.lastName} required />
           </Field>
           <Field label="Extension">
-            <Input placeholder="Jr., II, III (optional)" defaultValue={student?.extension} />
+            <Input name="extension" placeholder="Jr., II, III (optional)" defaultValue={student?.extension} />
           </Field>
           <Field label="Gender" required>
-            <Select defaultValue={student?.gender ?? ''}>
+            <Select name="gender" defaultValue={student?.gender ?? ''} required>
               <option value="" disabled>
                 Choose…
               </option>
@@ -87,10 +167,10 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
             </Select>
           </Field>
           <Field label="Birthdate" required>
-            <Input type="date" defaultValue={student?.birthdate} />
+            <Input name="birthdate" type="date" defaultValue={student?.birthdate} required />
           </Field>
           <Field label="Religion">
-            <Select defaultValue={student?.religion ?? 'Roman Catholic'}>
+            <Select name="religion" defaultValue={student?.religion ?? 'Roman Catholic'}>
               {RELIGIONS.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -105,12 +185,14 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="Address" required span={2}>
             <Input
+              name="address"
               placeholder="Barangay, City/Municipality, Province"
               defaultValue={student?.address}
+              required
             />
           </Field>
           <Field label="Contact Number" required>
-            <Input placeholder="0917 xxx xxxx" defaultValue={student?.contactNumber} />
+            <Input name="contactNumber" placeholder="0917 xxx xxxx" defaultValue={student?.contactNumber} required />
           </Field>
         </div>
       </SectionCard>
@@ -118,13 +200,18 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       <SectionCard heading="Family">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="Father's Name">
-            <Input placeholder="Full name" defaultValue={student?.fatherName} />
+            <Input name="fatherName" placeholder="Full name" defaultValue={student?.fatherName} />
           </Field>
           <Field label="Mother's Maiden Name" required>
-            <Input placeholder="Full name (maiden)" defaultValue={student?.motherMaidenName} />
+            <Input
+              name="motherMaidenName"
+              placeholder="Full name (maiden)"
+              defaultValue={student?.motherMaidenName}
+              required
+            />
           </Field>
           <Field label="Guardian">
-            <Select defaultValue={student?.guardianRelation ?? 'Father'}>
+            <Select name="guardianRelation" defaultValue={student?.guardianRelation ?? 'Father'}>
               <option value="Father">Father</option>
               <option value="Mother">Mother</option>
               <option value="Other">Other</option>
@@ -136,16 +223,14 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       <SectionCard heading="School Context">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="School Year" required>
-            <Input value="SY 2025–2026" disabled />
+            <Input value={syLabel} disabled />
           </Field>
           <Field label="Curriculum">
-            <Input defaultValue={student?.curriculum ?? 'Kto12-B'} />
+            <Input name="curriculum" defaultValue={student?.curriculum ?? 'Kto12-B'} />
           </Field>
-          <Field label="Class (Grade & Section)" required span={2}>
-            <Select defaultValue={student?.currentClassId ?? ''}>
-              <option value="" disabled>
-                Choose a class…
-              </option>
+          <Field label="Class (Grade & Section)" span={2}>
+            <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+              <option value="">— None / unassigned —</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
                   Grade {c.gradeLevel} · {c.sectionName} · {c.adviser.title} {c.adviser.familyName}
@@ -163,12 +248,13 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="Elementary School Graduated From">
             <Input
+              name="elemSchoolGraduatedFrom"
               placeholder="School name (or leave blank)"
               defaultValue={student?.elemSchoolGraduatedFrom}
             />
           </Field>
           <Field label="School Type">
-            <Select defaultValue={student?.schoolType ?? ''}>
+            <Select name="schoolType" defaultValue={student?.schoolType ?? ''}>
               <option value="">—</option>
               <option value="Public">Public</option>
               <option value="Private">Private</option>
@@ -200,11 +286,19 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
         </div>
       </SectionCard>
 
+      {error && (
+        <p className="text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      )}
+
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>
-        <Button type="submit">{submitLabel}</Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Saving…' : submitLabel}
+        </Button>
       </div>
     </form>
   );
