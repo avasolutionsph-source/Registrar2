@@ -8,6 +8,8 @@ import type {
   ClassRecord,
   Teacher,
   SchoolYear,
+  Subject,
+  SubjectCategory,
   Gender,
   GradeLevel,
   CredentialStatus,
@@ -300,6 +302,25 @@ export async function deleteClass(id: string): Promise<void> {
 }
 
 // ── school years ──
+function rowToSchoolYear(r: Row): SchoolYear {
+  return {
+    code: str(r.code) as unknown as SchoolYear['code'],
+    label: str(r.label),
+    startDate: str(r.start_date),
+    endDate: str(r.end_date),
+    isActive: Boolean(r.is_active),
+  };
+}
+
+export async function listSchoolYears(): Promise<SchoolYear[]> {
+  const { data, error } = await client()
+    .from('reg_school_years')
+    .select('*')
+    .order('code', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToSchoolYear);
+}
+
 export async function getActiveSchoolYear(): Promise<SchoolYear | null> {
   const { data, error } = await client()
     .from('reg_school_years')
@@ -309,12 +330,48 @@ export async function getActiveSchoolYear(): Promise<SchoolYear | null> {
     .limit(1);
   if (error) throw error;
   const r = data?.[0];
-  if (!r) return null;
-  return {
-    code: str(r.code) as unknown as SchoolYear['code'],
-    label: str(r.label),
-    startDate: str(r.start_date),
-    endDate: str(r.end_date),
-    isActive: Boolean(r.is_active),
-  };
+  return r ? rowToSchoolYear(r) : null;
+}
+
+// ── subjects ──
+export async function listSubjects(): Promise<Subject[]> {
+  const { data, error } = await client()
+    .from('reg_subjects')
+    .select('*')
+    .order('code', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    code: str(r.code),
+    fullName: str(r.full_name),
+    abbreviation: str(r.abbreviation),
+    category: (str(r.category) || 'Core') as SubjectCategory,
+  }));
+}
+
+// ── schools (transferee origin master list) ──
+export interface SchoolRecord {
+  id: string; // 6-digit DepEd School ID (matches LRN[0:6])
+  name: string;
+  address: string;
+  district: string;
+  division: string;
+  region: string;
+  type: 'Public' | 'Private' | 'SUC';
+}
+
+export async function listSchools(): Promise<SchoolRecord[]> {
+  const { data, error } = await client()
+    .from('reg_schools')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: str(r.code),
+    name: str(r.name),
+    address: str(r.address),
+    district: str(r.district),
+    division: str(r.division),
+    region: str(r.region),
+    type: (str(r.type) || 'Public') as SchoolRecord['type'],
+  }));
 }

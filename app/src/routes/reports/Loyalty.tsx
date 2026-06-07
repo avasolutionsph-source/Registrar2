@@ -1,11 +1,13 @@
+import { useEffect, useState } from 'react';
 import { Printer, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { students, classes } from '@/mocks';
+import { listStudents, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
+import type { Student, ClassRecord } from '@/types';
 
 // A "loyalty awardee" is a student whose loyaltyYears equals or exceeds the
 // current grade level's full-program length (ie. continuous NPS enrollment).
@@ -17,6 +19,25 @@ const TIERS = [
 
 export default function Loyalty() {
   const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        if (cancelled) return;
+        setStudents(s);
+        setClasses(c);
+      } catch {
+        /* leave empty — tiers show "no qualifying students" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>

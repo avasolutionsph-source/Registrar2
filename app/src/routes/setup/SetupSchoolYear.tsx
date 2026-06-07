@@ -1,17 +1,41 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { schoolYears } from '@/mocks';
+import { listSchoolYears } from '@/lib/db';
+import type { SchoolYear } from '@/types';
 
 const QUARTERS = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
 const MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
 
 export default function SetupSchoolYear() {
-  const active = schoolYears.find((sy) => sy.isActive)!;
-  const [, setSelected] = useState(active.code);
+  const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [, setSelected] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listSchoolYears();
+        if (cancelled) return;
+        setSchoolYears(rows);
+        const a = rows.find((sy) => sy.isActive) ?? rows[0];
+        if (a) setSelected(a.code);
+      } catch {
+        /* leave empty */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const active = schoolYears.find((sy) => sy.isActive) ?? schoolYears[0];
 
   return (
     <>
@@ -25,6 +49,12 @@ export default function SetupSchoolYear() {
         </p>
       </div>
 
+      {loading ? (
+        <p className="text-[13px] text-ink-secondary">Loading…</p>
+      ) : !active ? (
+        <p className="text-[13px] text-ink-secondary">No school years configured yet.</p>
+      ) : (
+      <>
       <div className="flex gap-2 mb-4 flex-wrap">
         {schoolYears.map((sy) => (
           <button
@@ -90,6 +120,8 @@ export default function SetupSchoolYear() {
           <Button>Save changes</Button>
         </div>
       </div>
+      </>
+      )}
     </>
   );
 }

@@ -58,10 +58,19 @@ create table if not exists reg_subjects (
 
 -- ── 4. schools (transferee origin; first 6 digits of an LRN) ─────────────
 create table if not exists reg_schools (
-  code  text primary key,
-  name  text not null,
-  type  text default ''                   -- Public | Private | SUC
+  code      text primary key,             -- 6-digit DepEd School ID
+  name      text not null,
+  address   text default '',
+  district  text default '',
+  division  text default '',
+  region    text default '',
+  type      text default ''               -- Public | Private | SUC
 );
+-- bring older deployments up to the current shape
+alter table reg_schools add column if not exists address  text default '';
+alter table reg_schools add column if not exists district text default '';
+alter table reg_schools add column if not exists division text default '';
+alter table reg_schools add column if not exists region   text default '';
 
 -- ── 5. classes / sections (per school year) ──────────────────────────────
 create table if not exists reg_classes (
@@ -139,4 +148,28 @@ end $$;
 -- ── 8. seed: the active school year (so the SY selector has a value) ──────
 insert into reg_school_years (code, label, start_date, end_date, is_active) values
   ('2025-2026', 'SY 2025–2026', '2025-06-01', '2026-03-31', true)
+on conflict (code) do nothing;
+
+-- ── 9. seed: core subject catalog (legacy NPS Batch 9 codes) ─────────────
+insert into reg_subjects (code, full_name, abbreviation, category) values
+  ('CLE',   'Christian Living Education',                'CLE',   'Core'),
+  ('LAN',   'Language',                                  'Lang',  'Core'),
+  ('REA',   'Reading',                                   'Rdg',   'Core'),
+  ('MAT',   'Mathematics',                               'Math',  'Core'),
+  ('FIL',   'Filipino',                                  'Fil',   'Core'),
+  ('MAPEH', 'MAPEH',                                     'MAPEH', 'Core'),
+  ('SCI',   'Science',                                   'Sci',   'Core'),
+  ('ESP',   'Edukasyon sa Pagpapakatao',                 'EsP',   'Core'),
+  ('EPP',   'Edukasyong Pantahanan at Pangkabuhayan',    'EPP',   'Core'),
+  ('GMC',   'Good Moral Conduct',                        'GMC',   'Core')
+on conflict (code) do nothing;
+
+-- ── 10. seed: schools master list (transferee origins; real DepEd IDs) ───
+insert into reg_schools (code, name, address, district, division, region, type) values
+  ('403875', 'Naga Parochial School',                       'Caceres St., Naga City',     'Naga City',  'Naga City',     'V', 'Private'),
+  ('403870', 'San Francisco Elementary School',             'San Francisco, Naga City',   'Naga City',  'Naga City',     'V', 'Public'),
+  ('410553', 'Calabanga Central School',                    'Calabanga, Camarines Sur',   'Calabanga',  'Camarines Sur', 'V', 'Public'),
+  ('433591', 'St. Joseph Academy',                          'Iriga City',                 'Iriga',      'Iriga City',    'V', 'Private'),
+  ('436513', 'Holy Rosary Minor Seminary',                  'Naga City',                  'Naga City',  'Naga City',     'V', 'Private'),
+  ('436534', 'Bicol University Integrated Laboratory School','Legazpi City',               'Legazpi',    'Albay',         'V', 'SUC')
 on conflict (code) do nothing;

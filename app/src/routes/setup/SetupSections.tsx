@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { classes } from '@/mocks';
-import type { GradeLevel } from '@/types';
+import { listClasses, listStudents } from '@/lib/db';
+import type { GradeLevel, ClassRecord } from '@/types';
 
 const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'Pre-Elementary', levels: ['N1', 'N2', 'K'] },
@@ -19,6 +20,29 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
 
 export default function SetupSections() {
   const navigate = useNavigate();
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [countByClass, setCountByClass] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cls, students] = await Promise.all([listClasses(), listStudents()]);
+        if (cancelled) return;
+        setClasses(cls);
+        const counts = new Map<string, number>();
+        for (const s of students) {
+          if (s.currentClassId) counts.set(s.currentClassId, (counts.get(s.currentClassId) ?? 0) + 1);
+        }
+        setCountByClass(counts);
+      } catch {
+        /* leave empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -64,7 +88,7 @@ export default function SetupSections() {
                         {c.adviser.title} {c.adviser.familyName}
                       </td>
                       <td className="py-1.5 pr-3 text-ink-secondary">{c.curriculum}</td>
-                      <td className="py-1.5 text-right tabular-nums">{c.studentLrns.length}</td>
+                      <td className="py-1.5 text-right tabular-nums">{countByClass.get(c.id) ?? 0}</td>
                     </tr>
                   ))}
                 </tbody>

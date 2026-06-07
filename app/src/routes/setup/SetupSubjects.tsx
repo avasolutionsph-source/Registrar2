@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { subjects } from '@/mocks';
-import type { SubjectCategory } from '@/types';
+import { listSubjects } from '@/lib/db';
+import type { SubjectCategory, Subject } from '@/types';
 
 const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
 
@@ -12,6 +13,23 @@ const toneFor = (cat: SubjectCategory): 'ok' | 'pending' | 'na' =>
   cat === 'Core' ? 'ok' : cat === 'Specialized' ? 'pending' : 'na';
 
 export default function SetupSubjects() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listSubjects();
+        if (!cancelled) setSubjects(rows);
+      } catch {
+        /* leave empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Setup', to: '/setup' }, { label: 'Subjects' }]} />

@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { classes, students } from '@/mocks';
+import { listClasses, listStudents } from '@/lib/db';
 import type { GradeLevel } from '@/types';
 
 interface Row {
@@ -24,23 +25,34 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'SPED', levels: ['S'] },
 ];
 
-function buildRows(): Row[] {
-  return classes.map((c) => {
-    const roster = students.filter((s) => c.studentLrns.includes(s.lrn));
-    const male = roster.filter((s) => s.gender === 'Male').length;
-    const female = roster.filter((s) => s.gender === 'Female').length;
-    return {
-      gradeLevel: c.gradeLevel,
-      sectionName: c.sectionName,
-      male,
-      female,
-      total: male + female,
-    };
-  });
-}
-
 export default function Statistics() {
-  const rows = buildRows();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [classes, students] = await Promise.all([listClasses(), listStudents()]);
+        if (cancelled) return;
+        const built: Row[] = classes.map((c) => {
+          const roster = students.filter((s) => s.currentClassId === c.id);
+          const male = roster.filter((s) => s.gender === 'Male').length;
+          const female = roster.filter((s) => s.gender === 'Female').length;
+          return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, total: male + female };
+        });
+        setRows(built);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load statistics.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -57,6 +69,15 @@ export default function Statistics() {
         </Button>
       </div>
 
+      {error ? (
+        <p className="text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      ) : loading ? (
+        <p className="text-[13px] text-ink-secondary">Loading…</p>
+      ) : rows.every((r) => r.total === 0) ? (
+        <p className="text-[13px] text-ink-secondary">No enrolled students yet.</p>
+      ) : (
       <div className="flex flex-col gap-4">
         {GRADE_GROUPS.map((group) => {
           const groupRows = rows.filter((r) => group.levels.includes(r.gradeLevel));
@@ -100,6 +121,7 @@ export default function Statistics() {
           );
         })}
       </div>
+      )}
     </>
   );
 }

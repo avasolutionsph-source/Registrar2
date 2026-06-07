@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { students, classes } from '@/mocks';
+import { listStudents, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { useNavigate } from 'react-router-dom';
+import type { Student, ClassRecord } from '@/types';
 
 const TERMINAL_GRADES = [
   { key: 'VI', label: 'Grade 6 — graduating Elementary' },
@@ -17,7 +18,26 @@ type TerminalKey = (typeof TERMINAL_GRADES)[number]['key'];
 
 export default function Alumni() {
   const [grade, setGrade] = useState<TerminalKey>('VI');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        if (cancelled) return;
+        setStudents(s);
+        setClasses(c);
+      } catch {
+        /* leave empty — page shows "no candidates" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const matchingClasses = classes.filter((c) => {
     if (grade === 'VI') return c.gradeLevel === 'VI';

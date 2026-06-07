@@ -1,15 +1,41 @@
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { schools, studentsFromSchool } from '@/mocks';
-import type { SchoolRecord } from '@/mocks/schools';
+import { listSchools, listStudents, type SchoolRecord } from '@/lib/db';
 
 const toneForType = (t: SchoolRecord['type']): 'ok' | 'pending' | 'na' =>
   t === 'Private' ? 'ok' : t === 'Public' ? 'pending' : 'na';
 
 export default function SetupSchools() {
+  const [schools, setSchools] = useState<SchoolRecord[]>([]);
+  const [originCounts, setOriginCounts] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [sch, students] = await Promise.all([listSchools(), listStudents()]);
+        if (cancelled) return;
+        setSchools(sch);
+        const counts = new Map<string, number>();
+        for (const s of students) {
+          if (!/^\d{12}$/.test(s.lrn)) continue;
+          const id = s.lrn.slice(0, 6);
+          counts.set(id, (counts.get(id) ?? 0) + 1);
+        }
+        setOriginCounts(counts);
+      } catch {
+        /* leave empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const cols: Column<SchoolRecord>[] = [
     {
       key: 'id',
@@ -36,7 +62,7 @@ export default function SetupSchools() {
       header: 'Origins',
       width: '8%',
       render: (s) => (
-        <span className="tabular-nums text-right block">{studentsFromSchool(s.id).length}</span>
+        <span className="tabular-nums text-right block">{originCounts.get(s.id) ?? 0}</span>
       ),
     },
   ];

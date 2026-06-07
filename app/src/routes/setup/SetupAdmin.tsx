@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
-import { teachers, subjects } from '@/mocks';
+import { listTeachers, listSubjects } from '@/lib/db';
+import type { Teacher, Subject } from '@/types';
 
 const POSITIONS = [
   { key: 'registrar', label: 'Registrar' },
@@ -17,6 +19,26 @@ const POSITIONS = [
 ];
 
 export default function SetupAdmin() {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [t, s] = await Promise.all([listTeachers(), listSubjects()]);
+        if (cancelled) return;
+        setTeachers(t);
+        setSubjects(s);
+      } catch {
+        /* leave dropdowns with just "Vacant" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Setup', to: '/setup' }, { label: 'Admin' }]} />

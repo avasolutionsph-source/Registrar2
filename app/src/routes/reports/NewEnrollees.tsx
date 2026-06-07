@@ -1,14 +1,35 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { students, classes } from '@/mocks';
+import { listStudents, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { schoolIdFromLrn } from '@/lib/lrn';
+import type { Student, ClassRecord } from '@/types';
 
 export default function NewEnrollees() {
   const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        if (cancelled) return;
+        setStudents(s);
+        setClasses(c);
+      } catch {
+        /* leave empty — page shows "no new enrollees" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // First-time NPS enrollees = loyaltyYears <= 1 (joined this SY).
   const newOnes = students.filter((s) => s.loyaltyYears <= 1);
@@ -57,7 +78,7 @@ export default function NewEnrollees() {
                       {klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—'}
                     </td>
                     <td className="py-1.5 pr-3 font-mono text-ink-secondary">
-                      {schoolIdFromLrn(s.lrn)}
+                      {/^\d{12}$/.test(s.lrn) ? schoolIdFromLrn(s.lrn) : '—'}
                     </td>
                     <td className="py-1.5 text-ink-secondary">
                       {s.elemSchoolGraduatedFrom || (

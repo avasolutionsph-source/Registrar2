@@ -1,12 +1,32 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
-import { students, classes } from '@/mocks';
+import { listStudents, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import type { Student } from '@/types';
+import type { Student, ClassRecord } from '@/types';
 
 export default function StudentNo() {
   const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        if (cancelled) return;
+        setStudents(s);
+        setClasses(c);
+      } catch {
+        /* leave empty — table shows no rows */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const cols: Column<Student>[] = [
     {
