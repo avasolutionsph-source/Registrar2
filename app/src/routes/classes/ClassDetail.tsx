@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2, Save } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
@@ -19,6 +19,8 @@ import {
   listTransfersForClass,
   addTransfer,
   deleteTransfer,
+  listEscForClass,
+  saveEsc,
   type Transfer,
 } from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
@@ -82,6 +84,9 @@ export default function ClassDetail() {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [tForm, setTForm] = useState({ name: '', direction: 'in' as 'in' | 'out', date: '', school: '' });
   const [tBusy, setTBusy] = useState(false);
+  const [escState, setEscState] = useState<Record<string, { grantee: boolean; escNo: string }>>({});
+  const [escBusy, setEscBusy] = useState(false);
+  const [escSaved, setEscSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,10 +103,18 @@ export default function ClassDetail() {
           listTransfersForClass(id),
         ]);
         if (cancelled) return;
+        const rosterList = c ? students.filter((s) => s.currentClassId === c.id) : [];
         setKlass(c);
         setSubjects(subs);
         setTransfers(trans);
-        setRoster(c ? students.filter((s) => s.currentClassId === c.id) : []);
+        setRoster(rosterList);
+        if (c && rosterList.length) {
+          const esc = await listEscForClass(rosterList.map((s) => s.lrn), c.sy);
+          if (cancelled) return;
+          const init: Record<string, { grantee: boolean; escNo: string }> = {};
+          for (const s of rosterList) init[s.lrn] = esc[s.lrn] ?? { grantee: false, escNo: '' };
+          setEscState(init);
+        }
       } catch {
         if (!cancelled) setKlass(null);
       }
@@ -160,6 +173,34 @@ export default function ClassDetail() {
       setTransfers((ts) => ts.filter((t) => t.id !== tid));
     } catch {
       // ignore
+    }
+  }
+
+  const setEscGrantee = (lrn: string, v: boolean) => {
+    setEscState((s) => ({ ...s, [lrn]: { ...(s[lrn] ?? { grantee: false, escNo: '' }), grantee: v } }));
+    setEscSaved(false);
+  };
+  const setEscNo = (lrn: string, v: string) => {
+    setEscState((s) => ({ ...s, [lrn]: { ...(s[lrn] ?? { grantee: false, escNo: '' }), escNo: v } }));
+    setEscSaved(false);
+  };
+  async function saveEscRecords() {
+    if (!klass) return;
+    setEscBusy(true);
+    try {
+      await saveEsc(
+        roster.map((s) => ({
+          lrn: s.lrn,
+          sy: klass.sy,
+          grantee: escState[s.lrn]?.grantee ?? false,
+          escNo: escState[s.lrn]?.escNo ?? '',
+        })),
+      );
+      setEscSaved(true);
+    } catch {
+      // ignore — leave edits in place for retry
+    } finally {
+      setEscBusy(false);
     }
   }
 
@@ -600,29 +641,68 @@ export default function ClassDetail() {
 
             <TabsContent value="esc">
               <SectionCard heading="ESC Billing — Education Service Contracting">
-                <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-                  Government subsidy program for private schools. Track per-student ESC eligibility for reimbursement claims.
-                </p>
+                <div className="flex items-start justify-between gap-3 mb-3 px-1">
+                  <p className="text-[11.5px] text-ink-muted">
+                    Mark ESC grantees for SY {klass.sy} and record each certificate number. The subsidy
+                    amount is the fixed government rate (not stored here).
+                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {escSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={escBusy}
+                      onClick={saveEscRecords}
+                    >
+                      <Save className="w-3.5 h-3.5" /> {escBusy ? 'Saving…' : 'Save ESC'}
+                    </Button>
+                  </div>
+                </div>
                 <table className="w-full text-[12px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3 w-[18%]">LRN</th>
                       <th className="py-1.5 pr-3">Learner's Name</th>
-                      <th className="py-1.5 pr-3 w-[14%]">Eligibility</th>
-                      <th className="py-1.5 w-[14%] text-right">Subsidy</th>
+                      <th className="py-1.5 pr-3 w-[12%] text-center">ESC Grantee</th>
+                      <th className="py-1.5 w-[26%]">ESC No.</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3">
-                          <StatusBadge tone="na">N/A — Elem</StatusBadge>
+                    {roster.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-6 text-center text-ink-secondary">
+                          No learners in this section.
                         </td>
-                        <td className="py-1.5 text-right text-ink-muted">—</td>
                       </tr>
-                    ))}
+                    ) : (
+                      roster.map((s) => {
+                        const e = escState[s.lrn] ?? { grantee: false, escNo: '' };
+                        return (
+                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={e.grantee}
+                                onChange={(ev) => setEscGrantee(s.lrn, ev.target.checked)}
+                                className="h-3.5 w-3.5 accent-nps-red align-middle"
+                              />
+                            </td>
+                            <td className="py-1.5">
+                              <input
+                                value={e.escNo}
+                                onChange={(ev) => setEscNo(s.lrn, ev.target.value)}
+                                placeholder={e.grantee ? 'Certificate / QVR no.' : ''}
+                                disabled={!e.grantee}
+                                className="w-full max-w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </SectionCard>

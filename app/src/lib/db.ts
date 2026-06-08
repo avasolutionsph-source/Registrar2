@@ -352,6 +352,40 @@ export async function deleteTransfer(id: number): Promise<void> {
   if (error) throw error;
 }
 
+// ── ESC grants (Education Service Contracting) ──
+export interface EscRecord {
+  grantee: boolean;
+  escNo: string;
+}
+
+export async function listEscForClass(lrns: string[], sy: string): Promise<Record<string, EscRecord>> {
+  if (lrns.length === 0) return {};
+  const { data, error } = await client()
+    .from('reg_esc_grants')
+    .select('lrn, grantee, esc_no')
+    .eq('sy', sy)
+    .in('lrn', lrns);
+  if (error) throw error;
+  const out: Record<string, EscRecord> = {};
+  for (const r of data ?? []) out[str(r.lrn)] = { grantee: Boolean(r.grantee), escNo: str(r.esc_no) };
+  return out;
+}
+
+export async function saveEsc(
+  records: { lrn: string; sy: string; grantee: boolean; escNo: string }[],
+): Promise<void> {
+  if (records.length === 0) return;
+  const rows = records.map((r) => ({
+    lrn: r.lrn,
+    sy: r.sy,
+    grantee: r.grantee,
+    esc_no: r.escNo || null,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await client().from('reg_esc_grants').upsert(rows, { onConflict: 'lrn,sy' });
+  if (error) throw error;
+}
+
 // ── teachers ──
 function teacherToRow(t: TeacherInput): Row {
   return {
