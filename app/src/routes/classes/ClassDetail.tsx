@@ -14,7 +14,7 @@ import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
 import {
   getClass,
-  listStudents,
+  listStudentsByClass,
   listSubjects,
   listTransfersForClass,
   addTransfer,
@@ -96,14 +96,14 @@ export default function ClassDetail() {
         return;
       }
       try {
-        const [c, students, subs, trans] = await Promise.all([
+        const [c, roster, subs, trans] = await Promise.all([
           getClass(id),
-          listStudents(),
+          listStudentsByClass(id),
           listSubjects(),
           listTransfersForClass(id),
         ]);
         if (cancelled) return;
-        const rosterList = c ? students.filter((s) => s.currentClassId === c.id) : [];
+        const rosterList = c ? roster : [];
         setKlass(c);
         setSubjects(subs);
         setTransfers(trans);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
-import { listStudents, listClasses } from '@/lib/db';
+import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import type { Student, ClassRecord } from '@/types';
 
@@ -15,7 +15,7 @@ export default function StudentNo() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        const [s, c] = await Promise.all([listStudentsLite(), listClasses()]);
         if (cancelled) return;
         setStudents(s);
         setClasses(c);

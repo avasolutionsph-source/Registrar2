@@ -3,7 +3,7 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listClasses, listStudents } from '@/lib/db';
+import { listClasses, listStudentsLite } from '@/lib/db';
 import type { GradeLevel } from '@/types';
 
 interface Row {
@@ -34,7 +34,7 @@ export default function Statistics() {
     let cancelled = false;
     (async () => {
       try {
-        const [classes, students] = await Promise.all([listClasses(), listStudents()]);
+        const [classes, students] = await Promise.all([listClasses(), listStudentsLite()]);
         if (cancelled) return;
         const built: Row[] = classes.map((c) => {
           const roster = students.filter((s) => s.currentClassId === c.id);

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { listSchools, listStudents, type SchoolRecord } from '@/lib/db';
+import { listSchools, listStudentsLite, type SchoolRecord } from '@/lib/db';
 
 const toneForType = (t: SchoolRecord['type']): 'ok' | 'pending' | 'na' =>
   t === 'Private' ? 'ok' : t === 'Public' ? 'pending' : 'na';
@@ -17,7 +17,7 @@ export default function SetupSchools() {
     let cancelled = false;
     (async () => {
       try {
-        const [sch, students] = await Promise.all([listSchools(), listStudents()]);
+        const [sch, students] = await Promise.all([listSchools(), listStudentsLite()]);
         if (cancelled) return;
         setSchools(sch);
         const counts = new Map<string, number>();

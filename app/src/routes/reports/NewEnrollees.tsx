@@ -4,7 +4,7 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listStudents, listClasses } from '@/lib/db';
+import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { schoolIdFromLrn } from '@/lib/lrn';
 import type { Student, ClassRecord } from '@/types';
@@ -18,7 +18,7 @@ export default function NewEnrollees() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, c] = await Promise.all([listStudents(), listClasses()]);
+        const [s, c] = await Promise.all([listStudentsLite(), listClasses()]);
         if (cancelled) return;
         setStudents(s);
         setClasses(c);

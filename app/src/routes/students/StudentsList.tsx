@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { listStudents, listClasses } from '@/lib/db';
+import { listStudentsLite, listClasses } from '@/lib/db';
 import type { Student, ClassRecord } from '@/types';
 import { formatLastFirstMiddle } from '@/lib/format';
 
@@ -20,7 +20,7 @@ export default function StudentsList() {
     let cancelled = false;
     (async () => {
       try {
-        const [st, cls] = await Promise.all([listStudents(), listClasses()]);
+        const [st, cls] = await Promise.all([listStudentsLite(), listClasses()]);
         if (cancelled) return;
         setStudents(st);
         setClassById(new Map(cls.map((c) => [c.id, c])));

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
-import { listClasses, listStudents } from '@/lib/db';
-import type { ClassRecord, GradeLevel } from '@/types';
+import { listClasses, listStudentsLite } from '@/lib/db';
+import { isAllTime } from '@/types';
+import type { ClassRecord, GradeLevel, SchoolYear } from '@/types';
 
 const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'Pre-Elem', levels: ['N1', 'N2', 'K'] },
@@ -28,6 +29,7 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
 
 export default function ClassesList() {
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [countByClass, setCountByClass] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export default function ClassesList() {
     let cancelled = false;
     (async () => {
       try {
-        const [cls, students] = await Promise.all([listClasses(), listStudents()]);
+        const [cls, students] = await Promise.all([listClasses(), listStudentsLite()]);
         if (cancelled) return;
         setClasses(cls);
         const counts = new Map<string, number>();
@@ -56,6 +58,11 @@ export default function ClassesList() {
     };
   }, []);
 
+  // Filter the sections to the selected school year ("All time" shows every year).
+  const visibleClasses = isAllTime(currentSY)
+    ? classes
+    : classes.filter((c) => c.sy === currentSY!.code);
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Classes' }]} />
@@ -63,7 +70,10 @@ export default function ClassesList() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Classes</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            {loading ? 'Loading…' : `${classes.length} section${classes.length === 1 ? '' : 's'}`}
+            {loading
+              ? 'Loading…'
+              : `${visibleClasses.length} section${visibleClasses.length === 1 ? '' : 's'}` +
+                (isAllTime(currentSY) ? ' · all years' : ` · ${currentSY!.label}`)}
           </p>
         </div>
         <Button onClick={() => navigate('/classes/new')}>
@@ -75,12 +85,16 @@ export default function ClassesList() {
         <p className="text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
           {error}
         </p>
-      ) : !loading && classes.length === 0 ? (
-        <p className="text-[13px] text-ink-secondary">No classes yet. Click “Add Class” to create one.</p>
+      ) : !loading && visibleClasses.length === 0 ? (
+        <p className="text-[13px] text-ink-secondary">
+          {classes.length === 0
+            ? 'No classes yet. Click “Add Class” to create one.'
+            : `No sections for ${currentSY?.label ?? 'this school year'}. Pick “All time” to see every year.`}
+        </p>
       ) : (
         <div className="flex flex-col gap-5">
           {GRADE_GROUPS.map((group) => {
-            const groupClasses = classes.filter((c) => group.levels.includes(c.gradeLevel));
+            const groupClasses = visibleClasses.filter((c) => group.levels.includes(c.gradeLevel));
             if (groupClasses.length === 0) return null;
             return (
               <section key={group.label}>

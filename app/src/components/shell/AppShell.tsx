@@ -4,6 +4,7 @@ import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { listSchoolYears } from '@/lib/db';
 import npsLogo from '@/assets/nps-logo.png';
+import { ALL_TIME_SY } from '@/types';
 import type { SchoolYear } from '@/types';
 
 export function AppShell() {
@@ -40,6 +41,9 @@ export function AppShell() {
 
   const closeDrawer = () => setMobileOpen(false);
 
+  // "All time" sits at the top of the selector; real years follow.
+  const yearOptions = years ? [ALL_TIME_SY, ...years] : [];
+
   if (years === null) {
     return (
       <div className="min-h-screen grid place-items-center bg-app">
@@ -52,7 +56,7 @@ export function AppShell() {
     <div className="flex h-screen bg-app">
       {/* Desktop sidebar — always visible >= md */}
       <div className="hidden md:flex">
-        <Sidebar years={years} currentSY={currentSY} onSYChange={setCurrentSY} />
+        <Sidebar years={yearOptions} currentSY={currentSY} onSYChange={setCurrentSY} />
       </div>
 
       {/* Mobile drawer */}
@@ -63,7 +67,7 @@ export function AppShell() {
         >
           <div className="h-full w-[220px] shadow-lg" onClick={(e) => e.stopPropagation()}>
             <Sidebar
-              years={years}
+              years={yearOptions}
               currentSY={currentSY}
               onSYChange={setCurrentSY}
               onNavigate={closeDrawer}

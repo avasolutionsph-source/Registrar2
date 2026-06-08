@@ -7,7 +7,7 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getTeacher, listClasses, listStudents } from '@/lib/db';
+import { getTeacher, listClasses, listStudentsLite } from '@/lib/db';
 import type { Teacher, ClassRecord } from '@/types';
 
 export default function TeacherDetail() {
@@ -29,7 +29,7 @@ export default function TeacherDetail() {
         const [t, classes, students] = await Promise.all([
           getTeacher(numId),
           listClasses(),
-          listStudents(),
+          listStudentsLite(),
         ]);
         if (cancelled) return;
         setTeacher(t);

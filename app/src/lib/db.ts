@@ -208,6 +208,48 @@ export async function getStudent(lrn: string): Promise<Student | null> {
   return data ? rowToStudent(data) : null;
 }
 
+// Columns the list/report/setup screens actually display. Deliberately EXCLUDES
+// the encrypted PII (address/contact/parents/birthdate) and the heavy
+// grades/conduct/enrolment JSONB, so these screens never pay the per-row
+// decryption cost — full `select *` decrypts 5 columns × 6k rows (~0.6–1s);
+// this slim shape runs in a few ms.
+const STUDENT_LITE_COLS =
+  'lrn,student_no,first_name,middle_name,last_name,extension,gender,religion,' +
+  'guardian_relation,current_sy,current_class_id,curriculum,status,' +
+  'elem_school_graduated_from,school_type,loyalty_years';
+
+export async function listStudentsLite(): Promise<Student[]> {
+  const c = client();
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await c
+      .from('reg_students')
+      .select(STUDENT_LITE_COLS)
+      .order('last_name', { ascending: true })
+      .order('first_name', { ascending: true })
+      .order('lrn', { ascending: true }) // stable tiebreaker across pages
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as unknown as Row[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out.map(rowToStudent);
+}
+
+// Full rows for one class's roster (small N → decryption is negligible). Used by
+// ClassDetail so it no longer pulls every student just to keep ~40.
+export async function listStudentsByClass(classId: string): Promise<Student[]> {
+  const { data, error } = await client()
+    .from('reg_students')
+    .select('*')
+    .eq('current_class_id', classId)
+    .order('last_name', { ascending: true })
+    .order('first_name', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as Row[]).map(rowToStudent);
+}
+
 // Insert (no originalLrn) or update (by originalLrn). Update keeps the row's
 // other JSONB columns intact only because the form carries them through.
 export async function saveStudent(input: StudentInput, originalLrn?: string): Promise<void> {
