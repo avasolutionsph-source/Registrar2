@@ -6,7 +6,8 @@ import npsLogo from '@/assets/nps-logo.png';
 import type { SchoolYear } from '@/types';
 
 interface Props {
-  currentSY: SchoolYear;
+  years: SchoolYear[];
+  currentSY: SchoolYear | null;
   onSYChange: (sy: SchoolYear) => void;
   onNavigate?: () => void;
 }
@@ -19,7 +20,7 @@ const navItems = [
   { to: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
-export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
+export function Sidebar({ years, currentSY, onSYChange, onNavigate }: Props) {
   const navigate = useNavigate();
   const { signOut, email } = useAuth();
   return (
@@ -36,7 +37,7 @@ export function Sidebar({ currentSY, onSYChange, onNavigate }: Props) {
           <div className="text-[10.5px] text-ink-muted tracking-[0.04em] uppercase">Registrar</div>
         </div>
       </div>
-      <SchoolYearSelector value={currentSY} onChange={onSYChange} />
+      <SchoolYearSelector years={years} value={currentSY} onChange={onSYChange} />
       <nav className="flex flex-col gap-0.5">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink

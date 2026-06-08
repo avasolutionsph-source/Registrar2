@@ -223,6 +223,13 @@ export async function deleteStudent(lrn: string): Promise<void> {
   if (error) throw error;
 }
 
+// Targeted update of just the grades JSONB (used by the grade encoder) so other
+// columns can never be clobbered.
+export async function saveStudentGrades(lrn: string, grades: Student['grades']): Promise<void> {
+  const { error } = await client().from('reg_students').update({ grades }).eq('lrn', lrn);
+  if (error) throw error;
+}
+
 // ── Form 137 release log ──
 export interface Form137Release {
   id: number;

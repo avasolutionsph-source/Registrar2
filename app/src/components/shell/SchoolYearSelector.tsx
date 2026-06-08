@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { schoolYears } from '@/mocks';
 import type { SchoolYear } from '@/types';
 
 interface Props {
-  value: SchoolYear;
+  years: SchoolYear[];
+  value: SchoolYear | null;
   onChange: (sy: SchoolYear) => void;
 }
 
-export function SchoolYearSelector({ value, onChange }: Props) {
+export function SchoolYearSelector({ years, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -27,12 +27,12 @@ export function SchoolYearSelector({ value, onChange }: Props) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-3 py-2 bg-panel border border-border rounded text-xs text-ink-secondary hover:bg-panel-alt"
       >
-        <span>{value.label}</span>
+        <span>{value?.label ?? '—'}</span>
         <ChevronDown className="w-3.5 h-3.5" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-panel border border-border rounded shadow-sm z-10 overflow-hidden">
-          {schoolYears.map((sy) => (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-panel border border-border rounded shadow-sm z-10 max-h-72 overflow-auto">
+          {years.map((sy) => (
             <button
               key={sy.code}
               onClick={() => {

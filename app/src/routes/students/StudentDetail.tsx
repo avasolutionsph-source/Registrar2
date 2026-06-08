@@ -253,6 +253,16 @@ export default function StudentDetail() {
             id="grades"
             heading={gradedSy ? `Grades — SY ${formatSy(gradedSy)}` : 'Grades'}
           >
+            <div className="flex justify-end mb-2 px-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => navigate(`/students/${student.lrn}/grades`)}
+              >
+                <Pencil className="w-3.5 h-3.5" /> Encode / Edit grades
+              </Button>
+            </div>
             {gradeRows.length === 0 ? (
               <p className="text-[12.5px] text-ink-secondary px-1">No grades on record for this learner.</p>
             ) : (
