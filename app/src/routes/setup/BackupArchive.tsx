@@ -3,7 +3,7 @@ import { Download, Upload, Lock, AlertTriangle, ShieldCheck, Loader2 } from 'luc
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { listSchoolYears, listStudents, importStudents } from '@/lib/db';
-import { encryptArchive, decryptArchive, type ArchiveEnvelope } from '@/lib/archive';
+import { encryptArchive, plainArchive, decryptArchive, type ArchiveEnvelope } from '@/lib/archive';
 import type { SchoolYear, Student } from '@/types';
 
 interface ArchivePayload {
@@ -62,13 +62,16 @@ export default function BackupArchive() {
   async function runExport() {
     setExportErr(null);
     setExportMsg(null);
-    if (pw.length < 8) {
-      setExportErr('Password must be at least 8 characters.');
-      return;
-    }
-    if (pw !== pw2) {
-      setExportErr('Passwords do not match.');
-      return;
+    const usePassword = pw.length > 0;
+    if (usePassword) {
+      if (pw.length < 8) {
+        setExportErr('Password must be at least 8 characters (or leave blank for no password).');
+        return;
+      }
+      if (pw !== pw2) {
+        setExportErr('Passwords do not match.');
+        return;
+      }
     }
     setExporting(true);
     try {
@@ -79,15 +82,21 @@ export default function BackupArchive() {
         return;
       }
       const payload: ArchivePayload = { kind: 'students', students };
-      const env = await encryptArchive(payload, pw, {
+      const meta = {
         exportedAt: new Date().toISOString(),
         scope,
         scopeLabel,
         studentCount: students.length,
-      });
+      };
+      const env = usePassword ? await encryptArchive(payload, pw, meta) : plainArchive(payload, meta);
       const stamp = new Date().toISOString().slice(0, 10);
-      downloadJson(`nps-students-${scope}-${stamp}.json`, env);
-      setExportMsg(`Encrypted archive downloaded: ${students.length} student record${students.length === 1 ? '' : 's'} (${scopeLabel}).`);
+      downloadJson(`nps-students-${scope}-${stamp}${usePassword ? '' : '-PLAIN'}.json`, env);
+      const count = `${students.length} record${students.length === 1 ? '' : 's'} (${scopeLabel})`;
+      setExportMsg(
+        usePassword
+          ? `Encrypted archive downloaded: ${count}. Check your browser’s Downloads folder.`
+          : `Unencrypted archive downloaded: ${count}. Check your Downloads folder — this file is NOT password-protected.`,
+      );
       setPw('');
       setPw2('');
     } catch (e) {
@@ -105,13 +114,13 @@ export default function BackupArchive() {
       setImportErr('Pick an archive file first.');
       return;
     }
-    if (!importPw) {
-      setImportErr('Enter the file password.');
-      return;
-    }
     setBusy(true);
     try {
       const env = JSON.parse(await file.text()) as ArchiveEnvelope;
+      if (env.encryption !== 'none' && !importPw) {
+        setImportErr('This file is password-protected — enter its password.');
+        return;
+      }
       const payload = await decryptArchive<ArchivePayload>(env, importPw);
       if (payload?.kind !== 'students' || !Array.isArray(payload.students)) {
         throw new Error('Hindi tama ang laman ng archive.');
@@ -184,23 +193,33 @@ export default function BackupArchive() {
             ))}
           </select>
 
-          <label className={labelCls}>File password</label>
+          <label className={labelCls}>File password (optional)</label>
           <input
             type="password"
             className={`${field} mt-1 mb-2`}
             value={pw}
             onChange={(e) => setPw(e.target.value)}
-            placeholder="At least 8 characters"
+            placeholder="Leave blank for no password"
             autoComplete="new-password"
           />
-          <label className={labelCls}>Confirm password</label>
-          <input
-            type="password"
-            className={`${field} mt-1 mb-3`}
-            value={pw2}
-            onChange={(e) => setPw2(e.target.value)}
-            autoComplete="new-password"
-          />
+          {pw.length > 0 && (
+            <>
+              <label className={labelCls}>Confirm password</label>
+              <input
+                type="password"
+                className={`${field} mt-1 mb-3`}
+                value={pw2}
+                onChange={(e) => setPw2(e.target.value)}
+                autoComplete="new-password"
+              />
+            </>
+          )}
+          {pw.length === 0 && (
+            <p className="flex items-start gap-1.5 text-[11.5px] text-amber-700 mb-3">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              No password: the file will NOT be encrypted — anyone who opens it can read the PII.
+            </p>
+          )}
 
           {exportErr && <p className="text-[12px] text-nps-red mb-2">{exportErr}</p>}
           {exportMsg && (
@@ -212,7 +231,7 @@ export default function BackupArchive() {
 
           <Button onClick={runExport} disabled={exporting}>
             {exporting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Lock className="w-3.5 h-3.5 mr-1" />}
-            {exporting ? 'Encrypting…' : 'Export & Download'}
+            {exporting ? 'Exporting…' : 'Export & Download'}
           </Button>
         </section>
 
@@ -237,12 +256,13 @@ export default function BackupArchive() {
             }}
           />
 
-          <label className={labelCls}>File password</label>
+          <label className={labelCls}>File password (if encrypted)</label>
           <input
             type="password"
             className={`${field} mt-1 mb-3`}
             value={importPw}
             onChange={(e) => setImportPw(e.target.value)}
+            placeholder="Leave blank for unencrypted files"
             autoComplete="off"
           />
 

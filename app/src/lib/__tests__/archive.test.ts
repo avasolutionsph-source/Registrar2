@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encryptArchive, decryptArchive } from '../archive';
+import { encryptArchive, plainArchive, decryptArchive } from '../archive';
 
 const meta = {
   exportedAt: '2026-06-09T00:00:00Z',
@@ -29,6 +29,14 @@ describe('archive encryption', () => {
   it('rejects a wrong password (auth tag fails)', async () => {
     const env = await encryptArchive(payload, 'correct-horse', meta);
     await expect(decryptArchive(env, 'wrong-pass')).rejects.toThrow();
+  });
+
+  it('supports unencrypted (no-password) archives', async () => {
+    const env = plainArchive(payload, meta);
+    expect(env.encryption).toBe('none');
+    expect(env.ciphertext).toBeUndefined();
+    const back = await decryptArchive(env, ''); // no password required
+    expect(back).toEqual(payload);
   });
 
   it('produces a different ciphertext each time (random salt + IV)', async () => {

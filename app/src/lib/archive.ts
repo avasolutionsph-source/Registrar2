@@ -51,12 +51,19 @@ export interface ArchiveMeta {
 export interface ArchiveEnvelope {
   format: 'nps-registrar-archive';
   version: 1;
-  encryption: 'AES-GCM-256 / PBKDF2-SHA256';
-  iterations: number;
-  salt: string;
-  iv: string;
-  ciphertext: string;
+  encryption: 'AES-GCM-256 / PBKDF2-SHA256' | 'none';
+  iterations?: number;
+  salt?: string;
+  iv?: string;
+  ciphertext?: string;
+  payload?: unknown; // present only when encryption === 'none'
   meta: ArchiveMeta;
+}
+
+// Unencrypted archive — used when the user opts out of a password. The file then
+// holds plaintext PII; the UI warns about this and marks the filename PLAIN.
+export function plainArchive(payload: unknown, meta: ArchiveMeta): ArchiveEnvelope {
+  return { format: 'nps-registrar-archive', version: 1, encryption: 'none', payload, meta };
 }
 
 // Encrypt any JSON-serialisable payload into a self-describing envelope.
@@ -93,6 +100,12 @@ export async function decryptArchive<T = unknown>(
 ): Promise<T> {
   if (env?.format !== 'nps-registrar-archive') {
     throw new Error('Hindi ito NPS archive file.');
+  }
+  if (env.encryption === 'none') {
+    return env.payload as T; // unencrypted archive — no password needed
+  }
+  if (!env.salt || !env.iv || !env.ciphertext) {
+    throw new Error('Sira ang archive file.');
   }
   const key = await deriveKey(password, fromB64(env.salt));
   let pt: ArrayBuffer;
