@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Printer, FileText, Users as UsersIcon, Check, X, Pencil } from 'lucide-react';
+import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
@@ -12,9 +12,17 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getClass, listStudents, listSubjects } from '@/lib/db';
+import {
+  getClass,
+  listStudents,
+  listSubjects,
+  listTransfersForClass,
+  addTransfer,
+  deleteTransfer,
+  type Transfer,
+} from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
-import { formatLastFirstMiddle } from '@/lib/format';
+import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject } from '@/types';
 
 type ClassDoc =
@@ -71,6 +79,9 @@ export default function ClassDetail() {
   const [roster, setRoster] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [doc, setDoc] = useState<ClassDoc | null>(null);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [tForm, setTForm] = useState({ name: '', direction: 'in' as 'in' | 'out', date: '', school: '' });
+  const [tBusy, setTBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,10 +91,16 @@ export default function ClassDetail() {
         return;
       }
       try {
-        const [c, students, subs] = await Promise.all([getClass(id), listStudents(), listSubjects()]);
+        const [c, students, subs, trans] = await Promise.all([
+          getClass(id),
+          listStudents(),
+          listSubjects(),
+          listTransfersForClass(id),
+        ]);
         if (cancelled) return;
         setKlass(c);
         setSubjects(subs);
+        setTransfers(trans);
         setRoster(c ? students.filter((s) => s.currentClassId === c.id) : []);
       } catch {
         if (!cancelled) setKlass(null);
@@ -115,6 +132,36 @@ export default function ClassDetail() {
   const males = roster.filter((s) => s.gender === 'Male');
   const females = roster.filter((s) => s.gender === 'Female');
   const adviserName = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`;
+
+  async function submitTransfer() {
+    if (!klass || !tForm.name.trim()) return;
+    setTBusy(true);
+    try {
+      await addTransfer({
+        classId: klass.id,
+        learnerName: tForm.name.trim(),
+        sy: klass.sy,
+        direction: tForm.direction,
+        transferDate: tForm.date || null,
+        otherSchool: tForm.school.trim() || undefined,
+      });
+      setTransfers(await listTransfersForClass(klass.id));
+      setTForm({ name: '', direction: 'in', date: '', school: '' });
+    } catch {
+      // ignore — keep the form as-is so the user can retry
+    } finally {
+      setTBusy(false);
+    }
+  }
+
+  async function removeTransfer(tid: number) {
+    try {
+      await deleteTransfer(tid);
+      setTransfers((ts) => ts.filter((t) => t.id !== tid));
+    } catch {
+      // ignore
+    }
+  }
 
   return (
     <>
@@ -584,23 +631,89 @@ export default function ClassDetail() {
             <TabsContent value="transferees">
               <SectionCard heading="Class Transferees">
                 <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-                  Class-scoped log of students who transferred IN or OUT of this section during the SY.
+                  Log of learners who transferred IN or OUT of this section during SY {klass.sy}.
                 </p>
+
+                <div className="flex flex-wrap items-end gap-2 mb-3 px-1">
+                  <input
+                    value={tForm.name}
+                    onChange={(e) => setTForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Learner name"
+                    className="flex-1 min-w-[180px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                  />
+                  <select
+                    value={tForm.direction}
+                    onChange={(e) => setTForm((f) => ({ ...f, direction: e.target.value as 'in' | 'out' }))}
+                    className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                  >
+                    <option value="in">Transferred IN</option>
+                    <option value="out">Transferred OUT</option>
+                  </select>
+                  <input
+                    type="date"
+                    value={tForm.date}
+                    onChange={(e) => setTForm((f) => ({ ...f, date: e.target.value }))}
+                    className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                  />
+                  <input
+                    value={tForm.school}
+                    onChange={(e) => setTForm((f) => ({ ...f, school: e.target.value }))}
+                    placeholder="Other school (from / to)"
+                    className="flex-1 min-w-[160px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={tBusy || !tForm.name.trim()}
+                    onClick={submitTransfer}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add
+                  </Button>
+                </div>
+
                 <table className="w-full text-[12px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3">Name</th>
-                      <th className="py-1.5 pr-3 w-[14%]">Direction</th>
+                      <th className="py-1.5 pr-3 w-[12%]">Direction</th>
                       <th className="py-1.5 pr-3 w-[18%]">Date</th>
                       <th className="py-1.5">Other school</th>
+                      <th className="py-1.5 w-8" />
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td colSpan={4} className="py-6 text-center text-ink-secondary">
-                        No transferees recorded for this section.
-                      </td>
-                    </tr>
+                    {transfers.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-ink-secondary">
+                          No transferees recorded for this section.
+                        </td>
+                      </tr>
+                    ) : (
+                      transfers.map((t) => (
+                        <tr key={t.id} className="border-b border-border-soft last:border-0">
+                          <td className="py-1.5 pr-3">{t.learnerName}</td>
+                          <td className="py-1.5 pr-3">
+                            <StatusBadge tone={t.direction === 'in' ? 'ok' : 'pending'}>
+                              {t.direction === 'in' ? 'IN' : 'OUT'}
+                            </StatusBadge>
+                          </td>
+                          <td className="py-1.5 pr-3 font-mono whitespace-nowrap">
+                            {t.transferDate ? formatBirthdate(t.transferDate) : '—'}
+                          </td>
+                          <td className="py-1.5 text-ink-secondary">{t.otherSchool || '—'}</td>
+                          <td className="py-1.5 text-right">
+                            <button
+                              onClick={() => removeTransfer(t.id)}
+                              className="p-1 rounded text-ink-muted hover:text-destructive hover:bg-app"
+                              aria-label="Delete transferee"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </SectionCard>

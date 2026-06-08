@@ -289,6 +289,69 @@ export async function listForm137Log(lrn: string): Promise<Form137Release[]> {
   }));
 }
 
+// ── transfers (learner in/out of a section during an SY) ──
+export interface Transfer {
+  id: number;
+  classId: string | null;
+  lrn: string | null;
+  learnerName: string;
+  sy: string;
+  direction: 'in' | 'out';
+  transferDate: string | null;
+  otherSchool: string;
+  remarks: string;
+}
+
+export interface TransferInput {
+  classId: string;
+  lrn?: string | null;
+  learnerName: string;
+  sy: string;
+  direction: 'in' | 'out';
+  transferDate?: string | null;
+  otherSchool?: string;
+  remarks?: string;
+}
+
+export async function listTransfersForClass(classId: string): Promise<Transfer[]> {
+  const { data, error } = await client()
+    .from('reg_transfers')
+    .select('*')
+    .eq('class_id', classId)
+    .order('transfer_date', { ascending: true, nullsFirst: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    classId: r.class_id ? str(r.class_id) : null,
+    lrn: r.lrn ? str(r.lrn) : null,
+    learnerName: str(r.learner_name),
+    sy: str(r.sy),
+    direction: (str(r.direction) || 'in') as 'in' | 'out',
+    transferDate: r.transfer_date ? str(r.transfer_date) : null,
+    otherSchool: str(r.other_school),
+    remarks: str(r.remarks),
+  }));
+}
+
+export async function addTransfer(input: TransferInput): Promise<void> {
+  const { error } = await client().from('reg_transfers').insert({
+    class_id: input.classId,
+    lrn: input.lrn || null,
+    learner_name: input.learnerName,
+    sy: input.sy,
+    direction: input.direction,
+    transfer_date: input.transferDate || null,
+    other_school: input.otherSchool || null,
+    remarks: input.remarks || null,
+  });
+  if (error) throw error;
+}
+
+export async function deleteTransfer(id: number): Promise<void> {
+  const { error } = await client().from('reg_transfers').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ── teachers ──
 function teacherToRow(t: TeacherInput): Row {
   return {
