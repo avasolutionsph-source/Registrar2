@@ -7,3 +7,15 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Never let the browser pin an old service worker / manifest — always revalidate
+# so a new deploy is picked up on the next load.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

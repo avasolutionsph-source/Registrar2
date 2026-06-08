@@ -1,0 +1,15 @@
+{
+  "name": "NPS Registrar",
+  "short_name": "Registrar",
+  "description": "Naga Parochial School — Registrar System",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f8f5",
+  "theme_color": "#c41e3a",
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
