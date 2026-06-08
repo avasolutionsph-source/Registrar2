@@ -3,15 +3,25 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, FileText, Users as UsersIcon, Check, X, Pencil } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { PrintPreview } from '@/components/ui/print-preview';
+import { PrintHost } from '@/components/print/PrintHost';
+import { ClassForm1 } from '@/components/print/ClassForm1';
+import { ClassForm5 } from '@/components/print/ClassForm5';
+import { BatchReportCards } from '@/components/print/BatchReportCards';
+import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getClass, listStudents } from '@/lib/db';
+import { getClass, listStudents, listSubjects } from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
 import { formatLastFirstMiddle } from '@/lib/format';
-import type { ClassRecord, Student } from '@/types';
+import type { ClassRecord, Student, Subject } from '@/types';
+
+type ClassDoc =
+  | { kind: 'sf1' }
+  | { kind: 'sf5' }
+  | { kind: 'batch' }
+  | { kind: 'one'; student: Student };
 
 const TAB_KEYS = [
   'list',
@@ -59,7 +69,8 @@ export default function ClassDetail() {
   const navigate = useNavigate();
   const [klass, setKlass] = useState<ClassRecord | null | undefined>(undefined); // undefined = loading
   const [roster, setRoster] = useState<Student[]>([]);
-  const [printDoc, setPrintDoc] = useState<string | null>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [doc, setDoc] = useState<ClassDoc | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,9 +80,10 @@ export default function ClassDetail() {
         return;
       }
       try {
-        const [c, students] = await Promise.all([getClass(id), listStudents()]);
+        const [c, students, subs] = await Promise.all([getClass(id), listStudents(), listSubjects()]);
         if (cancelled) return;
         setKlass(c);
+        setSubjects(subs);
         setRoster(c ? students.filter((s) => s.currentClassId === c.id) : []);
       } catch {
         if (!cancelled) setKlass(null);
@@ -141,21 +153,21 @@ export default function ClassDetail() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => setPrintDoc('Form 1 — School Register (DepEd SF 1)')}
+                onClick={() => setDoc({ kind: 'sf1' })}
               >
                 <FileText className="w-3.5 h-3.5" /> Print Form 1
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => setPrintDoc('Form 5 — Report on Promotion (DepEd SF 5)')}
+                onClick={() => setDoc({ kind: 'sf5' })}
               >
                 <FileText className="w-3.5 h-3.5" /> Print Form 5
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => setPrintDoc('Report Cards — Batch print for all learners')}
+                onClick={() => setDoc({ kind: 'batch' })}
               >
                 <Printer className="w-3.5 h-3.5" /> Print Report Cards
               </Button>
@@ -498,10 +510,11 @@ export default function ClassDetail() {
             <TabsContent value="reportcard">
               <SectionCard heading="Report Card — batch print queue">
                 <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-                  Generates SF 9 / Form 138 PDFs for the entire roster. PDF generation is wired to the backend in a later phase.
+                  Print SF 9 / Form 138 report cards for the whole roster (one per page) or a single
+                  learner. Use your browser&rsquo;s &ldquo;Save as PDF&rdquo; to export.
                 </p>
                 <div className="flex justify-end mb-3">
-                  <Button variant="outline" className="gap-2">
+                  <Button variant="outline" className="gap-2" onClick={() => setDoc({ kind: 'batch' })}>
                     <Printer className="w-3.5 h-3.5" /> Print all
                   </Button>
                 </div>
@@ -523,7 +536,11 @@ export default function ClassDetail() {
                           <StatusBadge tone="pending">awaiting Q1</StatusBadge>
                         </td>
                         <td className="py-1.5 text-right">
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDoc({ kind: 'one', student: s })}
+                          >
                             Print
                           </Button>
                         </td>
@@ -591,12 +608,31 @@ export default function ClassDetail() {
           </Tabs>
         </div>
       </div>
-      <PrintPreview
-        open={printDoc !== null}
-        title={printDoc ?? ''}
-        subtitle={`Grade ${klass.gradeLevel} · ${klass.sectionName} · SY ${klass.sy}`}
-        onClose={() => setPrintDoc(null)}
-      />
+      <PrintHost
+        open={doc !== null}
+        docTitle={
+          doc?.kind === 'sf1'
+            ? `SF 1 (School Register) · Grade ${klass.gradeLevel} ${klass.sectionName}`
+            : doc?.kind === 'sf5'
+              ? `SF 5 (Promotion) · Grade ${klass.gradeLevel} ${klass.sectionName}`
+              : doc?.kind === 'batch'
+                ? `Report Cards · Grade ${klass.gradeLevel} ${klass.sectionName}`
+                : doc?.kind === 'one'
+                  ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
+                  : ''
+        }
+        onClose={() => setDoc(null)}
+      >
+        {doc?.kind === 'sf1' ? (
+          <ClassForm1 klass={klass} roster={roster} />
+        ) : doc?.kind === 'sf5' ? (
+          <ClassForm5 klass={klass} roster={roster} subjects={subjects} />
+        ) : doc?.kind === 'batch' ? (
+          <BatchReportCards klass={klass} roster={roster} subjects={subjects} />
+        ) : doc?.kind === 'one' ? (
+          <ReportCardSF9 student={doc.student} subjects={subjects} sy={klass.sy} />
+        ) : null}
+      </PrintHost>
     </>
   );
 }

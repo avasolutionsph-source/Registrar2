@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import type { Student, Subject } from '@/types';
+import type { Student, Subject, ClassRecord } from '@/types';
 import { Form137 } from '../Form137';
 import { ReportCardSF9 } from '../ReportCardSF9';
 import { GoodMoral } from '../GoodMoral';
 import { CertEnrollment } from '../CertEnrollment';
 import { StudentId } from '../StudentId';
+import { ClassForm1 } from '../ClassForm1';
+import { ClassForm5 } from '../ClassForm5';
+import { BatchReportCards } from '../BatchReportCards';
 
 const subjects: Subject[] = [
   { code: 'MAT', fullName: 'Mathematics', abbreviation: '', category: 'Core' },
@@ -131,5 +134,60 @@ describe('printable forms render with real-shaped data', () => {
     expect(text).toContain('Naga Parochial School');
     expect(text).toContain(student.lrn);
     expect(text).toContain('Ephraim'); // full name
+  });
+});
+
+// ── class-level forms ──
+const adviser = {
+  id: 1, title: 'Mr.', familyName: 'De Leon', firstName: 'John Ace', middleInitial: 'B',
+  email: '', yearStarted: 2010, yearEnded: 0,
+};
+const klass: ClassRecord = {
+  id: 'c1',
+  sy: '2017-2018',
+  gradeLevel: 'VI',
+  sectionName: 'St. Ignatius de Loyola',
+  adviser,
+  curriculum: 'Kto12-B',
+  studentLrns: [],
+};
+const student2: Student = {
+  ...student,
+  lrn: '403875150999',
+  firstName: 'Maria',
+  middleName: 'Cruz',
+  lastName: 'Santos',
+  gender: 'Female',
+};
+const roster = [student, student2];
+
+describe('class-level forms render', () => {
+  it('SF 1 School Register lists male and female learners', () => {
+    const { container } = render(<ClassForm1 klass={klass} roster={roster} />);
+    const text = (container.textContent ?? '').toLowerCase();
+    expect(text).toContain('school register');
+    expect(text).toContain('male');
+    expect(text).toContain('female');
+    expect(text).toContain('ramos'); // male (surname is upper-cased in the doc)
+    expect(text).toContain('santos'); // female
+    expect(text).toContain('de leon'); // adviser in header
+  });
+
+  it('SF 5 Promotion report shows general averages and actions', () => {
+    const { container } = render(<ClassForm5 klass={klass} roster={roster} subjects={subjects} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Report on Promotion');
+    expect(text).toContain('General Average');
+    expect(text).toContain('PROMOTED'); // GA 88 ≥ 75
+    expect(text).toContain('Total Enrolment');
+  });
+
+  it('Batch report cards render one per learner', () => {
+    const { container } = render(<BatchReportCards klass={klass} roster={roster} subjects={subjects} />);
+    const text = container.textContent ?? '';
+    // both learners appear; "Report Card" header repeats per card
+    expect(text.toLowerCase()).toContain('ramos');
+    expect(text.toLowerCase()).toContain('santos');
+    expect((text.match(/Report Card/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });

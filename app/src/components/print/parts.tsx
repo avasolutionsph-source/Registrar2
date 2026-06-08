@@ -1,9 +1,9 @@
 // Shared building blocks for the printable forms: school letterhead, the
 // learner-identity grid, and a signature row. Styled for paper (black on white).
 
-import type { Student } from '@/types';
+import type { Student, ClassRecord } from '@/types';
 import { formatBirthdate } from '@/lib/format';
-import { SCHOOL } from '@/lib/forms';
+import { SCHOOL, gradeLabel, formatSy } from '@/lib/forms';
 
 export function Letterhead({ docTitle, docSubtitle }: { docTitle: string; docSubtitle?: string }) {
   return (
@@ -54,6 +54,34 @@ export function LearnerInfo({ student }: { student: Student }) {
       />
       <Field className="col-span-7" label="Student No." value={student.studentNo} />
     </section>
+  );
+}
+
+// Class-level document header (letterhead + grade/section/SY/adviser line).
+export function ClassHeader({ klass, docTitle }: { klass: ClassRecord; docTitle: string }) {
+  const adviser = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (
+    <>
+      <Letterhead docTitle={docTitle} />
+      <div className="mt-2 flex flex-wrap justify-between gap-x-6 gap-y-0.5 text-[10.5px]">
+        <span>
+          <span className="text-zinc-500">Grade &amp; Section: </span>
+          <span className="font-semibold">
+            {gradeLabel(klass.gradeLevel)} – {klass.sectionName}
+          </span>
+        </span>
+        <span>
+          <span className="text-zinc-500">S.Y.: </span>
+          <span className="font-semibold">{formatSy(klass.sy)}</span>
+        </span>
+        <span>
+          <span className="text-zinc-500">Adviser: </span>
+          <span className="font-semibold">{adviser}</span>
+        </span>
+      </div>
+    </>
   );
 }
 
