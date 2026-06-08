@@ -250,6 +250,16 @@ export async function listStudentsByClass(classId: string): Promise<Student[]> {
   return ((data ?? []) as Row[]).map(rowToStudent);
 }
 
+// Bulk restore from a decrypted archive. Calls the SECURITY-checked server RPC
+// (reg_import_students), which upserts by LRN and re-encrypts PII via the view's
+// triggers. Accepts the same Student shape produced by listStudents(). Returns
+// the number of records written.
+export async function importStudents(students: Student[]): Promise<number> {
+  const { data, error } = await client().rpc('reg_import_students', { p_students: students });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
 // Insert (no originalLrn) or update (by originalLrn). Update keeps the row's
 // other JSONB columns intact only because the form carries them through.
 export async function saveStudent(input: StudentInput, originalLrn?: string): Promise<void> {

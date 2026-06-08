@@ -205,3 +205,54 @@ create trigger reg_students_instead_upd instead of update on public.reg_students
   for each row execute function public.reg_students_upd();
 create trigger reg_students_instead_del instead of delete on public.reg_students
   for each row execute function public.reg_students_del();
+
+-- ── 5. Bulk import RPC (used by the Backup & Archive screen) ─────────────
+-- Restores student records from a decrypted archive. SECURITY INVOKER: runs as
+-- the calling registrar and writes through the reg_students VIEW, so the INSTEAD
+-- OF triggers above do the PII encryption (no duplicated crypto). Upsert by LRN.
+create or replace function public.reg_import_students(p_students jsonb)
+returns integer language plpgsql as $$
+declare r jsonb; n integer := 0;
+begin
+  if not public.is_registrar() then raise exception 'not authorized'; end if;
+  for r in select value from jsonb_array_elements(p_students) loop
+    update public.reg_students set
+      student_no = r->>'studentNo', first_name = r->>'firstName', middle_name = r->>'middleName',
+      last_name = r->>'lastName', extension = r->>'extension', gender = r->>'gender',
+      birthdate = nullif(r->>'birthdate','')::date, religion = r->>'religion',
+      address = r->>'address', contact_number = r->>'contactNumber',
+      father_name = r->>'fatherName', mother_maiden_name = r->>'motherMaidenName',
+      guardian_relation = r->>'guardianRelation', current_sy = nullif(r->>'currentSY',''),
+      current_class_id = nullif(r->>'currentClassId','')::uuid, curriculum = r->>'curriculum',
+      status = coalesce(nullif(r->>'status',''), 'Active'),
+      elem_school_graduated_from = r->>'elemSchoolGraduatedFrom', school_type = r->>'schoolType',
+      loyalty_years = coalesce((r->>'loyaltyYears')::int, 0),
+      enrolment_history = coalesce(r->'enrolmentHistory', '[]'::jsonb),
+      grades = coalesce(r->'grades', '{}'::jsonb), conduct = coalesce(r->'conduct', '{}'::jsonb),
+      credentials = coalesce(r->'credentials', '{}'::jsonb), ncae = r->'ncae', nat = r->'nat'
+    where lrn = r->>'lrn';
+    if not found then
+      insert into public.reg_students (
+        lrn, student_no, first_name, middle_name, last_name, extension, gender, birthdate,
+        religion, address, contact_number, father_name, mother_maiden_name, guardian_relation,
+        current_sy, current_class_id, curriculum, status, elem_school_graduated_from, school_type,
+        loyalty_years, enrolment_history, grades, conduct, credentials, ncae, nat
+      ) values (
+        r->>'lrn', r->>'studentNo', r->>'firstName', r->>'middleName', r->>'lastName',
+        r->>'extension', r->>'gender', nullif(r->>'birthdate','')::date, r->>'religion',
+        r->>'address', r->>'contactNumber', r->>'fatherName', r->>'motherMaidenName',
+        r->>'guardianRelation', nullif(r->>'currentSY',''), nullif(r->>'currentClassId','')::uuid,
+        r->>'curriculum', coalesce(nullif(r->>'status',''), 'Active'),
+        r->>'elemSchoolGraduatedFrom', r->>'schoolType', coalesce((r->>'loyaltyYears')::int, 0),
+        coalesce(r->'enrolmentHistory', '[]'::jsonb), coalesce(r->'grades', '{}'::jsonb),
+        coalesce(r->'conduct', '{}'::jsonb), coalesce(r->'credentials', '{}'::jsonb),
+        r->'ncae', r->'nat'
+      );
+    end if;
+    n := n + 1;
+  end loop;
+  return n;
+end; $$;
+
+revoke all on function public.reg_import_students(jsonb) from anon;
+grant execute on function public.reg_import_students(jsonb) to authenticated;

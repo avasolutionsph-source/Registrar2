@@ -7,6 +7,7 @@ import {
   Layers,
   Building2,
   ShieldCheck,
+  Archive,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -60,6 +61,12 @@ const TILES: Tile[] = [
     icon: Building2,
     label: 'Teachers',
     desc: 'Teacher accounts and adviser assignments',
+  },
+  {
+    to: '/setup/backup',
+    icon: Archive,
+    label: 'Backup & Archive',
+    desc: 'Download student records as a password-encrypted file, or restore one',
   },
 ];
 
