@@ -23,6 +23,7 @@ import SetupSchools from '@/routes/setup/SetupSchools';
 import SetupAdmin from '@/routes/setup/SetupAdmin';
 import SetupGradeLevels from '@/routes/setup/SetupGradeLevels';
 import BackupArchive from '@/routes/setup/BackupArchive';
+import OfflineData from '@/routes/setup/OfflineData';
 import ReportsHub from '@/routes/reports/ReportsHub';
 import Statistics from '@/routes/reports/Statistics';
 import Alumni from '@/routes/reports/Alumni';
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="setup/admin" element={<SetupAdmin />} />
           <Route path="setup/grade-levels" element={<SetupGradeLevels />} />
           <Route path="setup/backup" element={<BackupArchive />} />
+          <Route path="setup/offline" element={<OfflineData />} />
           <Route path="setup/teachers" element={<Navigate to="/teachers" replace />} />
           <Route path="setup/*" element={<ComingSoon />} />
           <Route path="reports" element={<ReportsHub />} />

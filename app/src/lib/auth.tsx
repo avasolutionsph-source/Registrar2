@@ -44,7 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Resolve the signed-in user's role whenever the email changes.
+  // Resolve the signed-in user's role whenever the email changes. The result is
+  // cached in localStorage so the app still opens OFFLINE (the network role
+  // lookup fails during a brownout — we fall back to the last known role).
   useEffect(() => {
     if (!supabase || !email) {
       setRole(null);
@@ -52,16 +54,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
+    const cacheKey = `nps_role:${email}`;
+    const useCached = () => {
+      if (cancelled) return;
+      setRole(localStorage.getItem(cacheKey));
+      setRoleResolvedFor(email);
+    };
     supabase
       .from('user_roles')
       .select('role')
       .eq('user_email', email)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
-        setRole((data?.role as string | undefined) ?? null);
+        if (error) {
+          useCached(); // offline / request failed → last known role
+          return;
+        }
+        const r = (data?.role as string | undefined) ?? null;
+        setRole(r);
+        if (r) localStorage.setItem(cacheKey, r);
+        else localStorage.removeItem(cacheKey);
         setRoleResolvedFor(email);
-      });
+      }, useCached); // promise rejected (e.g. offline) → last known role
     return () => {
       cancelled = true;
     };

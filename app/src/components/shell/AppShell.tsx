@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, WifiOff } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { listSchoolYears } from '@/lib/db';
+import { listSchoolYears, syncToDevice } from '@/lib/db';
+import { getOfflineMeta } from '@/lib/offlineCache';
 import npsLogo from '@/assets/nps-logo.png';
 import { ALL_TIME_SY } from '@/types';
 import type { SchoolYear } from '@/types';
+
+const STALE_MS = 2 * 60 * 60 * 1000; // refresh an existing offline copy if older than 2h
 
 export function AppShell() {
   const [years, setYears] = useState<SchoolYear[] | null>(null);
   const [currentSY, setCurrentSY] = useState<SchoolYear | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
 
   // Real school years from Supabase (replaces the old mock list).
   useEffect(() => {
@@ -38,6 +42,36 @@ export function AppShell() {
       document.body.style.overflow = '';
     };
   }, [mobileOpen]);
+
+  // Track connectivity for the offline banner.
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+
+  // Keep an EXISTING offline copy fresh in the background (after the registrar has
+  // opted in once on the Offline page). Never creates the first copy automatically.
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    let cancelled = false;
+    getOfflineMeta()
+      .then((m) => {
+        if (cancelled || !m) return;
+        if (Date.now() - new Date(m.lastSyncedAt).getTime() > STALE_MS) {
+          syncToDevice().catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const closeDrawer = () => setMobileOpen(false);
 
@@ -77,6 +111,12 @@ export function AppShell() {
       )}
 
       <main className="flex-1 overflow-auto">
+        {!online && (
+          <div className="bg-amber-100 border-b border-amber-200 text-amber-800 text-[12px] px-4 py-1.5 flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 shrink-0" />
+            Offline — view &amp; print only. Adding or editing needs internet.
+          </div>
+        )}
         {/* Mobile top bar with hamburger */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-sidebar">
           <button

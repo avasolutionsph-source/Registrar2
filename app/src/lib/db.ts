@@ -3,6 +3,7 @@
 // have been migrated off the mocks call these functions.
 
 import { supabase } from './supabase';
+import { idbGet, idbSet, SNAP } from './offlineCache';
 import type {
   Student,
   ClassRecord,
@@ -20,6 +21,29 @@ type Row = Record<string, unknown>;
 function client() {
   if (!supabase) throw new Error('Supabase is not configured.');
   return supabase;
+}
+
+// ── offline read cache ──────────────────────────────────────────────────
+// Reads go to the network when online; if offline (or the request fails on a
+// flaky connection) they fall back to the last snapshot saved by syncToDevice().
+// Snapshots are only written by syncToDevice(), so online reads stay authoritative.
+async function offlineRead<T>(
+  network: () => Promise<T>,
+  fromSnapshot: () => Promise<T | undefined>,
+): Promise<T> {
+  const online = typeof navigator === 'undefined' || navigator.onLine;
+  if (online) {
+    try {
+      return await network();
+    } catch (err) {
+      const snap = await fromSnapshot().catch(() => undefined);
+      if (snap !== undefined) return snap; // flaky network → serve cached copy
+      throw err;
+    }
+  }
+  const snap = await fromSnapshot().catch(() => undefined);
+  if (snap !== undefined) return snap;
+  throw new Error('Offline at walang naka-save na kopya. Mag-"Sync now" muna habang may internet.');
 }
 
 // ── fields the Add/Edit Student form collects ──
@@ -180,32 +204,46 @@ function studentToRow(s: StudentInput): Row {
 const PAGE = 1000;
 
 export async function listStudents(): Promise<Student[]> {
-  const c = client();
-  const out: Row[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await c
-      .from('reg_students')
-      .select('*')
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
-      .order('lrn', { ascending: true }) // stable tiebreaker across pages
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    const batch = (data ?? []) as Row[];
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-  return out.map(rowToStudent);
+  return offlineRead(
+    async () => {
+      const c = client();
+      const out: Row[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await c
+          .from('reg_students')
+          .select('*')
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .order('lrn', { ascending: true }) // stable tiebreaker across pages
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as Row[];
+        out.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return out.map(rowToStudent);
+    },
+    async () => idbGet<Student[]>(SNAP.students),
+  );
 }
 
 export async function getStudent(lrn: string): Promise<Student | null> {
-  const { data, error } = await client()
-    .from('reg_students')
-    .select('*')
-    .eq('lrn', lrn)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? rowToStudent(data) : null;
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_students')
+        .select('*')
+        .eq('lrn', lrn)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? rowToStudent(data) : null;
+    },
+    async () => {
+      const arr = await idbGet<Student[]>(SNAP.students);
+      if (!arr) return undefined; // no offline copy at all
+      return arr.find((s) => s.lrn === lrn) ?? null;
+    },
+  );
 }
 
 // Columns the list/report/setup screens actually display. Deliberately EXCLUDES
@@ -219,35 +257,46 @@ const STUDENT_LITE_COLS =
   'elem_school_graduated_from,school_type,loyalty_years';
 
 export async function listStudentsLite(): Promise<Student[]> {
-  const c = client();
-  const out: Row[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await c
-      .from('reg_students')
-      .select(STUDENT_LITE_COLS)
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
-      .order('lrn', { ascending: true }) // stable tiebreaker across pages
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    const batch = (data ?? []) as unknown as Row[];
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-  return out.map(rowToStudent);
+  return offlineRead(
+    async () => {
+      const c = client();
+      const out: Row[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await c
+          .from('reg_students')
+          .select(STUDENT_LITE_COLS)
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .order('lrn', { ascending: true }) // stable tiebreaker across pages
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as Row[];
+        out.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return out.map(rowToStudent);
+    },
+    // the full students snapshot is a superset — fine for the lite screens
+    async () => idbGet<Student[]>(SNAP.students),
+  );
 }
 
 // Full rows for one class's roster (small N → decryption is negligible). Used by
 // ClassDetail so it no longer pulls every student just to keep ~40.
 export async function listStudentsByClass(classId: string): Promise<Student[]> {
-  const { data, error } = await client()
-    .from('reg_students')
-    .select('*')
-    .eq('current_class_id', classId)
-    .order('last_name', { ascending: true })
-    .order('first_name', { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as Row[]).map(rowToStudent);
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_students')
+        .select('*')
+        .eq('current_class_id', classId)
+        .order('last_name', { ascending: true })
+        .order('first_name', { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Row[]).map(rowToStudent);
+    },
+    async () => (await idbGet<Student[]>(SNAP.students))?.filter((s) => s.currentClassId === classId),
+  );
 }
 
 // Bulk restore from a decrypted archive. Calls the SECURITY-checked server RPC
@@ -325,20 +374,37 @@ export interface Form137Release {
 }
 
 export async function listForm137Log(lrn: string): Promise<Form137Release[]> {
-  const { data, error } = await client()
-    .from('reg_form137_log')
-    .select('*')
-    .eq('lrn', lrn)
-    .order('released_date', { ascending: false, nullsFirst: false });
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    id: Number(r.id),
-    level: r.level == null ? null : Number(r.level),
-    releasedText: str(r.released_text),
-    releasedDate: r.released_date ? str(r.released_date) : null,
-    requestingSchool: str(r.requesting_school),
-    purpose: str(r.purpose),
-  }));
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_form137_log')
+        .select('*')
+        .eq('lrn', lrn)
+        .order('released_date', { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: Number(r.id),
+        level: r.level == null ? null : Number(r.level),
+        releasedText: str(r.released_text),
+        releasedDate: r.released_date ? str(r.released_date) : null,
+        requestingSchool: str(r.requesting_school),
+        purpose: str(r.purpose),
+      }));
+    },
+    async () => {
+      const all = (await idbGet<(Form137Release & { lrn: string })[]>(SNAP.form137log)) ?? [];
+      return all
+        .filter((x) => x.lrn === lrn)
+        .map((x) => ({
+          id: x.id,
+          level: x.level,
+          releasedText: x.releasedText,
+          releasedDate: x.releasedDate,
+          requestingSchool: x.requestingSchool,
+          purpose: x.purpose,
+        }));
+    },
+  );
 }
 
 // ── transfers (learner in/out of a section during an SY) ──
@@ -366,23 +432,28 @@ export interface TransferInput {
 }
 
 export async function listTransfersForClass(classId: string): Promise<Transfer[]> {
-  const { data, error } = await client()
-    .from('reg_transfers')
-    .select('*')
-    .eq('class_id', classId)
-    .order('transfer_date', { ascending: true, nullsFirst: true });
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    id: Number(r.id),
-    classId: r.class_id ? str(r.class_id) : null,
-    lrn: r.lrn ? str(r.lrn) : null,
-    learnerName: str(r.learner_name),
-    sy: str(r.sy),
-    direction: (str(r.direction) || 'in') as 'in' | 'out',
-    transferDate: r.transfer_date ? str(r.transfer_date) : null,
-    otherSchool: str(r.other_school),
-    remarks: str(r.remarks),
-  }));
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_transfers')
+        .select('*')
+        .eq('class_id', classId)
+        .order('transfer_date', { ascending: true, nullsFirst: true });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: Number(r.id),
+        classId: r.class_id ? str(r.class_id) : null,
+        lrn: r.lrn ? str(r.lrn) : null,
+        learnerName: str(r.learner_name),
+        sy: str(r.sy),
+        direction: (str(r.direction) || 'in') as 'in' | 'out',
+        transferDate: r.transfer_date ? str(r.transfer_date) : null,
+        otherSchool: str(r.other_school),
+        remarks: str(r.remarks),
+      }));
+    },
+    async () => (await idbGet<Transfer[]>(SNAP.transfers))?.filter((t) => t.classId === classId) ?? [],
+  );
 }
 
 export async function addTransfer(input: TransferInput): Promise<void> {
@@ -412,15 +483,27 @@ export interface EscRecord {
 
 export async function listEscForClass(lrns: string[], sy: string): Promise<Record<string, EscRecord>> {
   if (lrns.length === 0) return {};
-  const { data, error } = await client()
-    .from('reg_esc_grants')
-    .select('lrn, grantee, esc_no')
-    .eq('sy', sy)
-    .in('lrn', lrns);
-  if (error) throw error;
-  const out: Record<string, EscRecord> = {};
-  for (const r of data ?? []) out[str(r.lrn)] = { grantee: Boolean(r.grantee), escNo: str(r.esc_no) };
-  return out;
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_esc_grants')
+        .select('lrn, grantee, esc_no')
+        .eq('sy', sy)
+        .in('lrn', lrns);
+      if (error) throw error;
+      const out: Record<string, EscRecord> = {};
+      for (const r of data ?? []) out[str(r.lrn)] = { grantee: Boolean(r.grantee), escNo: str(r.esc_no) };
+      return out;
+    },
+    async () => {
+      const all = (await idbGet<{ lrn: string; sy: string; grantee: boolean; escNo: string }[]>(SNAP.esc)) ?? [];
+      const out: Record<string, EscRecord> = {};
+      for (const r of all) {
+        if (r.sy === sy && lrns.includes(r.lrn)) out[r.lrn] = { grantee: r.grantee, escNo: r.escNo };
+      }
+      return out;
+    },
+  );
 }
 
 export async function saveEsc(
@@ -454,18 +537,32 @@ function teacherToRow(t: TeacherInput): Row {
 }
 
 export async function listTeachers(): Promise<Teacher[]> {
-  const { data, error } = await client()
-    .from('reg_teachers')
-    .select('*')
-    .order('family_name', { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(rowToTeacher);
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_teachers')
+        .select('*')
+        .order('family_name', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(rowToTeacher);
+    },
+    async () => idbGet<Teacher[]>(SNAP.teachers),
+  );
 }
 
 export async function getTeacher(id: number): Promise<Teacher | null> {
-  const { data, error } = await client().from('reg_teachers').select('*').eq('id', id).maybeSingle();
-  if (error) throw error;
-  return data ? rowToTeacher(data) : null;
+  return offlineRead(
+    async () => {
+      const { data, error } = await client().from('reg_teachers').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data ? rowToTeacher(data) : null;
+    },
+    async () => {
+      const arr = await idbGet<Teacher[]>(SNAP.teachers);
+      if (!arr) return undefined;
+      return arr.find((t) => t.id === id) ?? null;
+    },
+  );
 }
 
 export async function saveTeacher(input: TeacherInput, id?: number): Promise<void> {
@@ -494,28 +591,42 @@ function classToRow(c: ClassInput): Row {
 }
 
 export async function listClasses(): Promise<ClassRecord[]> {
-  const c = client();
-  const [clsRes, tchRes] = await Promise.all([
-    c.from('reg_classes').select('*').order('grade_level', { ascending: true }),
-    c.from('reg_teachers').select('*'),
-  ]);
-  if (clsRes.error) throw clsRes.error;
-  if (tchRes.error) throw tchRes.error;
-  const byId = new Map<number, Teacher>((tchRes.data ?? []).map((t) => [Number(t.id), rowToTeacher(t)]));
-  return (clsRes.data ?? []).map((r) => rowToClass(r, byId.get(Number(r.adviser_id))));
+  return offlineRead(
+    async () => {
+      const c = client();
+      const [clsRes, tchRes] = await Promise.all([
+        c.from('reg_classes').select('*').order('grade_level', { ascending: true }),
+        c.from('reg_teachers').select('*'),
+      ]);
+      if (clsRes.error) throw clsRes.error;
+      if (tchRes.error) throw tchRes.error;
+      const byId = new Map<number, Teacher>((tchRes.data ?? []).map((t) => [Number(t.id), rowToTeacher(t)]));
+      return (clsRes.data ?? []).map((r) => rowToClass(r, byId.get(Number(r.adviser_id))));
+    },
+    async () => idbGet<ClassRecord[]>(SNAP.classes),
+  );
 }
 
 export async function getClass(id: string): Promise<ClassRecord | null> {
-  const c = client();
-  const { data, error } = await c.from('reg_classes').select('*').eq('id', id).maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  let adviser: Teacher | undefined;
-  if (data.adviser_id != null) {
-    const { data: t } = await c.from('reg_teachers').select('*').eq('id', data.adviser_id).maybeSingle();
-    if (t) adviser = rowToTeacher(t);
-  }
-  return rowToClass(data, adviser);
+  return offlineRead(
+    async () => {
+      const c = client();
+      const { data, error } = await c.from('reg_classes').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      let adviser: Teacher | undefined;
+      if (data.adviser_id != null) {
+        const { data: t } = await c.from('reg_teachers').select('*').eq('id', data.adviser_id).maybeSingle();
+        if (t) adviser = rowToTeacher(t);
+      }
+      return rowToClass(data, adviser);
+    },
+    async () => {
+      const arr = await idbGet<ClassRecord[]>(SNAP.classes);
+      if (!arr) return undefined;
+      return arr.find((k) => k.id === id) ?? null;
+    },
+  );
 }
 
 export async function saveClass(input: ClassInput, id?: string): Promise<void> {
@@ -544,39 +655,58 @@ function rowToSchoolYear(r: Row): SchoolYear {
 }
 
 export async function listSchoolYears(): Promise<SchoolYear[]> {
-  const { data, error } = await client()
-    .from('reg_school_years')
-    .select('*')
-    .order('code', { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(rowToSchoolYear);
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_school_years')
+        .select('*')
+        .order('code', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(rowToSchoolYear);
+    },
+    async () => idbGet<SchoolYear[]>(SNAP.schoolYears),
+  );
 }
 
 export async function getActiveSchoolYear(): Promise<SchoolYear | null> {
-  const { data, error } = await client()
-    .from('reg_school_years')
-    .select('*')
-    .eq('is_active', true)
-    .order('code', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  const r = data?.[0];
-  return r ? rowToSchoolYear(r) : null;
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_school_years')
+        .select('*')
+        .eq('is_active', true)
+        .order('code', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const r = data?.[0];
+      return r ? rowToSchoolYear(r) : null;
+    },
+    async () => {
+      const arr = await idbGet<SchoolYear[]>(SNAP.schoolYears);
+      if (!arr) return undefined;
+      return arr.find((y) => y.isActive) ?? null;
+    },
+  );
 }
 
 // ── subjects ──
 export async function listSubjects(): Promise<Subject[]> {
-  const { data, error } = await client()
-    .from('reg_subjects')
-    .select('*')
-    .order('code', { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    code: str(r.code),
-    fullName: str(r.full_name),
-    abbreviation: str(r.abbreviation),
-    category: (str(r.category) || 'Core') as SubjectCategory,
-  }));
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_subjects')
+        .select('*')
+        .order('code', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        code: str(r.code),
+        fullName: str(r.full_name),
+        abbreviation: str(r.abbreviation),
+        category: (str(r.category) || 'Core') as SubjectCategory,
+      }));
+    },
+    async () => idbGet<Subject[]>(SNAP.subjects),
+  );
 }
 
 // ── schools (transferee origin master list) ──
@@ -591,18 +721,126 @@ export interface SchoolRecord {
 }
 
 export async function listSchools(): Promise<SchoolRecord[]> {
-  const { data, error } = await client()
-    .from('reg_schools')
-    .select('*')
-    .order('name', { ascending: true });
+  return offlineRead(
+    async () => {
+      const { data, error } = await client()
+        .from('reg_schools')
+        .select('*')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: str(r.code),
+        name: str(r.name),
+        address: str(r.address),
+        district: str(r.district),
+        division: str(r.division),
+        region: str(r.region),
+        type: (str(r.type) || 'Public') as SchoolRecord['type'],
+      }));
+    },
+    async () => idbGet<SchoolRecord[]>(SNAP.schools),
+  );
+}
+
+// ── offline sync: download everything to the device for offline view & print ──
+async function fetchAllForm137(): Promise<(Form137Release & { lrn: string })[]> {
+  const c = client();
+  const out: (Form137Release & { lrn: string })[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await c
+      .from('reg_form137_log')
+      .select('*')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    for (const r of batch) {
+      out.push({
+        lrn: str(r.lrn),
+        id: Number(r.id),
+        level: r.level == null ? null : Number(r.level),
+        releasedText: str(r.released_text),
+        releasedDate: r.released_date ? str(r.released_date) : null,
+        requestingSchool: str(r.requesting_school),
+        purpose: str(r.purpose),
+      });
+    }
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
+async function fetchAllTransfers(): Promise<Transfer[]> {
+  const { data, error } = await client().from('reg_transfers').select('*');
   if (error) throw error;
   return (data ?? []).map((r) => ({
-    id: str(r.code),
-    name: str(r.name),
-    address: str(r.address),
-    district: str(r.district),
-    division: str(r.division),
-    region: str(r.region),
-    type: (str(r.type) || 'Public') as SchoolRecord['type'],
+    id: Number(r.id),
+    classId: r.class_id ? str(r.class_id) : null,
+    lrn: r.lrn ? str(r.lrn) : null,
+    learnerName: str(r.learner_name),
+    sy: str(r.sy),
+    direction: (str(r.direction) || 'in') as 'in' | 'out',
+    transferDate: r.transfer_date ? str(r.transfer_date) : null,
+    otherSchool: str(r.other_school),
+    remarks: str(r.remarks),
   }));
+}
+
+async function fetchAllEsc(): Promise<{ lrn: string; sy: string; grantee: boolean; escNo: string }[]> {
+  const { data, error } = await client().from('reg_esc_grants').select('lrn, sy, grantee, esc_no');
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    lrn: str(r.lrn),
+    sy: str(r.sy),
+    grantee: Boolean(r.grantee),
+    escNo: str(r.esc_no),
+  }));
+}
+
+export interface SyncResult {
+  lastSyncedAt: string;
+  counts: Record<string, number>;
+}
+
+// Pull every dataset to the device (IndexedDB) so the app can be VIEWED and
+// PRINTED offline. Must be called while online. The snapshots hold decrypted PII
+// locally (the Offline page can wipe them).
+export async function syncToDevice(): Promise<SyncResult> {
+  const [students, classes, teachers, schoolYears, subjects, schools, transfers, esc, form137log] =
+    await Promise.all([
+      listStudents(),
+      listClasses(),
+      listTeachers(),
+      listSchoolYears(),
+      listSubjects(),
+      listSchools(),
+      fetchAllTransfers(),
+      fetchAllEsc(),
+      fetchAllForm137(),
+    ]);
+  await Promise.all([
+    idbSet(SNAP.students, students),
+    idbSet(SNAP.classes, classes),
+    idbSet(SNAP.teachers, teachers),
+    idbSet(SNAP.schoolYears, schoolYears),
+    idbSet(SNAP.subjects, subjects),
+    idbSet(SNAP.schools, schools),
+    idbSet(SNAP.transfers, transfers),
+    idbSet(SNAP.esc, esc),
+    idbSet(SNAP.form137log, form137log),
+  ]);
+  const counts: Record<string, number> = {
+    students: students.length,
+    classes: classes.length,
+    teachers: teachers.length,
+    schoolYears: schoolYears.length,
+    subjects: subjects.length,
+    schools: schools.length,
+    transfers: transfers.length,
+    esc: esc.length,
+    form137log: form137log.length,
+  };
+  const meta = { lastSyncedAt: new Date().toISOString(), counts };
+  await idbSet(SNAP.meta, meta);
+  return meta;
 }

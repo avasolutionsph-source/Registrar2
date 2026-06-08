@@ -8,6 +8,7 @@ import {
   Building2,
   ShieldCheck,
   Archive,
+  WifiOff,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -67,6 +68,12 @@ const TILES: Tile[] = [
     icon: Archive,
     label: 'Backup & Archive',
     desc: 'Download student records as a password-encrypted file, or restore one',
+  },
+  {
+    to: '/setup/offline',
+    icon: WifiOff,
+    label: 'Offline Access',
+    desc: 'Save all records to this device to view & print during a brownout',
   },
 ];
 
