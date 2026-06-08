@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
 import { listStudentsLite, listClasses } from '@/lib/db';
-import type { Student, ClassRecord } from '@/types';
+import { isAllTime } from '@/types';
+import type { Student, ClassRecord, SchoolYear } from '@/types';
 import { formatLastFirstMiddle } from '@/lib/format';
 
 export default function StudentsList() {
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [students, setStudents] = useState<Student[]>([]);
   const [classById, setClassById] = useState<Map<string, ClassRecord>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -66,13 +68,22 @@ export default function StudentsList() {
     },
   ];
 
+  // Filter to the selected school year ("All time" shows every learner).
+  // A learner belongs to the year that is their current SY (currently enrolled).
+  const visible = isAllTime(currentSY)
+    ? students
+    : students.filter((s) => s.currentSY === currentSY!.code);
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Students' }]} />
       <div className="mb-4">
         <h1 className="text-xl font-bold text-ink-primary">Students</h1>
         <p className="text-[13px] text-ink-secondary mt-1">
-          {loading ? 'Loading…' : `${students.length} learner${students.length === 1 ? '' : 's'}`}
+          {loading
+            ? 'Loading…'
+            : `${visible.length} learner${visible.length === 1 ? '' : 's'}` +
+              (isAllTime(currentSY) ? ' · all years' : ` · ${currentSY!.label}`)}
         </p>
       </div>
 
@@ -82,12 +93,18 @@ export default function StudentsList() {
         </p>
       ) : (
         <DataTable<Student>
-          data={students}
+          data={visible}
           columns={cols}
           searchableText={(s) => `${formatLastFirstMiddle(s)} ${s.lrn} ${s.studentNo}`}
           onRowClick={(s) => navigate(`/students/${s.lrn}`)}
           searchPlaceholder="Search by name, LRN, or Student No.…"
-          emptyText={loading ? 'Loading…' : 'No students yet. Click “Add Student” to create one.'}
+          emptyText={
+            loading
+              ? 'Loading…'
+              : isAllTime(currentSY)
+                ? 'No students yet. Click “Add Student” to create one.'
+                : `No learners with current SY ${currentSY!.label}. Pick “All time” to see everyone.`
+          }
           rightActions={
             <Button onClick={() => navigate('/students/new')}>
               <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
