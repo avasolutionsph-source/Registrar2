@@ -6,6 +6,7 @@ import StudentsList from '@/routes/students/StudentsList';
 import AddStudent from '@/routes/students/AddStudent';
 import EditStudent from '@/routes/students/EditStudent';
 import EncodeGrades from '@/routes/students/EncodeGrades';
+import EnrolmentDetails from '@/routes/students/EnrolmentDetails';
 import ClassDetail from '@/routes/classes/ClassDetail';
 import ClassesList from '@/routes/classes/ClassesList';
 import AddClass from '@/routes/classes/AddClass';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="students/:lrn" element={<StudentDetail />} />
           <Route path="students/:lrn/edit" element={<EditStudent />} />
           <Route path="students/:lrn/grades" element={<EncodeGrades />} />
+          <Route path="students/:lrn/enrolment" element={<EnrolmentDetails />} />
           <Route path="classes" element={<ClassesList />} />
           <Route path="classes/new" element={<AddClass />} />
           <Route path="classes/:id" element={<ClassDetail />} />

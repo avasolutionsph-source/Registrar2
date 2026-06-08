@@ -5,13 +5,14 @@ import { gradeLabel, formatSy, SCHOOL } from '@/lib/forms';
 interface Props {
   student: Student;
   klass?: ClassRecord;
+  photoUrl?: string;
 }
 
 const NPS_RED = '#b01e2e';
 
 // A cut-out ID card (~54×86mm portrait). Photo is a placeholder box — the
 // system doesn't store learner photos yet.
-export function StudentId({ student, klass }: Props) {
+export function StudentId({ student, klass, photoUrl }: Props) {
   const latest = [...(student.enrolmentHistory ?? [])].sort((a, b) => b.sy.localeCompare(a.sy))[0];
   const grade = gradeLabel(klass ? klass.gradeLevel : latest?.gradeLevel);
   const section = klass?.sectionName ?? latest?.sectionName ?? '';
@@ -35,9 +36,17 @@ export function StudentId({ student, klass }: Props) {
         </div>
 
         <div className="mt-1 flex justify-center">
-          <div className="grid h-[24mm] w-[24mm] place-items-center border border-zinc-400 text-[6px] uppercase text-zinc-400">
-            1×1 Photo
-          </div>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt=""
+              className="h-[24mm] w-[24mm] border border-zinc-400 object-cover"
+            />
+          ) : (
+            <div className="grid h-[24mm] w-[24mm] place-items-center border border-zinc-400 text-[6px] uppercase text-zinc-400">
+              1×1 Photo
+            </div>
+          )}
         </div>
 
         <div className="mt-1.5 px-2 text-center">

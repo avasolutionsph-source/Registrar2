@@ -10,6 +10,7 @@ import {
   conductForSy,
   MONTHS,
   VALUE_TRAITS,
+  PROGRAM_LABELS,
 } from '@/lib/forms';
 import { Letterhead, LearnerInfo, SignatureBlock } from './parts';
 
@@ -40,6 +41,10 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
   const conduct = conductForSy(student, year);
   const att = conduct.attendance;
   const values = conduct.values?.q;
+  const programs = conduct.programs?.q;
+  const programKeys = programs
+    ? Object.keys(PROGRAM_LABELS).filter((k) => QUARTERS.some((q) => programs[q]?.[k] != null))
+    : [];
 
   return (
     <div className="font-serif">
@@ -178,6 +183,36 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
                   {QUARTERS.map((q) => (
                     <td key={q} className="border border-zinc-400 px-0.5 py-0.5 text-center">
                       {values[q]?.[t.key] ?? ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {programKeys.length > 0 && (
+        <div className="mt-3">
+          <h4 className="text-[9.5px] font-bold uppercase tracking-wide">Special Programs</h4>
+          <table className="mt-1 w-full border-collapse text-[9px]">
+            <thead>
+              <tr className="bg-zinc-100 text-[8.5px] uppercase">
+                <th className="border border-zinc-400 px-1.5 py-0.5 text-left">Program</th>
+                {QUARTERS.map((q) => (
+                  <th key={q} className="w-9 border border-zinc-400 px-0.5 py-0.5">
+                    Q{q}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {programKeys.map((k) => (
+                <tr key={k}>
+                  <td className="border border-zinc-400 px-1.5 py-0.5">{PROGRAM_LABELS[k]}</td>
+                  {QUARTERS.map((q) => (
+                    <td key={q} className="border border-zinc-400 px-0.5 py-0.5 text-center">
+                      {programs?.[q]?.[k] ?? ''}
                     </td>
                   ))}
                 </tr>

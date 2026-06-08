@@ -72,6 +72,9 @@ const student: Student = {
         q: { '1': { honest: 90, piety: 88 }, '2': { honest: 89, piety: 88 } },
         average: 89,
       },
+      programs: {
+        q: { '1': { computer: 90, scouting: 88 }, '2': { computer: 91 } },
+      },
     },
   },
   credentials: {
@@ -106,6 +109,8 @@ describe('printable forms render with real-shaped data', () => {
     expect(text).toContain('Days Present');
     expect(text).toContain("Learner"); // Learner's Observed Values
     expect(text).toContain('Honesty'); // a core-value trait label
+    expect(text).toContain('Special Programs');
+    expect(text).toContain('Computer'); // special-program label
   });
 
   it('Good Moral Certificate names the learner and certifies character', () => {

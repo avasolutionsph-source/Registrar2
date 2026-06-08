@@ -115,4 +115,8 @@ export interface Student {
   // standardized tests (only populated for eligible grade levels)
   ncae?: { gmc?: number; fil?: number; mapeh?: number; total?: number };
   nat?: { fil?: number };
+
+  // ID photo: storage object path in the private `student-photos` bucket
+  // (resolved to a short-lived signed URL for display). Undefined = no photo.
+  photoPath?: string;
 }

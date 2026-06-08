@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pencil, Printer, FileText, IdCard } from 'lucide-react';
+import { Pencil, Printer, FileText, IdCard, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Form137 } from '@/components/print/Form137';
@@ -13,7 +13,15 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getStudent, listClasses, listSubjects, listForm137Log, type Form137Release } from '@/lib/db';
+import {
+  getStudent,
+  listClasses,
+  listSubjects,
+  listForm137Log,
+  uploadStudentPhoto,
+  getPhotoSignedUrl,
+  type Form137Release,
+} from '@/lib/db';
 import {
   subjectIndex,
   buildSubjectRows,
@@ -53,9 +61,13 @@ export default function StudentDetail() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [releases, setReleases] = useState<Form137Release[]>([]);
   const [doc, setDoc] = useState<DocKind | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setPhotoUrl(null);
     (async () => {
       if (!lrn) {
         setStudent(null);
@@ -73,6 +85,10 @@ export default function StudentDetail() {
         setSubjects(subs);
         setReleases(rel);
         setKlass(s ? classes.find((c) => c.id === s.currentClassId) : undefined);
+        if (s?.photoPath) {
+          const url = await getPhotoSignedUrl(s.photoPath);
+          if (!cancelled) setPhotoUrl(url);
+        }
       } catch {
         if (!cancelled) setStudent(null);
       }
@@ -122,15 +138,40 @@ export default function StudentDetail() {
     : [];
   const gradeGA = generalAverage(gradeRows);
 
+  async function onPhotoPicked(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = '';
+    if (!file || !student) return;
+    setPhotoBusy(true);
+    try {
+      const path = await uploadStudentPhoto(student.lrn, file);
+      const url = await getPhotoSignedUrl(path);
+      setStudent({ ...student, photoPath: path });
+      setPhotoUrl(url);
+    } catch {
+      // upload failed — leave the existing photo/state untouched
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Students', to: '/students' }, { label: fullName }]} />
       <div className="flex gap-5">
         <EntityRail
           avatar={
-            <div className="w-[84px] h-[84px] rounded-full bg-border grid place-items-center text-ink-muted font-bold text-[28px]">
-              {initials}
-            </div>
+            photoUrl ? (
+              <img
+                src={photoUrl}
+                alt=""
+                className="w-[84px] h-[84px] rounded-full object-cover border border-border"
+              />
+            ) : (
+              <div className="w-[84px] h-[84px] rounded-full bg-border grid place-items-center text-ink-muted font-bold text-[28px]">
+                {initials}
+              </div>
+            )
           }
           name={`${student.firstName} ${student.lastName}`}
           subtitle={klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—'}
@@ -147,6 +188,22 @@ export default function StudentDetail() {
                 onClick={() => navigate(`/students/${student.lrn}/edit`)}
               >
                 <Pencil className="w-3.5 h-3.5" /> Edit profile
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onPhotoPicked}
+              />
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                disabled={photoBusy}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Upload className="w-3.5 h-3.5" />{' '}
+                {photoBusy ? 'Uploading…' : photoUrl ? 'Change photo' : 'Upload photo'}
               </Button>
               <Button
                 variant="outline"
@@ -247,6 +304,18 @@ export default function StudentDetail() {
                 { label: 'School Type', value: student.schoolType || '—' },
               ]}
             />
+            {(student.enrolmentHistory?.length ?? 0) > 0 && (
+              <div className="flex justify-end mt-2 px-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => navigate(`/students/${student.lrn}/enrolment`)}
+                >
+                  <FileText className="w-3.5 h-3.5" /> View full history ({student.enrolmentHistory.length} yrs)
+                </Button>
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard
@@ -378,7 +447,7 @@ export default function StudentDetail() {
         ) : doc === 'coe' ? (
           <CertEnrollment student={student} klass={klass} />
         ) : doc === 'id' ? (
-          <StudentId student={student} klass={klass} />
+          <StudentId student={student} klass={klass} photoUrl={photoUrl ?? undefined} />
         ) : (
           <Form137 student={student} subjects={subjects} variant={doc === 'sf10' ? 'sf10' : 'form137'} />
         )}

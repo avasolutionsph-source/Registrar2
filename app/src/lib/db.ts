@@ -139,6 +139,7 @@ function rowToStudent(r: Row): Student {
     credentials: (r.credentials ?? {}) as unknown as CredentialStatus,
     ncae: (r.ncae ?? undefined) as Student['ncae'],
     nat: (r.nat ?? undefined) as Student['nat'],
+    photoPath: r.photo_url ? str(r.photo_url) : undefined,
   };
 }
 
@@ -227,6 +228,37 @@ export async function deleteStudent(lrn: string): Promise<void> {
 // columns can never be clobbered.
 export async function saveStudentGrades(lrn: string, grades: Student['grades']): Promise<void> {
   const { error } = await client().from('reg_students').update({ grades }).eq('lrn', lrn);
+  if (error) throw error;
+}
+
+// ── ID photos (private `student-photos` bucket) ──
+const PHOTO_BUCKET = 'student-photos';
+
+// Upload/replace a learner's ID photo; stores the object path on the row.
+export async function uploadStudentPhoto(lrn: string, file: File): Promise<string> {
+  const c = client();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${lrn}/${lrn}-${Date.now()}.${ext}`;
+  const { error: upErr } = await c.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type || undefined });
+  if (upErr) throw upErr;
+  const { error } = await c.from('reg_students').update({ photo_url: path }).eq('lrn', lrn);
+  if (error) throw error;
+  return path;
+}
+
+// Short-lived signed URL for displaying a private photo (default 1 hour).
+export async function getPhotoSignedUrl(path: string, expiresIn = 3600): Promise<string | null> {
+  const { data, error } = await client().storage.from(PHOTO_BUCKET).createSignedUrl(path, expiresIn);
+  if (error) return null;
+  return data?.signedUrl ?? null;
+}
+
+export async function removeStudentPhoto(lrn: string, path: string): Promise<void> {
+  const c = client();
+  await c.storage.from(PHOTO_BUCKET).remove([path]);
+  const { error } = await c.from('reg_students').update({ photo_url: null }).eq('lrn', lrn);
   if (error) throw error;
 }
 
