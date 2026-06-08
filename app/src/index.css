@@ -35,3 +35,17 @@
     font-feature-settings: 'tnum' 1;
   }
 }
+
+/* ── Printing ───────────────────────────────────────────────────────────────
+   Printable documents (Form 137, SF 9, …) are rendered into a portal that is a
+   sibling of #root. When printing we hide the whole app and let only the
+   document flow across pages. */
+@media print {
+  #root { display: none !important; }
+  .no-print { display: none !important; }
+  #print-root {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page { size: A4 portrait; margin: 13mm; }
+}

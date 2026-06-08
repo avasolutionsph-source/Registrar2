@@ -8,6 +8,9 @@ dist/
 .env.local
 *.log
 
+# Generated migration SQL — contains real student PII (names, LRNs, grades). Never commit.
+scripts/migrate/out/
+
 # OS
 .DS_Store
 Thumbs.db

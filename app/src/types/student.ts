@@ -25,6 +25,14 @@ export interface EnrolmentEntry {
   adviserName: string;
   generalAverage?: number;
   action?: EnrolmentAction;
+  // present on the imported legacy records (optional for hand-entered rows)
+  schoolName?: string; // school attended that year ("Naga Parochial School" for NPS years)
+  schoolId?: string; // 6-digit DepEd School ID
+  daysPresent?: number;
+  dateEntered?: string; // ISO
+  dateLeft?: string; // ISO
+  startYear?: number;
+  to?: string; // grade promoted to, e.g. "Grade VII"
 }
 
 export interface QuarterGrade {
@@ -34,6 +42,29 @@ export interface QuarterGrade {
   q3?: number;
   q4?: number;
   final?: number;
+}
+
+// ── conduct (imported from legacy attendance / deportment / special programs) ──
+export interface AttendanceRecord {
+  present?: Record<string, number>; // month key (jun…apr) → days present
+  tardy?: Record<string, number>; // month key → times tardy
+  totalPresent?: number;
+  totalTardy?: number;
+}
+
+export interface ValuesRecord {
+  q: Record<string, Record<string, number>>; // quarter "1".."4" → trait → rating
+  average?: number;
+}
+
+export interface ProgramsRecord {
+  q: Record<string, Record<string, number>>; // quarter → program → grade
+}
+
+export interface ConductYear {
+  attendance?: AttendanceRecord;
+  values?: ValuesRecord;
+  programs?: ProgramsRecord;
 }
 
 export interface Student {
@@ -73,6 +104,10 @@ export interface Student {
 
   // grades by SY (only the current SY is displayed in the prototype)
   grades: Record<SchoolYearCode, QuarterGrade[]>;
+
+  // conduct by SY: attendance, observed core values, special-program ratings.
+  // Optional: legacy mock fixtures predate this field; the DB mapper always sets it.
+  conduct?: Record<SchoolYearCode, ConductYear>;
 
   // credentials (per current SY)
   credentials: CredentialStatus;

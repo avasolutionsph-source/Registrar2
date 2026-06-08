@@ -2,17 +2,32 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Printer, FileText, IdCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { PrintPreview } from '@/components/ui/print-preview';
+import { PrintHost } from '@/components/print/PrintHost';
+import { Form137 } from '@/components/print/Form137';
+import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
+import { GoodMoral } from '@/components/print/GoodMoral';
+import { CertEnrollment } from '@/components/print/CertEnrollment';
+import { StudentId } from '@/components/print/StudentId';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getStudent, listClasses } from '@/lib/db';
+import { getStudent, listClasses, listSubjects, listForm137Log, type Form137Release } from '@/lib/db';
+import {
+  subjectIndex,
+  buildSubjectRows,
+  generalAverage,
+  latestGradedSy,
+  gradesForSy,
+  formatSy,
+} from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
-import type { CredentialState, ClassRecord, Student } from '@/types';
+import type { CredentialState, ClassRecord, Student, Subject } from '@/types';
 
 const REF_DATE = '2026-05-04'; // reference "today" for age display
+const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '—');
+type DocKind = 'form137' | 'sf10' | 'sf9' | 'gmc' | 'coe' | 'id';
 
 const credLabels: Record<string, string> = {
   bc: 'BC · Birth Certificate',
@@ -35,8 +50,9 @@ export default function StudentDetail() {
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null | undefined>(undefined); // undefined = loading
   const [klass, setKlass] = useState<ClassRecord | undefined>();
-  const [printDoc, setPrintDoc] = useState<string | null>(null);
-  const openPrintPreview = (docName: string) => setPrintDoc(docName);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [releases, setReleases] = useState<Form137Release[]>([]);
+  const [doc, setDoc] = useState<DocKind | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,9 +62,16 @@ export default function StudentDetail() {
         return;
       }
       try {
-        const [s, classes] = await Promise.all([getStudent(lrn), listClasses()]);
+        const [s, classes, subs, rel] = await Promise.all([
+          getStudent(lrn),
+          listClasses(),
+          listSubjects(),
+          listForm137Log(lrn),
+        ]);
         if (cancelled) return;
         setStudent(s);
+        setSubjects(subs);
+        setReleases(rel);
         setKlass(s ? classes.find((c) => c.id === s.currentClassId) : undefined);
       } catch {
         if (!cancelled) setStudent(null);
@@ -88,9 +111,16 @@ export default function StudentDetail() {
     { id: 'grades', label: 'Grades' },
     { id: 'credentials', label: 'Credentials' },
     { id: 'tests', label: 'Tests' },
+    { id: 'releases', label: 'Form 137 Log' },
   ];
 
   const isElem = klass && ['I', 'II', 'III', 'IV', 'V', 'VI'].includes(klass.gradeLevel);
+
+  const gradedSy = latestGradedSy(student);
+  const gradeRows = gradedSy
+    ? buildSubjectRows(gradesForSy(student, gradedSy), subjectIndex(subjects))
+    : [];
+  const gradeGA = generalAverage(gradeRows);
 
   return (
     <>
@@ -121,30 +151,44 @@ export default function StudentDetail() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => openPrintPreview('Report Card / SF 9 — Form 138')}
+                onClick={() => setDoc('sf9')}
               >
-                <Printer className="w-3.5 h-3.5" /> Print Report Card
+                <Printer className="w-3.5 h-3.5" /> Report Card (SF 9)
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => openPrintPreview('Student ID')}
-              >
-                <IdCard className="w-3.5 h-3.5" /> Print ID
-              </Button>
-              <Button
-                variant="outline"
-                className="justify-start gap-2 w-full"
-                onClick={() => openPrintPreview('Form 137 — Permanent Record')}
+                onClick={() => setDoc('form137')}
               >
                 <FileText className="w-3.5 h-3.5" /> Form 137
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => openPrintPreview("SF 10 — Learner's Permanent Record")}
+                onClick={() => setDoc('sf10')}
               >
                 <FileText className="w-3.5 h-3.5" /> SF 10
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                onClick={() => setDoc('gmc')}
+              >
+                <FileText className="w-3.5 h-3.5" /> Good Moral
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                onClick={() => setDoc('coe')}
+              >
+                <FileText className="w-3.5 h-3.5" /> Cert. of Enrollment
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                onClick={() => setDoc('id')}
+              >
+                <IdCard className="w-3.5 h-3.5" /> Student ID
               </Button>
             </>
           }
@@ -205,10 +249,47 @@ export default function StudentDetail() {
             />
           </SectionCard>
 
-          <SectionCard id="grades" heading="Grades — SY 2025–2026">
-            <p className="text-[12.5px] text-ink-secondary px-1">
-              No grades encoded yet. Encoding window opens after the 1st quarter end date.
-            </p>
+          <SectionCard
+            id="grades"
+            heading={gradedSy ? `Grades — SY ${formatSy(gradedSy)}` : 'Grades'}
+          >
+            {gradeRows.length === 0 ? (
+              <p className="text-[12.5px] text-ink-secondary px-1">No grades on record for this learner.</p>
+            ) : (
+              <div className="px-1">
+                <table className="w-full text-[12.5px]">
+                  <thead>
+                    <tr className="text-ink-muted text-[11px] uppercase">
+                      <th className="text-left font-medium py-1">Subject</th>
+                      <th className="w-10 font-medium">Q1</th>
+                      <th className="w-10 font-medium">Q2</th>
+                      <th className="w-10 font-medium">Q3</th>
+                      <th className="w-10 font-medium">Q4</th>
+                      <th className="w-12 font-medium">Final</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gradeRows.map((r) => (
+                      <tr key={r.subjectCode} className="border-t border-border">
+                        <td className="py-1 text-ink-primary">{r.name}</td>
+                        <td className="text-center text-ink-secondary">{fmtQ(r.q1)}</td>
+                        <td className="text-center text-ink-secondary">{fmtQ(r.q2)}</td>
+                        <td className="text-center text-ink-secondary">{fmtQ(r.q3)}</td>
+                        <td className="text-center text-ink-secondary">{fmtQ(r.q4)}</td>
+                        <td className="text-center font-semibold text-ink-primary">{fmtQ(r.final)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-semibold">
+                      <td className="py-1 text-right text-ink-secondary text-[11px] uppercase">
+                        General Average
+                      </td>
+                      <td colSpan={4} />
+                      <td className="text-center text-ink-primary">{gradeGA ?? '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </SectionCard>
 
           <SectionCard id="credentials" heading="Credentials">
@@ -227,14 +308,71 @@ export default function StudentDetail() {
                 : 'No scores recorded.'}
             </p>
           </SectionCard>
+
+          <SectionCard id="releases" heading="Form 137 — Release Log">
+            {releases.length === 0 ? (
+              <p className="text-[12.5px] text-ink-secondary px-1">
+                No Form 137 release on record for this learner.
+              </p>
+            ) : (
+              <div className="px-1">
+                <table className="w-full text-[12.5px]">
+                  <thead>
+                    <tr className="text-ink-muted text-[11px] uppercase">
+                      <th className="text-left font-medium py-1 pr-3">Date released</th>
+                      <th className="text-left font-medium pr-3">Requesting school / destination</th>
+                      <th className="text-left font-medium">Purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {releases.map((r) => (
+                      <tr key={r.id} className="border-t border-border align-top">
+                        <td className="py-1 pr-3 text-ink-primary whitespace-nowrap">
+                          {r.releasedDate ? formatBirthdate(r.releasedDate) : r.releasedText || '—'}
+                        </td>
+                        <td className="py-1 pr-3 text-ink-secondary">{r.requestingSchool || '—'}</td>
+                        <td className="py-1 text-ink-secondary">{r.purpose || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-[11px] text-ink-muted">
+                  {releases.length} release{releases.length === 1 ? '' : 's'} on record.
+                </p>
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
-      <PrintPreview
-        open={printDoc !== null}
-        title={printDoc ?? ''}
-        subtitle={`${student.firstName} ${student.lastName} · LRN ${student.lrn}`}
-        onClose={() => setPrintDoc(null)}
-      />
+      <PrintHost
+        open={doc !== null}
+        docTitle={
+          doc === 'sf9'
+            ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
+            : doc === 'sf10'
+              ? `SF 10 · ${student.lastName}, ${student.firstName}`
+              : doc === 'gmc'
+                ? `Good Moral · ${student.lastName}, ${student.firstName}`
+                : doc === 'coe'
+                  ? `Certificate of Enrollment · ${student.lastName}, ${student.firstName}`
+                  : doc === 'id'
+                    ? `Student ID · ${student.lastName}, ${student.firstName}`
+                    : `Form 137 · ${student.lastName}, ${student.firstName}`
+        }
+        onClose={() => setDoc(null)}
+      >
+        {doc === 'sf9' ? (
+          <ReportCardSF9 student={student} subjects={subjects} />
+        ) : doc === 'gmc' ? (
+          <GoodMoral student={student} />
+        ) : doc === 'coe' ? (
+          <CertEnrollment student={student} klass={klass} />
+        ) : doc === 'id' ? (
+          <StudentId student={student} klass={klass} />
+        ) : (
+          <Form137 student={student} subjects={subjects} variant={doc === 'sf10' ? 'sf10' : 'form137'} />
+        )}
+      </PrintHost>
     </>
   );
 }

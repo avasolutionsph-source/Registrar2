@@ -71,12 +71,13 @@ export default function EditStudent() {
       <StudentForm
         student={student}
         onSubmit={async (data) => {
-          // The form doesn't edit history/grades — carry them through unchanged.
+          // The form doesn't edit history/grades/conduct — carry them through unchanged.
           await saveStudent(
             {
               ...data,
               enrolmentHistory: student.enrolmentHistory,
               grades: student.grades,
+              conduct: student.conduct,
               ncae: student.ncae,
               nat: student.nat,
             },

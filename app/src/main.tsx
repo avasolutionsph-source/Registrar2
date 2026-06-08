@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './lib/pwaInstall' // capture the install prompt as early as possible
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(

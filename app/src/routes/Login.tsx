@@ -1,10 +1,16 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, ShieldAlert, Download, X, Share } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
+import { canInstall, subscribe, promptInstall, isIOS, isStandalone } from '@/lib/pwaInstall';
 import npsLogo from '@/assets/nps-logo.png';
 import cover from '@/assets/cover.jpeg';
+
+// Soft gate so only staff with the shared phrase can install the app. This is
+// a convenience lock, not real security — the actual data is protected by the
+// Supabase login + registrar role below.
+const INSTALL_PASSWORD = 'nps@avasolutions';
 
 export default function Login() {
   const { signIn, signOut, session, allowed, roleLoading, email } = useAuth();
@@ -13,6 +19,48 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // ── PWA install (password-gated "Download" button) ──
+  const [installable, setInstallable] = useState(canInstall());
+  useEffect(() => subscribe(() => setInstallable(canInstall())), []);
+  const standalone = isStandalone();
+  const ios = isIOS();
+
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gatePass, setGatePass] = useState('');
+  const [gateErr, setGateErr] = useState<string | null>(null);
+  const [installNote, setInstallNote] = useState<string | null>(null);
+
+  const openGate = () => {
+    setGatePass('');
+    setGateErr(null);
+    setInstallNote(null);
+    setGateOpen(true);
+  };
+
+  async function unlockAndInstall(e: FormEvent) {
+    e.preventDefault();
+    if (gatePass !== INSTALL_PASSWORD) {
+      setGateErr('Incorrect password.');
+      return;
+    }
+    setGateErr(null);
+    if (installable) {
+      const outcome = await promptInstall();
+      if (outcome === 'accepted') setGateOpen(false);
+      else if (outcome === 'dismissed') setInstallNote('Install was dismissed. You can tap Install again anytime.');
+      else
+        setInstallNote(
+          ios
+            ? 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”.'
+            : 'Open this page in Chrome or Edge, then use the browser menu → “Install app”.',
+        );
+    } else if (ios) {
+      setInstallNote('On iPhone/iPad: tap the Share button below the address bar, then “Add to Home Screen”.');
+    } else {
+      setInstallNote('Open this page in Chrome or Edge, then use the browser menu → “Install app” / “Add to Home screen”.');
+    }
+  }
 
   // Already signed in as a registrar → straight into the app.
   if (session && allowed) return <Navigate to="/students" replace />;
@@ -214,9 +262,92 @@ export default function Login() {
                 </p>
               </div>
             )}
+
+            {/* Password-gated install (download) button */}
+            {!standalone && (
+              <button
+                type="button"
+                onClick={openGate}
+                className="mt-6 w-full h-11 rounded-md border border-border text-[13px] font-semibold text-ink-secondary hover:bg-app hover:text-ink-primary flex items-center justify-center gap-2 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download app to this device
+              </button>
+            )}
           </form>
         </div>
       </div>
+
+      {/* Install password gate */}
+      {gateOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-ink-primary/60 px-4"
+          onClick={() => setGateOpen(false)}
+        >
+          <div
+            className="w-full max-w-[400px] bg-panel rounded-2xl shadow-2xl px-6 py-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-nps-red/10 grid place-items-center">
+                  <Download className="w-4 h-4 text-nps-red" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-ink-primary leading-tight">Install Registrar app</h3>
+                  <p className="text-[12px] text-ink-muted">Enter the staff password to continue.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGateOpen(false)}
+                className="p-1 text-ink-muted hover:text-ink-primary"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={unlockAndInstall} className="mt-5 flex flex-col gap-3">
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none" aria-hidden="true" />
+                <Input
+                  type="password"
+                  value={gatePass}
+                  onChange={(e) => {
+                    setGatePass(e.target.value);
+                    setGateErr(null);
+                  }}
+                  placeholder="Staff password"
+                  autoFocus
+                  className="pl-10 h-11 text-[13.5px]"
+                />
+              </div>
+
+              {gateErr && (
+                <p className="text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+                  {gateErr}
+                </p>
+              )}
+
+              {installNote ? (
+                <div className="text-[12.5px] text-ink-secondary bg-app border border-border-soft rounded-md px-3 py-2.5 flex items-start gap-2">
+                  {ios && <Share className="w-4 h-4 mt-0.5 shrink-0 text-nps-red" />}
+                  <span>{installNote}</span>
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  className="h-11 rounded-md bg-nps-red hover:bg-nps-red-dark text-white font-semibold text-[14px] flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Unlock &amp; install
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -48,6 +48,7 @@ export interface StudentInput {
   // nested history/grades aren't edited in the form — carried through on edit
   enrolmentHistory?: Student['enrolmentHistory'];
   grades?: Student['grades'];
+  conduct?: Student['conduct'];
   ncae?: Student['ncae'];
   nat?: Student['nat'];
 }
@@ -134,6 +135,7 @@ function rowToStudent(r: Row): Student {
     enrolmentHistory: (r.enrolment_history ?? []) as Student['enrolmentHistory'],
     loyaltyYears: Number(r.loyalty_years ?? 0),
     grades: (r.grades ?? {}) as unknown as Student['grades'],
+    conduct: (r.conduct ?? {}) as unknown as Student['conduct'],
     credentials: (r.credentials ?? {}) as unknown as CredentialStatus,
     ncae: (r.ncae ?? undefined) as Student['ncae'],
     nat: (r.nat ?? undefined) as Student['nat'],
@@ -164,6 +166,7 @@ function studentToRow(s: StudentInput): Row {
     school_type: s.schoolType ?? '',
     enrolment_history: s.enrolmentHistory ?? [],
     grades: s.grades ?? {},
+    conduct: s.conduct ?? {},
     credentials: s.credentials ?? {},
     ncae: s.ncae ?? null,
     nat: s.nat ?? null,
@@ -171,14 +174,27 @@ function studentToRow(s: StudentInput): Row {
 }
 
 // ── students ──
+// PostgREST caps a single response at ~1000 rows, but NPS has ~6,000 students.
+// Page through with .range() until a short page comes back so we get them all.
+const PAGE = 1000;
+
 export async function listStudents(): Promise<Student[]> {
-  const { data, error } = await client()
-    .from('reg_students')
-    .select('*')
-    .order('last_name', { ascending: true })
-    .order('first_name', { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(rowToStudent);
+  const c = client();
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await c
+      .from('reg_students')
+      .select('*')
+      .order('last_name', { ascending: true })
+      .order('first_name', { ascending: true })
+      .order('lrn', { ascending: true }) // stable tiebreaker across pages
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as Row[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out.map(rowToStudent);
 }
 
 export async function getStudent(lrn: string): Promise<Student | null> {
@@ -205,6 +221,33 @@ export async function saveStudent(input: StudentInput, originalLrn?: string): Pr
 export async function deleteStudent(lrn: string): Promise<void> {
   const { error } = await client().from('reg_students').delete().eq('lrn', lrn);
   if (error) throw error;
+}
+
+// ── Form 137 release log ──
+export interface Form137Release {
+  id: number;
+  level: number | null;
+  releasedText: string; // raw recorded date string
+  releasedDate: string | null; // best-effort ISO (nullable)
+  requestingSchool: string;
+  purpose: string;
+}
+
+export async function listForm137Log(lrn: string): Promise<Form137Release[]> {
+  const { data, error } = await client()
+    .from('reg_form137_log')
+    .select('*')
+    .eq('lrn', lrn)
+    .order('released_date', { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    level: r.level == null ? null : Number(r.level),
+    releasedText: str(r.released_text),
+    releasedDate: r.released_date ? str(r.released_date) : null,
+    requestingSchool: str(r.requesting_school),
+    purpose: str(r.purpose),
+  }));
 }
 
 // ── teachers ──
