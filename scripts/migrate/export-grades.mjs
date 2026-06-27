@@ -149,7 +149,7 @@ for (let i = 0; i < updates.length; i += CHUNK) {
   const slice = updates.slice(i, i + CHUNK);
   let body = `-- ════ Set B · 03 grades part ${part} (students ${i + 1}–${i + slice.length}) ════\n`;
   body += 'begin;\n';
-  body += 'update reg_students s set grades = v.g::jsonb from (values\n';
+  body += 'update reg_students_data s set grades = v.g::jsonb from (values\n';
   body += slice.map(([k, j]) => `(${esc(k)},${esc(j)})`).join(',\n');
   body += '\n) as v(lrn, g) where s.lrn = v.lrn;\n';
   body += 'commit;\n';

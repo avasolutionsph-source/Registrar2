@@ -1,0 +1,12 @@
+{
+  "name": "nps-registrar-migrate",
+  "private": true,
+  "type": "module",
+  "description": "Legacy → Supabase ETL + one-command SQL uploader for the NPS Registrar System.",
+  "scripts": {
+    "upload": "node upload.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

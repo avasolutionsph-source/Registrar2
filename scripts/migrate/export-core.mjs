@@ -18,7 +18,7 @@ const cleanDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d)) && !String(d).st
 const DUMP = process.argv[2] || DEFAULT_DUMP;
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
 mkdirSync(OUT, { recursive: true });
-const ACTIVE_SY = '2025-2026';
+const ACTIVE_SY = '2026-2027';
 const NPS_CODE = '403875';
 const CHUNK = 800;
 
@@ -249,20 +249,30 @@ writeFileSync(join(OUT, '01-foundational.sql'), f);
 console.log('wrote 01-foundational.sql', (f.length / 1024).toFixed(0) + 'KB');
 
 // ── emit students SQL (chunked) ───────────────────────────────────────────
+// The live `reg_students` is now an encrypted VIEW (see encrypt-student-pii.sql):
+// writes through it need a registrar JWT and reject `on conflict`. So bulk-load
+// the BASE table `reg_students_data` directly and encrypt the 5 PII columns
+// inline with enc.encrypt() — exactly what the view's INSTEAD OF triggers do.
 const SCOLS = ['lrn', 'student_no', 'first_name', 'middle_name', 'last_name', 'extension', 'gender',
-  'birthdate', 'religion', 'address', 'contact_number', 'father_name', 'mother_maiden_name',
-  'guardian_relation', 'current_sy', 'current_class_id', 'curriculum', 'status',
-  'elem_school_graduated_from', 'school_type', 'loyalty_years', 'enrolment_history', 'credentials'];
-const SUPD = SCOLS.filter((c) => c !== 'lrn'); // never clobber grades/ncae/nat here
+  'religion', 'guardian_relation', 'current_sy', 'current_class_id', 'curriculum', 'status',
+  'elem_school_graduated_from', 'school_type', 'loyalty_years', 'enrolment_history', 'credentials',
+  'grades', 'conduct',
+  'address_enc', 'contact_number_enc', 'father_name_enc', 'mother_maiden_name_enc', 'birthdate_enc'];
+// On re-run refresh everything EXCEPT grades/conduct (owned by sets B/C, run later).
+const SUPD = SCOLS.filter((c) => c !== 'lrn' && c !== 'grades' && c !== 'conduct');
+
+// AES-encrypt a PII value the way the view's triggers would (null when empty).
+const encq = (v) => (v != null && String(v) !== '' ? `enc.encrypt(${sq(v)})` : 'NULL');
 
 function studentValues(s) {
   return '(' + [
     sq(s.lrn), sq(s.student_no), sq(s.first_name), sq(s.middle_name), sq(s.last_name), sq(s.extension),
-    sq(s.gender), s.birthdate ? sq(s.birthdate) : 'NULL', sq(s.religion), sq(s.address), sq(s.contact_number),
-    sq(s.father_name), sq(s.mother_maiden_name), sq(s.guardian_relation),
+    sq(s.gender), sq(s.religion), sq(s.guardian_relation),
     s.current_sy ? sq(s.current_sy) : 'NULL', s.current_class_id ? sq(s.current_class_id) : 'NULL',
     sq(s.curriculum), sq(s.status), sq(s.elem_school_graduated_from), sq(s.school_type),
     s.loyalty_years, jsonb(s.enrolment_history), jsonb(s.credentials),
+    "'{}'::jsonb", "'{}'::jsonb", // grades + conduct seeded empty; filled by sets B/C
+    encq(s.address), encq(s.contact_number), encq(s.father_name), encq(s.mother_maiden_name), encq(s.birthdate),
   ].join(',') + ')';
 }
 
@@ -273,7 +283,7 @@ for (let i = 0; i < studentRows.length; i += CHUNK) {
   let body = '';
   body += L(`-- ════ Set A · 02 students part ${part} (rows ${i + 1}–${i + slice.length}) ════`);
   body += L('begin;');
-  body += L(upsert('reg_students', SCOLS, slice.map(studentValues), 'lrn', SUPD));
+  body += L(upsert('reg_students_data', SCOLS, slice.map(studentValues), 'lrn', SUPD));
   body += L('commit;');
   const name = `02-students-${String(part).padStart(3, '0')}.sql`;
   writeFileSync(join(OUT, name), body);
