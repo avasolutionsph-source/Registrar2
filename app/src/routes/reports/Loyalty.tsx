@@ -12,8 +12,9 @@ import type { Student, ClassRecord, SchoolYear } from '@/types';
 
 // A "loyalty awardee" is a student whose loyaltyYears equals or exceeds the
 // current grade level's full-program length (ie. continuous NPS enrollment).
+// Per the registrar, awardees are recognised only at the Grade 10 and Grade 12
+// terminal levels (Grade 6 is intentionally excluded to keep the list short).
 const TIERS = [
-  { key: 'VI', label: 'Elementary (Grade 6)', minYears: 7 },
   { key: 'X', label: 'Junior HS (Grade 10)', minYears: 11 },
   { key: 'XII', label: 'Senior HS (Grade 12)', minYears: 13 },
 ];
