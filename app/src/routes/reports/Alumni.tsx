@@ -5,8 +5,9 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import { useNavigate } from 'react-router-dom';
-import type { Student, ClassRecord } from '@/types';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { isAllTime } from '@/types';
+import type { Student, ClassRecord, SchoolYear } from '@/types';
 
 const TERMINAL_GRADES = [
   { key: 'VI', label: 'Grade 6 — graduating Elementary' },
@@ -17,6 +18,7 @@ const TERMINAL_GRADES = [
 type TerminalKey = (typeof TERMINAL_GRADES)[number]['key'];
 
 export default function Alumni() {
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [grade, setGrade] = useState<TerminalKey>('VI');
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -40,6 +42,7 @@ export default function Alumni() {
   }, []);
 
   const matchingClasses = classes.filter((c) => {
+    if (!isAllTime(currentSY) && c.sy !== currentSY?.code) return false;
     if (grade === 'VI') return c.gradeLevel === 'VI';
     if (grade === 'X') return c.gradeLevel === 'X';
     return c.gradeLevel.startsWith('XII');
@@ -82,7 +85,7 @@ export default function Alumni() {
       <SectionCard heading={`${candidates.length} candidate${candidates.length === 1 ? '' : 's'}`}>
         {candidates.length === 0 ? (
           <p className="text-[12.5px] text-ink-secondary px-1">
-            No students enrolled in this terminal grade for SY 2025–2026.
+            No students enrolled in this terminal grade for {currentSY?.label ?? 'any year'}.
           </p>
         ) : (
           <table className="w-full text-[12.5px]">

@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu, X, WifiOff } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { listSchoolYears, syncToDevice } from '@/lib/db';
 import { getOfflineMeta } from '@/lib/offlineCache';
 import npsLogo from '@/assets/nps-logo.png';
-import { ALL_TIME_SY } from '@/types';
 import type { SchoolYear } from '@/types';
+
+// Two top-level modes: the active SY ("Current") vs every archived year
+// ("Old System"). The whole app filters by the one effective school year.
+export type RegMode = 'current' | 'old';
 
 const STALE_MS = 2 * 60 * 60 * 1000; // refresh an existing offline copy if older than 2h
 
 export function AppShell() {
   const [years, setYears] = useState<SchoolYear[] | null>(null);
   const [currentSY, setCurrentSY] = useState<SchoolYear | null>(null);
+  const [mode, setMode] = useState<RegMode>('current');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
 
@@ -75,8 +79,30 @@ export function AppShell() {
 
   const closeDrawer = () => setMobileOpen(false);
 
-  // "All time" sits at the top of the selector; real years follow.
-  const yearOptions = years ? [ALL_TIME_SY, ...years] : [];
+  // Split the years: the active one drives the "Current" tab; the rest are the
+  // browsable "Old System" archive (newest first).
+  const activeYear = useMemo(
+    () => (years ? years.find((sy) => sy.isActive) ?? years[years.length - 1] ?? null : null),
+    [years],
+  );
+  const oldYears = useMemo(
+    () =>
+      years
+        ? years
+            .filter((sy) => sy.code !== activeYear?.code)
+            .sort((a, b) => b.code.localeCompare(a.code))
+        : [],
+    [years, activeYear],
+  );
+
+  const selectCurrent = () => {
+    setMode('current');
+    setCurrentSY(activeYear);
+  };
+  const selectOld = (sy: SchoolYear) => {
+    setMode('old');
+    setCurrentSY(sy);
+  };
 
   if (years === null) {
     return (
@@ -90,7 +116,14 @@ export function AppShell() {
     <div className="flex h-screen bg-app">
       {/* Desktop sidebar — always visible >= md */}
       <div className="hidden md:flex">
-        <Sidebar years={yearOptions} currentSY={currentSY} onSYChange={setCurrentSY} />
+        <Sidebar
+          mode={mode}
+          activeYear={activeYear}
+          oldYears={oldYears}
+          currentSY={currentSY}
+          onSelectCurrent={selectCurrent}
+          onSelectOld={selectOld}
+        />
       </div>
 
       {/* Mobile drawer */}
@@ -101,9 +134,12 @@ export function AppShell() {
         >
           <div className="h-full w-[220px] shadow-lg" onClick={(e) => e.stopPropagation()}>
             <Sidebar
-              years={yearOptions}
+              mode={mode}
+              activeYear={activeYear}
+              oldYears={oldYears}
               currentSY={currentSY}
-              onSYChange={setCurrentSY}
+              onSelectCurrent={selectCurrent}
+              onSelectOld={selectOld}
               onNavigate={closeDrawer}
             />
           </div>
@@ -131,7 +167,7 @@ export function AppShell() {
           <span className="text-[11px] text-ink-secondary ml-auto">{currentSY?.label ?? ''}</span>
         </div>
         <div className="px-4 md:px-7 py-5 md:py-6 max-w-[1280px]">
-          <Outlet context={{ currentSY }} />
+          <Outlet context={{ currentSY, mode }} />
         </div>
       </main>
     </div>

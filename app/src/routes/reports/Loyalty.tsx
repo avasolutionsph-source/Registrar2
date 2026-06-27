@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Printer, Heart } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import type { Student, ClassRecord } from '@/types';
+import { isAllTime } from '@/types';
+import type { Student, ClassRecord, SchoolYear } from '@/types';
 
 // A "loyalty awardee" is a student whose loyaltyYears equals or exceeds the
 // current grade level's full-program length (ie. continuous NPS enrollment).
@@ -19,6 +20,7 @@ const TIERS = [
 
 export default function Loyalty() {
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
 
@@ -59,6 +61,7 @@ export default function Loyalty() {
           const eligible = students.filter((s) => {
             const klass = classes.find((c) => c.id === s.currentClassId);
             if (!klass) return false;
+            if (!isAllTime(currentSY) && klass.sy !== currentSY?.code) return false;
             const matches =
               tier.key === 'VI'
                 ? klass.gradeLevel === 'VI'
@@ -76,7 +79,7 @@ export default function Loyalty() {
                 <div className="flex items-center gap-2 text-[12.5px] text-ink-secondary px-1">
                   <Heart className="w-3.5 h-3.5 text-ink-muted" />
                   <span>
-                    No qualifying students for this terminal grade in SY 2025–2026 (need {tier.minYears} continuous years).
+                    No qualifying students for this terminal grade in {currentSY?.label ?? 'any year'} (need {tier.minYears} continuous years).
                   </span>
                 </div>
               ) : (

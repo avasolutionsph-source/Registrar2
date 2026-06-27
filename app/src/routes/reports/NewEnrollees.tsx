@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -7,10 +7,11 @@ import { SectionCard } from '@/components/entity/SectionCard';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { schoolIdFromLrn } from '@/lib/lrn';
-import type { Student, ClassRecord } from '@/types';
+import type { Student, ClassRecord, SchoolYear } from '@/types';
 
 export default function NewEnrollees() {
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
 
@@ -41,7 +42,7 @@ export default function NewEnrollees() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">New Enrollees</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Incoming students for SY 2025–2026, with their prior school info (derived from LRN[0:6] when no Elementary record is on file).
+            Incoming students for {currentSY?.label ?? 'this year'}, with their prior school info (derived from LRN[0:6] when no Elementary record is on file).
           </p>
         </div>
         <Button variant="outline" className="gap-2">

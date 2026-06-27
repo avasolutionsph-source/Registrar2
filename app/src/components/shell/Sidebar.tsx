@@ -6,9 +6,12 @@ import npsLogo from '@/assets/nps-logo.png';
 import type { SchoolYear } from '@/types';
 
 interface Props {
-  years: SchoolYear[];
+  mode: 'current' | 'old';
+  activeYear: SchoolYear | null;
+  oldYears: SchoolYear[];
   currentSY: SchoolYear | null;
-  onSYChange: (sy: SchoolYear) => void;
+  onSelectCurrent: () => void;
+  onSelectOld: (sy: SchoolYear) => void;
   onNavigate?: () => void;
 }
 
@@ -20,9 +23,24 @@ const navItems = [
   { to: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
-export function Sidebar({ years, currentSY, onSYChange, onNavigate }: Props) {
+export function Sidebar({
+  mode,
+  activeYear,
+  oldYears,
+  currentSY,
+  onSelectCurrent,
+  onSelectOld,
+  onNavigate,
+}: Props) {
   const navigate = useNavigate();
   const { signOut, email } = useAuth();
+
+  const activeShort = activeYear ? activeYear.label.replace(/^SY\s*/, '') : 'Current';
+  const goOld = () => {
+    const target = mode === 'old' && currentSY ? currentSY : oldYears[0];
+    if (target) onSelectOld(target);
+  };
+
   return (
     <aside className="w-[200px] shrink-0 bg-sidebar border-r border-border p-3 flex flex-col gap-3 h-full">
       <div className="flex items-center gap-2 px-1 py-1">
@@ -37,7 +55,39 @@ export function Sidebar({ years, currentSY, onSYChange, onNavigate }: Props) {
           <div className="text-[10.5px] text-ink-muted tracking-[0.04em] uppercase">Registrar</div>
         </div>
       </div>
-      <SchoolYearSelector years={years} value={currentSY} onChange={onSYChange} />
+      {/* Current ↔ Old System mode toggle */}
+      <div className="flex flex-col gap-1.5">
+        <div className="grid grid-cols-2 gap-1 p-0.5 bg-panel border border-border rounded">
+          <button
+            type="button"
+            onClick={onSelectCurrent}
+            className={[
+              'px-2 py-1.5 rounded text-[11.5px] font-semibold leading-tight',
+              mode === 'current' ? 'bg-accent text-white' : 'text-ink-secondary hover:bg-panel-alt',
+            ].join(' ')}
+          >
+            {activeShort}
+          </button>
+          <button
+            type="button"
+            onClick={goOld}
+            disabled={oldYears.length === 0}
+            className={[
+              'px-2 py-1.5 rounded text-[11.5px] font-semibold leading-tight disabled:opacity-40',
+              mode === 'old' ? 'bg-accent text-white' : 'text-ink-secondary hover:bg-panel-alt',
+            ].join(' ')}
+          >
+            Old System
+          </button>
+        </div>
+        {mode === 'old' ? (
+          <SchoolYearSelector years={oldYears} value={currentSY} onChange={onSelectOld} />
+        ) : (
+          <p className="px-1 text-[10.5px] text-ink-muted leading-tight">
+            Kasalukuyang taon · bagong data dito napupunta.
+          </p>
+        )}
+      </div>
       <nav className="flex flex-col gap-0.5">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink

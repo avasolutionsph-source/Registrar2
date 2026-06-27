@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { listClasses, listStudentsLite } from '@/lib/db';
-import type { GradeLevel } from '@/types';
+import { isAllTime } from '@/types';
+import type { GradeLevel, SchoolYear, Student, ClassRecord } from '@/types';
 
 interface Row {
   gradeLevel: GradeLevel;
@@ -26,7 +28,9 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
 ];
 
 export default function Statistics() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,15 +38,10 @@ export default function Statistics() {
     let cancelled = false;
     (async () => {
       try {
-        const [classes, students] = await Promise.all([listClasses(), listStudentsLite()]);
+        const [cls, st] = await Promise.all([listClasses(), listStudentsLite()]);
         if (cancelled) return;
-        const built: Row[] = classes.map((c) => {
-          const roster = students.filter((s) => s.currentClassId === c.id);
-          const male = roster.filter((s) => s.gender === 'Male').length;
-          const female = roster.filter((s) => s.gender === 'Female').length;
-          return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, total: male + female };
-        });
-        setRows(built);
+        setClasses(cls);
+        setStudents(st);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load statistics.');
       } finally {
@@ -54,6 +53,18 @@ export default function Statistics() {
     };
   }, []);
 
+  // Counts for the selected school year only (sections belong to one SY).
+  const rows = useMemo<Row[]>(() => {
+    return classes
+      .filter((c) => isAllTime(currentSY) || c.sy === currentSY?.code)
+      .map((c) => {
+        const roster = students.filter((s) => s.currentClassId === c.id);
+        const male = roster.filter((s) => s.gender === 'Male').length;
+        const female = roster.filter((s) => s.gender === 'Female').length;
+        return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, total: male + female };
+      });
+  }, [classes, students, currentSY]);
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Reports', to: '/reports' }, { label: 'Statistics' }]} />
@@ -61,7 +72,7 @@ export default function Statistics() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Statistics</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Enrollment counts by grade level × section · SY 2025–2026
+            Enrollment counts by grade level × section · {currentSY?.label ?? 'All years'}
           </p>
         </div>
         <Button variant="outline" className="gap-2">

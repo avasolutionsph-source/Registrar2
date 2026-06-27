@@ -103,7 +103,7 @@ export default function StudentsList() {
               ? 'Loading…'
               : isAllTime(currentSY)
                 ? 'No students yet. Click “Add Student” to create one.'
-                : `No learners with current SY ${currentSY!.label}. Pick “All time” to see everyone.`
+                : `No learners for ${currentSY!.label}. Switch tabs (Old System) to browse another year.`
           }
           rightActions={
             <Button onClick={() => navigate('/students/new')}>

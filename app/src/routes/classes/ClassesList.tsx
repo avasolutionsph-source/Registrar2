@@ -89,7 +89,7 @@ export default function ClassesList() {
         <p className="text-[13px] text-ink-secondary">
           {classes.length === 0
             ? 'No classes yet. Click “Add Class” to create one.'
-            : `No sections for ${currentSY?.label ?? 'this school year'}. Pick “All time” to see every year.`}
+            : `No sections for ${currentSY?.label ?? 'this school year'}. Switch tabs (Old System) to browse another year.`}
         </p>
       ) : (
         <div className="flex flex-col gap-5">

@@ -1,9 +1,12 @@
 import { Printer, FileSearch } from 'lucide-react';
+import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
+import type { SchoolYear } from '@/types';
 
 export default function NotEnrolled() {
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   return (
     <>
       <Breadcrumb items={[{ label: 'Reports', to: '/reports' }, { label: 'Not Enrolled' }]} />
@@ -19,7 +22,7 @@ export default function NotEnrolled() {
         </Button>
       </div>
 
-      <SectionCard heading="0 students did not enrol for SY 2025–2026">
+      <SectionCard heading={`0 students did not enrol for ${currentSY?.label ?? 'this year'}`}>
         <div className="flex items-start gap-3 px-1 py-2">
           <div className="w-9 h-9 rounded bg-sidebar grid place-items-center shrink-0">
             <FileSearch className="w-4 h-4 text-ink-primary" />
