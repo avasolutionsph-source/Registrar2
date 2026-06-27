@@ -284,6 +284,7 @@ export async function listStudentsLite(): Promise<Student[]> {
 // NPS's DepEd School ID. An enrolment_history entry carrying this schoolId is a
 // year the learner spent AT NPS (vs a transferee's prior-school year).
 const NPS_SCHOOL_ID = '403875';
+const NPS_SCHOOL_NAME = 'Naga Parochial School';
 
 // A learner decorated with the grade/section they held in a particular SY (read
 // from that year's enrolment_history entry rather than their current class).
@@ -380,6 +381,48 @@ export async function deleteStudent(lrn: string): Promise<void> {
 // columns can never be clobbered.
 export async function saveStudentGrades(lrn: string, grades: Student['grades']): Promise<void> {
   const { error } = await client().from('reg_students').update({ grades }).eq('lrn', lrn);
+  if (error) throw error;
+}
+
+// ── enrolment / re-enrolment ──
+export interface EnrollInput {
+  sy: string;
+  classId: string;
+  gradeLevel: string;
+  sectionName: string;
+  adviserName: string;
+  action?: 'promoted' | 'retained' | 'irregular';
+}
+
+// Enroll (or re-enroll) a learner for a school year. Appends — or replaces, if
+// re-enrolling the same year — that year's NPS enrolment_history entry and makes
+// it the learner's CURRENT enrolment (status Active). Runs as the signed-in
+// registrar, so the encrypted view's triggers keep the PII columns intact.
+export async function enrollStudentForSy(lrn: string, input: EnrollInput): Promise<void> {
+  const s = await getStudent(lrn);
+  if (!s) throw new Error('Student not found.');
+  const history = (s.enrolmentHistory ?? []).filter((e) => e.sy !== input.sy);
+  history.push({
+    sy: input.sy as Student['currentSY'],
+    gradeLevel: input.gradeLevel as GradeLevel,
+    sectionName: input.sectionName,
+    adviserName: input.adviserName,
+    schoolId: NPS_SCHOOL_ID,
+    schoolName: NPS_SCHOOL_NAME,
+    action: input.action,
+  });
+  history.sort((a, b) => String(a.sy).localeCompare(String(b.sy)));
+  const loyaltyYears = history.filter((e) => e.schoolId === NPS_SCHOOL_ID).length;
+  const { error } = await client()
+    .from('reg_students')
+    .update({
+      enrolment_history: history,
+      current_sy: input.sy,
+      current_class_id: input.classId,
+      status: 'Active',
+      loyalty_years: loyaltyYears,
+    })
+    .eq('lrn', lrn);
   if (error) throw error;
 }
 

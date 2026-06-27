@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pencil, Printer, FileText, IdCard, Upload } from 'lucide-react';
+import { Pencil, Printer, FileText, IdCard, Upload, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Form137 } from '@/components/print/Form137';
@@ -67,8 +67,8 @@ export default function StudentDetail() {
 
   useEffect(() => {
     let cancelled = false;
-    setPhotoUrl(null);
     (async () => {
+      setPhotoUrl(null);
       if (!lrn) {
         setStudent(null);
         return;
@@ -182,6 +182,12 @@ export default function StudentDetail() {
           ]}
           actions={
             <>
+              <Button
+                className="justify-start gap-2 w-full"
+                onClick={() => navigate(`/students/${student.lrn}/enroll`)}
+              >
+                <GraduationCap className="w-3.5 h-3.5" /> Enroll for current SY
+              </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
