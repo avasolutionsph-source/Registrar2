@@ -39,6 +39,12 @@ export const AREA_WEIGHTS: Record<AreaGroup, Weights> = {
   'shs-immersion': { ww: 20, pt: 80, st: 0 },
 };
 
+export const AREA_GROUPS = Object.keys(AREA_WEIGHTS) as AreaGroup[];
+
+export function isAreaGroup(s?: string | null): s is AreaGroup {
+  return s != null && Object.prototype.hasOwnProperty.call(AREA_WEIGHTS, s);
+}
+
 export const AREA_GROUP_LABEL: Record<AreaGroup, string> = {
   core: 'AP / English / Filipino / Math / Science / GMRC',
   'mapeh-tle': 'MAPEH / EPP / TLE',

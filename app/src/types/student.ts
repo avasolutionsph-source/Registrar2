@@ -35,13 +35,38 @@ export interface EnrolmentEntry {
   to?: string; // grade promoted to, e.g. "Grade VII"
 }
 
+// One summative component's raw score (points earned over highest possible).
+export interface RawScore {
+  earned: number;
+  total: number;
+}
+
+// The three DepEd summative components for a single quarter.
+export interface QuarterComponents {
+  ww?: RawScore; // Written / Oral Works
+  pt?: RawScore; // Product / Performance Tasks
+  st?: RawScore; // Summative Tests + Term Exam
+}
+
+export type QuarterKey = 'q1' | 'q2' | 'q3' | 'q4';
+
 export interface QuarterGrade {
   subjectCode: string;
+  // Transmuted quarterly grades + the subject's final. For grades encoded the
+  // new way these are DERIVED from `raw`; legacy/migrated rows carry them directly.
   q1?: number;
   q2?: number;
   q3?: number;
   q4?: number;
   final?: number;
+  // DepEd SY2026-2027: the teacher-encoded raw component scores per quarter. The
+  // grade engine turns these into q1..q4. Editing the raw scores is how a
+  // corrected grade is reached (instead of editing the final directly).
+  raw?: Partial<Record<QuarterKey, QuarterComponents>>;
+  // Learning-area weight-group override (else inferred from the subject).
+  areaGroup?: string;
+  // KS1 (Kinder–Grade 3) descriptive letter per quarter, in place of a number.
+  letters?: Partial<Record<QuarterKey, string>>;
 }
 
 // ── conduct (imported from legacy attendance / deportment / special programs) ──
