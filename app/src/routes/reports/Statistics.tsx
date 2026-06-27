@@ -4,9 +4,11 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listClasses, listStudentsLite } from '@/lib/db';
+import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
 import type { GradeLevel, SchoolYear, Student, ClassRecord } from '@/types';
+
+type RegMode = 'current' | 'old';
 
 interface Row {
   gradeLevel: GradeLevel;
@@ -28,20 +30,31 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
 ];
 
 export default function Statistics() {
-  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
+  const { currentSY, mode } = useOutletContext<{ currentSY: SchoolYear | null; mode: RegMode }>();
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [yearRoster, setYearRoster] = useState<StudentYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const code = currentSY?.code;
+  const isOld = mode === 'old';
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const [cls, st] = await Promise.all([listClasses(), listStudentsLite()]);
-        if (cancelled) return;
-        setClasses(cls);
-        setStudents(st);
+        if (isOld && code) {
+          const roster = await listStudentsBySy(code);
+          if (!cancelled) setYearRoster(roster);
+        } else {
+          const [cls, st] = await Promise.all([listClasses(), listStudentsLite()]);
+          if (cancelled) return;
+          setClasses(cls);
+          setStudents(st);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load statistics.');
       } finally {
@@ -51,10 +64,28 @@ export default function Statistics() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [code, isOld]);
 
-  // Counts for the selected school year only (sections belong to one SY).
+  // Current tab: counts by live class. Old System: grouped from that year's
+  // enrolment_history roster (grade × section the learner held that year).
   const rows = useMemo<Row[]>(() => {
+    if (isOld) {
+      const map = new Map<string, Row>();
+      for (const s of yearRoster) {
+        const g = (s.yearGrade || '—') as GradeLevel;
+        const sec = s.yearSection || '—';
+        const key = `${g}|${sec}`;
+        let r = map.get(key);
+        if (!r) {
+          r = { gradeLevel: g, sectionName: sec, male: 0, female: 0, total: 0 };
+          map.set(key, r);
+        }
+        if (s.gender === 'Female') r.female++;
+        else r.male++;
+        r.total++;
+      }
+      return [...map.values()];
+    }
     return classes
       .filter((c) => isAllTime(currentSY) || c.sy === currentSY?.code)
       .map((c) => {
@@ -63,7 +94,12 @@ export default function Statistics() {
         const female = roster.filter((s) => s.gender === 'Female').length;
         return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, total: male + female };
       });
-  }, [classes, students, currentSY]);
+  }, [isOld, yearRoster, classes, students, currentSY]);
+
+  // Any grade not in a standard group (e.g. legacy "N"/"P" codes) — surfaced in
+  // an "Other" section so an old-year count is never silently truncated.
+  const groupedLevels = new Set(GRADE_GROUPS.flatMap((g) => g.levels));
+  const otherRows = rows.filter((r) => !groupedLevels.has(r.gradeLevel));
 
   return (
     <>
@@ -131,6 +167,32 @@ export default function Statistics() {
             </SectionCard>
           );
         })}
+        {otherRows.length > 0 && (
+          <SectionCard heading={`Other · ${otherRows.reduce((a, r) => a + r.total, 0)} learners`}>
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                  <th className="py-1.5 pr-3 w-[18%]">Grade</th>
+                  <th className="py-1.5 pr-3">Section</th>
+                  <th className="py-1.5 pr-3 text-right w-[12%]">Male</th>
+                  <th className="py-1.5 pr-3 text-right w-[12%]">Female</th>
+                  <th className="py-1.5 text-right w-[12%]">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {otherRows.map((r, i) => (
+                  <tr key={i} className="border-b border-border-soft last:border-0">
+                    <td className="py-1.5 pr-3 font-mono text-ink-secondary">{r.gradeLevel}</td>
+                    <td className="py-1.5 pr-3">{r.sectionName}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{r.male}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{r.female}</td>
+                    <td className="py-1.5 text-right tabular-nums font-semibold">{r.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </SectionCard>
+        )}
       </div>
       )}
     </>

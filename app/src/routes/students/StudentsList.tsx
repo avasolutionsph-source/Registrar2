@@ -5,27 +5,45 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { listStudentsLite, listClasses } from '@/lib/db';
+import { listStudentsLite, listClasses, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
-import type { Student, ClassRecord, SchoolYear } from '@/types';
+import type { ClassRecord, SchoolYear } from '@/types';
 import { formatLastFirstMiddle } from '@/lib/format';
+import { gradeLabel } from '@/lib/forms';
+
+type RegMode = 'current' | 'old';
 
 export default function StudentsList() {
   const navigate = useNavigate();
-  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
-  const [students, setStudents] = useState<Student[]>([]);
+  const { currentSY, mode } = useOutletContext<{ currentSY: SchoolYear | null; mode: RegMode }>();
+  const [students, setStudents] = useState<StudentYear[]>([]);
   const [classById, setClassById] = useState<Map<string, ClassRecord>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const code = currentSY?.code;
+  const isOld = mode === 'old';
+
+  // Current tab → the live roster (filtered client-side by current_sy, with the
+  // learner's live class). Old System → the TRUE roster for that year, read from
+  // enrolment_history so it includes everyone who was at NPS that year.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const [st, cls] = await Promise.all([listStudentsLite(), listClasses()]);
-        if (cancelled) return;
-        setStudents(st);
-        setClassById(new Map(cls.map((c) => [c.id, c])));
+        if (isOld && code) {
+          const rows = await listStudentsBySy(code);
+          if (cancelled) return;
+          setStudents(rows);
+          setClassById(new Map());
+        } else {
+          const [st, cls] = await Promise.all([listStudentsLite(), listClasses()]);
+          if (cancelled) return;
+          setStudents(st);
+          setClassById(new Map(cls.map((c) => [c.id, c])));
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load students.');
       } finally {
@@ -35,9 +53,9 @@ export default function StudentsList() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [code, isOld]);
 
-  const cols: Column<Student>[] = [
+  const cols: Column<StudentYear>[] = [
     {
       key: 'name',
       header: 'Name',
@@ -52,9 +70,12 @@ export default function StudentsList() {
     },
     {
       key: 'class',
-      header: 'Class',
+      header: isOld ? 'Grade that year' : 'Class',
       width: '24%',
       render: (s) => {
+        if (isOld) {
+          return s.yearGrade ? `${gradeLabel(s.yearGrade)}${s.yearSection ? ` · ${s.yearSection}` : ''}` : '—';
+        }
         const c = classById.get(s.currentClassId);
         return c ? `Grade ${c.gradeLevel} · ${c.sectionName}` : '—';
       },
@@ -68,11 +89,13 @@ export default function StudentsList() {
     },
   ];
 
-  // Filter to the selected school year ("All time" shows every learner).
-  // A learner belongs to the year that is their current SY (currently enrolled).
-  const visible = isAllTime(currentSY)
+  // Old System: the server already returned exactly that year's roster.
+  // Current: filter the full list to the active SY.
+  const visible = isOld
     ? students
-    : students.filter((s) => s.currentSY === currentSY!.code);
+    : isAllTime(currentSY)
+      ? students
+      : students.filter((s) => s.currentSY === currentSY!.code);
 
   return (
     <>
@@ -83,7 +106,7 @@ export default function StudentsList() {
           {loading
             ? 'Loading…'
             : `${visible.length} learner${visible.length === 1 ? '' : 's'}` +
-              (isAllTime(currentSY) ? ' · all years' : ` · ${currentSY!.label}`)}
+              (isOld ? ` · ${currentSY!.label} · NPS` : isAllTime(currentSY) ? ' · all years' : ` · ${currentSY!.label}`)}
         </p>
       </div>
 
@@ -92,7 +115,7 @@ export default function StudentsList() {
           {error}
         </p>
       ) : (
-        <DataTable<Student>
+        <DataTable<StudentYear>
           data={visible}
           columns={cols}
           searchableText={(s) => `${formatLastFirstMiddle(s)} ${s.lrn} ${s.studentNo}`}
@@ -101,14 +124,18 @@ export default function StudentsList() {
           emptyText={
             loading
               ? 'Loading…'
-              : isAllTime(currentSY)
-                ? 'No students yet. Click “Add Student” to create one.'
-                : `No learners for ${currentSY!.label}. Switch tabs (Old System) to browse another year.`
+              : isOld
+                ? `No NPS learners on record for ${currentSY!.label}.`
+                : isAllTime(currentSY)
+                  ? 'No students yet. Click “Add Student” to create one.'
+                  : `No learners for ${currentSY!.label}. Switch tabs (Old System) to browse another year.`
           }
           rightActions={
-            <Button onClick={() => navigate('/students/new')}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
-            </Button>
+            isOld ? undefined : (
+              <Button onClick={() => navigate('/students/new')}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
+              </Button>
+            )
           }
         />
       )}

@@ -281,6 +281,57 @@ export async function listStudentsLite(): Promise<Student[]> {
   );
 }
 
+// NPS's DepEd School ID. An enrolment_history entry carrying this schoolId is a
+// year the learner spent AT NPS (vs a transferee's prior-school year).
+const NPS_SCHOOL_ID = '403875';
+
+// A learner decorated with the grade/section they held in a particular SY (read
+// from that year's enrolment_history entry rather than their current class).
+export interface StudentYear extends Student {
+  yearGrade?: string; // gradeLevel code for the requested SY
+  yearSection?: string; // section name for the requested SY
+}
+
+function decorateYear(s: Student, sy: string): StudentYear {
+  const hist = s.enrolmentHistory ?? [];
+  const e = hist.find((x) => x.sy === sy && x.schoolId === NPS_SCHOOL_ID) ?? hist.find((x) => x.sy === sy);
+  return { ...s, yearGrade: e?.gradeLevel, yearSection: e?.sectionName };
+}
+
+// True NPS roster for a school year, derived from enrolment_history — so it
+// includes EVERY learner enrolled at NPS that year, not just the ones whose
+// LAST recorded year it happened to be (which is all `current_sy` filtering can
+// see). Each row carries the grade/section the learner was in that year.
+export async function listStudentsBySy(sy: string): Promise<StudentYear[]> {
+  return offlineRead(
+    async () => {
+      const c = client();
+      const out: Row[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await c
+          .from('reg_students')
+          .select(`${STUDENT_LITE_COLS},enrolment_history`)
+          .contains('enrolment_history', [{ sy, schoolId: NPS_SCHOOL_ID }])
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .order('lrn', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as Row[];
+        out.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return out.map((r) => decorateYear(rowToStudent(r), sy));
+    },
+    async () => {
+      const arr = await idbGet<Student[]>(SNAP.students);
+      return arr
+        ?.filter((s) => (s.enrolmentHistory ?? []).some((e) => e.sy === sy && e.schoolId === NPS_SCHOOL_ID))
+        .map((s) => decorateYear(s, sy));
+    },
+  );
+}
+
 // Full rows for one class's roster (small N → decryption is negligible). Used by
 // ClassDetail so it no longer pulls every student just to keep ~40.
 export async function listStudentsByClass(classId: string): Promise<Student[]> {
