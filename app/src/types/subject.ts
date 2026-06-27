@@ -5,4 +5,5 @@ export interface Subject {
   fullName: string; // e.g. "Filipino"
   abbreviation: string;
   category: SubjectCategory;
+  order: number; // registrar-defined display order (lower = earlier)
 }

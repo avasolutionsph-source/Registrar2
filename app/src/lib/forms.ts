@@ -79,10 +79,12 @@ export function remark(final?: number): string {
 export interface SubjectRow extends QuarterGrade {
   name: string;
   category: string;
+  order: number;
   remark: string;
 }
 
-// Resolve + sort one school year's subject grades (Core first, then by name).
+// Resolve + sort one school year's subject grades by the registrar-defined
+// subject order (falling back to Core-first, then name for anything unordered).
 export function buildSubjectRows(
   list: QuarterGrade[],
   index: Map<string, Subject>,
@@ -94,10 +96,12 @@ export function buildSubjectRows(
         ...g,
         name: subj?.fullName || g.subjectCode,
         category: subj?.category || 'Core',
+        order: subj?.order ?? 9999,
         remark: remark(g.final),
       };
     })
     .sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
       const ra = CATEGORY_RANK[a.category] ?? 9;
       const rb = CATEGORY_RANK[b.category] ?? 9;
       return ra - rb || a.name.localeCompare(b.name);

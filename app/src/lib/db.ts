@@ -790,17 +790,30 @@ export async function listSubjects(): Promise<Subject[]> {
       const { data, error } = await client()
         .from('reg_subjects')
         .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: false })
         .order('code', { ascending: true });
       if (error) throw error;
-      return (data ?? []).map((r) => ({
+      return (data ?? []).map((r, i) => ({
         code: str(r.code),
         fullName: str(r.full_name),
         abbreviation: str(r.abbreviation),
         category: (str(r.category) || 'Core') as SubjectCategory,
+        order: r.sort_order == null ? 9000 + i : Number(r.sort_order),
       }));
     },
     async () => idbGet<Subject[]>(SNAP.subjects),
   );
+}
+
+// Persist a new subject display order (positions 1..N by array index). Runs as
+// the signed-in registrar; reg_subjects RLS gates the writes.
+export async function saveSubjectOrder(orderedCodes: string[]): Promise<void> {
+  const c = client();
+  const results = await Promise.all(
+    orderedCodes.map((code, i) => c.from('reg_subjects').update({ sort_order: i + 1 }).eq('code', code)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
 }
 
 // ── schools (transferee origin master list) ──

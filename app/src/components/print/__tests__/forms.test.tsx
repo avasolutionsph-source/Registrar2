@@ -11,10 +11,10 @@ import { ClassForm5 } from '../ClassForm5';
 import { BatchReportCards } from '../BatchReportCards';
 
 const subjects: Subject[] = [
-  { code: 'MAT', fullName: 'Mathematics', abbreviation: '', category: 'Core' },
-  { code: 'ENG', fullName: 'English', abbreviation: '', category: 'Core' },
-  { code: 'FIL', fullName: 'Filipino', abbreviation: '', category: 'Core' },
-  { code: 'ESP', fullName: 'Ed. sa Pagpapakatao', abbreviation: '', category: 'Core' },
+  { code: 'MAT', fullName: 'Mathematics', abbreviation: '', category: 'Core', order: 1 },
+  { code: 'ENG', fullName: 'English', abbreviation: '', category: 'Core', order: 2 },
+  { code: 'FIL', fullName: 'Filipino', abbreviation: '', category: 'Core', order: 3 },
+  { code: 'ESP', fullName: 'Ed. sa Pagpapakatao', abbreviation: '', category: 'Core', order: 4 },
 ];
 
 // fixture mirroring the real reg_students JSONB shapes
