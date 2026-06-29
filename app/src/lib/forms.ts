@@ -6,6 +6,7 @@ import type {
   Student,
   Subject,
   QuarterGrade,
+  QuarterKey,
   EnrolmentEntry,
   SchoolYearCode,
   ConductYear,
@@ -81,15 +82,23 @@ export interface SubjectRow extends QuarterGrade {
   category: string;
   order: number;
   remark: string;
+  // MAPEH is not graded directly: teachers grade its components ("Music & Arts"
+  // and "Physical Education & Health") and the system derives the MAPEH line as
+  // their per-period average. These flags drive the report-card/Form 137 layout
+  // (parent in bold, components indented) and keep the General Average counting
+  // MAPEH once — never its components.
+  isMapehParent?: boolean;
+  isMapehComponent?: boolean;
 }
 
 // Resolve + sort one school year's subject grades by the registrar-defined
 // subject order (falling back to Core-first, then name for anything unordered).
+// Also injects the derived MAPEH learning-area row when its components exist.
 export function buildSubjectRows(
   list: QuarterGrade[],
   index: Map<string, Subject>,
 ): SubjectRow[] {
-  return list
+  const rows = list
     .map((g) => {
       const subj = index.get(g.subjectCode.toUpperCase());
       return {
@@ -98,7 +107,7 @@ export function buildSubjectRows(
         category: subj?.category || 'Core',
         order: subj?.order ?? 9999,
         remark: remark(g.final),
-      };
+      } as SubjectRow;
     })
     .sort((a, b) => {
       if (a.order !== b.order) return a.order - b.order;
@@ -106,14 +115,102 @@ export function buildSubjectRows(
       const rb = CATEGORY_RANK[b.category] ?? 9;
       return ra - rb || a.name.localeCompare(b.name);
     });
+  return withDerivedMapeh(rows);
+}
+
+// ── MAPEH (derived learning area) ──────────────────────────────────────────
+// The gradeable subjects are MAPEH's components. NPS uses two grouped
+// components this year — "Music & Arts" (MUA) and "Physical Education & Health"
+// (PEH); legacy data may carry the four classic ones (MUS/ART/PED/HEA). When
+// any are present we compute a MAPEH line = the per-period average of the
+// components, and the overall MAPEH final = the mean of those period grades.
+const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
+const ALL_PERIOD_KEYS: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
+
+const meanRound = (ns: number[]): number | undefined =>
+  ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) / ns.length) : undefined;
+
+export function withDerivedMapeh(rows: SubjectRow[]): SubjectRow[] {
+  const comps = rows.filter((r) => MAPEH_COMPONENT_CODES.has(r.subjectCode.toUpperCase()));
+  if (comps.length === 0) return rows;
+
+  const baseOrder = Math.min(...comps.map((c) => c.order));
+  const mapeh: SubjectRow = {
+    subjectCode: 'MAPEH',
+    name: 'MAPEH',
+    category: 'Core',
+    order: baseOrder,
+    remark: '',
+    isMapehParent: true,
+  };
+  const periodGrades: number[] = [];
+  for (const q of ALL_PERIOD_KEYS) {
+    const vals = comps
+      .map((c) => c[q])
+      .filter((v): v is number => typeof v === 'number');
+    const m = meanRound(vals);
+    if (m != null) {
+      mapeh[q] = m;
+      periodGrades.push(m);
+    }
+  }
+  mapeh.final = meanRound(periodGrades);
+  mapeh.remark = remark(mapeh.final);
+
+  // Drop any directly-encoded MAPEH/MAP line (now derived); flag + reorder the
+  // components so they trail the parent.
+  const others = rows.filter(
+    (r) =>
+      !MAPEH_COMPONENT_CODES.has(r.subjectCode.toUpperCase()) &&
+      !['MAPEH', 'MAP'].includes(r.subjectCode.toUpperCase()),
+  );
+  const flaggedComps = comps.map((c, i) => ({
+    ...c,
+    isMapehComponent: true,
+    order: baseOrder + 0.01 * (i + 1),
+  }));
+  return [...others, mapeh, ...flaggedComps].sort((a, b) => a.order - b.order);
 }
 
 // General average = mean of the per-subject final grades, rounded to a whole
-// number (DepEd convention). Returns null when no finals are recorded.
-export function generalAverage(rows: { final?: number }[]): number | null {
-  const finals = rows.map((r) => r.final).filter((v): v is number => typeof v === 'number');
+// number (DepEd convention). MAPEH counts once; its components are excluded.
+// Returns null when no finals are recorded.
+export function generalAverage(
+  rows: { final?: number; isMapehComponent?: boolean }[],
+): number | null {
+  const finals = rows
+    .filter((r) => !r.isMapehComponent)
+    .map((r) => r.final)
+    .filter((v): v is number => typeof v === 'number');
   if (!finals.length) return null;
   return Math.round(finals.reduce((a, b) => a + b, 0) / finals.length);
+}
+
+// ── Grading periods per school year ────────────────────────────────────────
+// NPS moved to THREE terms starting SY 2026-2027; earlier (imported) years stay
+// on four quarters. Storage keys remain q1..q4 — a 3-term year simply uses
+// q1..q3 — so historical records and the migration pipeline are untouched.
+export interface GradingPeriod {
+  key: QuarterKey;
+  label: string; // encoder/long form, e.g. "Term 1" / "Q1"
+  short: string; // form-column header, e.g. "1"
+}
+
+const TERMS_3: GradingPeriod[] = [
+  { key: 'q1', label: 'Term 1', short: '1' },
+  { key: 'q2', label: 'Term 2', short: '2' },
+  { key: 'q3', label: 'Term 3', short: '3' },
+];
+const QUARTERS_4: GradingPeriod[] = [
+  { key: 'q1', label: 'Q1', short: '1' },
+  { key: 'q2', label: 'Q2', short: '2' },
+  { key: 'q3', label: 'Q3', short: '3' },
+  { key: 'q4', label: 'Q4', short: '4' },
+];
+
+export function periodsForSy(sy?: string): GradingPeriod[] {
+  const startYear = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
+  return Number.isFinite(startYear) && startYear >= 2026 ? TERMS_3 : QUARTERS_4;
 }
 
 // ── Per-year academic record (the heart of Form 137) ───────────────────────

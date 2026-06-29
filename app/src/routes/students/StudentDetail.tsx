@@ -28,6 +28,7 @@ import {
   generalAverage,
   latestGradedSy,
   gradesForSy,
+  periodsForSy,
   formatSy,
 } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
@@ -133,6 +134,7 @@ export default function StudentDetail() {
   const isElem = klass && ['I', 'II', 'III', 'IV', 'V', 'VI'].includes(klass.gradeLevel);
 
   const gradedSy = latestGradedSy(student);
+  const gradePeriods = periodsForSy(gradedSy ?? student.currentSY);
   const gradeRows = gradedSy
     ? buildSubjectRows(gradesForSy(student, gradedSy), subjectIndex(subjects))
     : [];
@@ -346,21 +348,25 @@ export default function StudentDetail() {
                   <thead>
                     <tr className="text-ink-muted text-[11px] uppercase">
                       <th className="text-left font-medium py-1">Subject</th>
-                      <th className="w-10 font-medium">Q1</th>
-                      <th className="w-10 font-medium">Q2</th>
-                      <th className="w-10 font-medium">Q3</th>
-                      <th className="w-10 font-medium">Q4</th>
+                      {gradePeriods.map((p) => (
+                        <th key={p.key} className="w-10 font-medium">
+                          {p.label}
+                        </th>
+                      ))}
                       <th className="w-12 font-medium">Final</th>
                     </tr>
                   </thead>
                   <tbody>
                     {gradeRows.map((r) => (
                       <tr key={r.subjectCode} className="border-t border-border">
-                        <td className="py-1 text-ink-primary">{r.name}</td>
-                        <td className="text-center text-ink-secondary">{fmtQ(r.q1)}</td>
-                        <td className="text-center text-ink-secondary">{fmtQ(r.q2)}</td>
-                        <td className="text-center text-ink-secondary">{fmtQ(r.q3)}</td>
-                        <td className="text-center text-ink-secondary">{fmtQ(r.q4)}</td>
+                        <td className={`py-1 text-ink-primary ${r.isMapehComponent ? 'pl-4 italic text-ink-secondary' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
+                          {r.name}
+                        </td>
+                        {gradePeriods.map((p) => (
+                          <td key={p.key} className="text-center text-ink-secondary">
+                            {fmtQ(r[p.key])}
+                          </td>
+                        ))}
                         <td className="text-center font-semibold text-ink-primary">{fmtQ(r.final)}</td>
                       </tr>
                     ))}
@@ -368,7 +374,7 @@ export default function StudentDetail() {
                       <td className="py-1 text-right text-ink-secondary text-[11px] uppercase">
                         General Average
                       </td>
-                      <td colSpan={4} />
+                      <td colSpan={gradePeriods.length} />
                       <td className="text-center text-ink-primary">{gradeGA ?? '—'}</td>
                     </tr>
                   </tbody>

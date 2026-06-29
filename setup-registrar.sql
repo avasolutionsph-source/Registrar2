@@ -146,23 +146,33 @@ begin
 end $$;
 
 -- ── 8. seed: the active school year (so the SY selector has a value) ──────
+-- SY 2026-2027 is the active year and uses THREE terms (see periodsForSy()).
 insert into reg_school_years (code, label, start_date, end_date, is_active) values
-  ('2025-2026', 'SY 2025–2026', '2025-06-01', '2026-03-31', true)
-on conflict (code) do nothing;
+  ('2025-2026', 'SY 2025–2026', '2025-06-01', '2026-03-31', false),
+  ('2026-2027', 'SY 2026–2027', '2026-06-01', '2027-03-31', true)
+on conflict (code) do update set is_active = excluded.is_active;
 
 -- ── 9. seed: core subject catalog (legacy NPS Batch 9 codes) ─────────────
+-- MAPEH is NOT a directly-graded subject: teachers grade its two components
+-- ("Music & Arts" / "Physical Education & Health") and the app derives the
+-- MAPEH line as their per-term average (see withDerivedMapeh()).
 insert into reg_subjects (code, full_name, abbreviation, category) values
   ('CLE',   'Christian Living Education',                'CLE',   'Core'),
   ('LAN',   'Language',                                  'Lang',  'Core'),
   ('REA',   'Reading',                                   'Rdg',   'Core'),
   ('MAT',   'Mathematics',                               'Math',  'Core'),
   ('FIL',   'Filipino',                                  'Fil',   'Core'),
-  ('MAPEH', 'MAPEH',                                     'MAPEH', 'Core'),
+  ('MUA',   'Music & Arts',                              'MAPEH', 'Core'),
+  ('PEH',   'Physical Education & Health',               'MAPEH', 'Core'),
   ('SCI',   'Science',                                   'Sci',   'Core'),
   ('ESP',   'Edukasyon sa Pagpapakatao',                 'EsP',   'Core'),
   ('EPP',   'Edukasyong Pantahanan at Pangkabuhayan',    'EPP',   'Core'),
   ('GMC',   'Good Moral Conduct',                        'GMC',   'Core')
 on conflict (code) do nothing;
+
+-- Retire the old single MAPEH subject if a prior run seeded it (grades move to
+-- the two components going forward; historical MAPEH grades are unaffected).
+delete from reg_subjects where code = 'MAPEH';
 
 -- ── 10. seed: schools master list (transferee origins; real DepEd IDs) ───
 insert into reg_schools (code, name, address, district, division, region, type) values

@@ -6,7 +6,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import { subjectIndex, formatSy, gradeLabel } from '@/lib/forms';
+import { subjectIndex, formatSy, gradeLabel, periodsForSy } from '@/lib/forms';
 import {
   AREA_GROUPS,
   AREA_GROUP_LABEL,
@@ -22,7 +22,6 @@ import {
 } from '@/lib/grading';
 import type { Student, Subject, QuarterGrade, QuarterComponents, QuarterKey } from '@/types';
 
-const QKEYS: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
 const COMPONENTS: { key: Component; label: string }[] = [
   { key: 'ww', label: 'Written / Oral Works' },
   { key: 'pt', label: 'Performance Tasks' },
@@ -106,6 +105,11 @@ export default function EncodeGrades() {
   }
 
   const index = useMemo(() => subjectIndex(subjects), [subjects]);
+
+  // Grading periods for the selected SY: 3 terms (SY 2026-2027 onward) or the
+  // legacy 4 quarters. Storage keys stay q1..q4 — a 3-term year uses q1..q3.
+  const periods = useMemo(() => periodsForSy(sy), [sy]);
+  const QKEYS = useMemo(() => periods.map((p) => p.key), [periods]);
 
   // Grade level for the selected SY → decides numeric (KS2–4) vs descriptive (KS1).
   const gradeLevel = useMemo(
@@ -289,10 +293,11 @@ export default function EncodeGrades() {
           <thead>
             <tr className="text-ink-muted text-[11px] uppercase border-b border-border">
               <th className="text-left font-medium py-1.5 pr-3">Subject</th>
-              <th className="w-12 font-medium">Q1</th>
-              <th className="w-12 font-medium">Q2</th>
-              <th className="w-12 font-medium">Q3</th>
-              <th className="w-12 font-medium">Q4</th>
+              {periods.map((p) => (
+                <th key={p.key} className="w-12 font-medium">
+                  {p.label}
+                </th>
+              ))}
               {!ks1 && <th className="w-12 font-medium">Final</th>}
               {!ks1 && <th className="w-28 font-medium text-left pl-2">Descriptor</th>}
               <th className="w-16" />
@@ -301,7 +306,7 @@ export default function EncodeGrades() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={ks1 ? 6 : 8} className="py-3 text-center text-ink-secondary">
+                <td colSpan={ks1 ? periods.length + 2 : periods.length + 4} className="py-3 text-center text-ink-secondary">
                   No subjects yet for {formatSy(sy)}. Add one below.
                 </td>
               </tr>
@@ -404,9 +409,9 @@ export default function EncodeGrades() {
               <thead>
                 <tr className="text-ink-muted text-[10.5px] uppercase">
                   <th className="text-left font-medium py-1">Component</th>
-                  {QKEYS.map((q) => (
-                    <th key={q} className="font-medium">
-                      {q.toUpperCase()}
+                  {periods.map((p) => (
+                    <th key={p.key} className="font-medium">
+                      {p.label}
                     </th>
                   ))}
                 </tr>
@@ -444,7 +449,7 @@ export default function EncodeGrades() {
                   </tr>
                 ))}
                 <tr className="border-t border-border font-semibold">
-                  <td className="py-1 text-right text-ink-secondary text-[10.5px] uppercase pr-2">Quarter grade</td>
+                  <td className="py-1 text-right text-ink-secondary text-[10.5px] uppercase pr-2">Period grade</td>
                   {QKEYS.map((q) => (
                     <td key={q} className="text-center text-ink-primary tabular-nums">
                       {quarterValue(editingRow, q) ?? '—'}
@@ -481,8 +486,8 @@ export default function EncodeGrades() {
 
         <p className="mt-3 px-1 text-[11px] text-ink-muted">
           {ks1
-            ? 'Kinder–Grade 3 use descriptive letters per DepEd guidelines; pick a letter per quarter.'
-            : 'Open the sliders icon on a subject to encode/correct its raw scores. The Final grade is the average of the quarters.'}
+            ? 'Kinder–Grade 3 use descriptive letters per DepEd guidelines; pick a letter per period.'
+            : `Open the sliders icon on a subject to encode/correct its raw scores. The Final grade is the average of the ${periods.length} ${periods.length === 3 ? 'terms' : 'quarters'}. MAPEH is graded through Music & Arts and Physical Education & Health; its line is computed automatically.`}
         </p>
       </SectionCard>
     </div>

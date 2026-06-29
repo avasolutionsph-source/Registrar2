@@ -8,13 +8,12 @@ import {
   latestGradedSy,
   gradesForSy,
   conductForSy,
+  periodsForSy,
   MONTHS,
   VALUE_TRAITS,
   PROGRAM_LABELS,
 } from '@/lib/forms';
 import { Letterhead, LearnerInfo, SignatureBlock } from './parts';
-
-const QUARTERS = ['1', '2', '3', '4'];
 
 const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '');
 
@@ -35,6 +34,8 @@ interface Props {
 
 export function ReportCardSF9({ student, subjects, sy }: Props) {
   const year = sy ?? latestGradedSy(student) ?? student.currentSY;
+  const periods = periodsForSy(year);
+  const PCOLS = periods.map((p) => p.short);
   const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects));
   const ga = generalAverage(rows);
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
@@ -43,7 +44,7 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
   const values = conduct.values?.q;
   const programs = conduct.programs?.q;
   const programKeys = programs
-    ? Object.keys(PROGRAM_LABELS).filter((k) => QUARTERS.some((q) => programs[q]?.[k] != null))
+    ? Object.keys(PROGRAM_LABELS).filter((k) => PCOLS.some((q) => programs[q]?.[k] != null))
     : [];
 
   return (
@@ -72,10 +73,11 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
         <thead>
           <tr className="bg-zinc-100 text-[9px] uppercase tracking-wide">
             <th className="border border-zinc-400 px-1.5 py-1 text-left">Learning Areas</th>
-            <th className="w-9 border border-zinc-400 px-1 py-1">Q1</th>
-            <th className="w-9 border border-zinc-400 px-1 py-1">Q2</th>
-            <th className="w-9 border border-zinc-400 px-1 py-1">Q3</th>
-            <th className="w-9 border border-zinc-400 px-1 py-1">Q4</th>
+            {periods.map((p) => (
+              <th key={p.key} className="w-9 border border-zinc-400 px-1 py-1">
+                {p.short}
+              </th>
+            ))}
             <th className="w-12 border border-zinc-400 px-1 py-1">Final</th>
             <th className="w-32 border border-zinc-400 px-1.5 py-1">Remarks</th>
           </tr>
@@ -83,22 +85,30 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className="border border-zinc-400 px-1.5 py-2 text-center text-zinc-500" colSpan={7}>
+              <td
+                className="border border-zinc-400 px-1.5 py-2 text-center text-zinc-500"
+                colSpan={periods.length + 3}
+              >
                 No grades encoded for this school year.
               </td>
             </tr>
           ) : (
             rows.map((r) => (
-              <tr key={r.subjectCode}>
-                <td className="border border-zinc-400 px-1.5 py-1">{r.name}</td>
-                <td className="border border-zinc-400 px-1 py-1 text-center">{fmtQ(r.q1)}</td>
-                <td className="border border-zinc-400 px-1 py-1 text-center">{fmtQ(r.q2)}</td>
-                <td className="border border-zinc-400 px-1 py-1 text-center">{fmtQ(r.q3)}</td>
-                <td className="border border-zinc-400 px-1 py-1 text-center">{fmtQ(r.q4)}</td>
+              <tr key={r.subjectCode} className={r.isMapehParent ? 'font-semibold' : undefined}>
+                <td className={`border border-zinc-400 px-1.5 py-1 ${r.isMapehComponent ? 'pl-4 italic text-zinc-600' : ''}`}>
+                  {r.name}
+                </td>
+                {periods.map((p) => (
+                  <td key={p.key} className="border border-zinc-400 px-1 py-1 text-center">
+                    {fmtQ(r[p.key])}
+                  </td>
+                ))}
                 <td className="border border-zinc-400 px-1 py-1 text-center font-semibold">
                   {fmtQ(r.final)}
                 </td>
-                <td className="border border-zinc-400 px-1.5 py-1">{descriptor(r.final)}</td>
+                <td className="border border-zinc-400 px-1.5 py-1">
+                  {r.isMapehComponent ? '' : descriptor(r.final)}
+                </td>
               </tr>
             ))
           )}
@@ -107,7 +117,7 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
               <td className="border border-zinc-400 px-1.5 py-1 text-right uppercase text-[9.5px]">
                 General Average
               </td>
-              <td className="border border-zinc-400" colSpan={4} />
+              <td className="border border-zinc-400" colSpan={periods.length} />
               <td className="border border-zinc-400 px-1 py-1 text-center">{ga ?? ''}</td>
               <td className="border border-zinc-400 px-1.5 py-1">{descriptor(ga ?? undefined)}</td>
             </tr>
@@ -169,9 +179,9 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
             <thead>
               <tr className="bg-zinc-100 text-[8.5px] uppercase">
                 <th className="border border-zinc-400 px-1.5 py-0.5 text-left">Core Values</th>
-                {QUARTERS.map((q) => (
+                {PCOLS.map((q) => (
                   <th key={q} className="w-9 border border-zinc-400 px-0.5 py-0.5">
-                    Q{q}
+                    {q}
                   </th>
                 ))}
               </tr>
@@ -180,7 +190,7 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
               {VALUE_TRAITS.map((t) => (
                 <tr key={t.key}>
                   <td className="border border-zinc-400 px-1.5 py-0.5">{t.label}</td>
-                  {QUARTERS.map((q) => (
+                  {PCOLS.map((q) => (
                     <td key={q} className="border border-zinc-400 px-0.5 py-0.5 text-center">
                       {values[q]?.[t.key] ?? ''}
                     </td>
@@ -199,9 +209,9 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
             <thead>
               <tr className="bg-zinc-100 text-[8.5px] uppercase">
                 <th className="border border-zinc-400 px-1.5 py-0.5 text-left">Program</th>
-                {QUARTERS.map((q) => (
+                {PCOLS.map((q) => (
                   <th key={q} className="w-9 border border-zinc-400 px-0.5 py-0.5">
-                    Q{q}
+                    {q}
                   </th>
                 ))}
               </tr>
@@ -210,7 +220,7 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
               {programKeys.map((k) => (
                 <tr key={k}>
                   <td className="border border-zinc-400 px-1.5 py-0.5">{PROGRAM_LABELS[k]}</td>
-                  {QUARTERS.map((q) => (
+                  {PCOLS.map((q) => (
                     <td key={q} className="border border-zinc-400 px-0.5 py-0.5 text-center">
                       {programs?.[q]?.[k] ?? ''}
                     </td>

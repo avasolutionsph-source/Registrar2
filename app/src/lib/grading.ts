@@ -146,8 +146,14 @@ export function transmute(initial: number | null): number | null {
 }
 
 // Convenience: raw components → final transmuted grade for a learning area.
+//
+// NPS applies the transmutation table to the Initial Grade ROUNDED to a whole
+// number — exactly as shown on the school's official SY 2026-2027 grading
+// sheets (e.g. IG 87.7 → round 88 → 90; IG 89.4 → round 89 → 91). Rounding here
+// (and not inside `transmute`) keeps the raw table lookups testable.
 export function computeGrade(raw: RawComponents, group: AreaGroup): number | null {
-  return transmute(initialGrade(raw, AREA_WEIGHTS[group]));
+  const ig = initialGrade(raw, AREA_WEIGHTS[group]);
+  return ig == null ? null : transmute(Math.round(ig));
 }
 
 // ── Qualitative descriptors (KS2–KS4 numerical grades) ──────────────────────

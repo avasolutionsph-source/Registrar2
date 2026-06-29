@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Printer } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { schoolIdFromLrn } from '@/lib/lrn';
@@ -45,9 +44,23 @@ export default function NewEnrollees() {
             Incoming students for {currentSY?.label ?? 'this year'}, with their prior school info (derived from LRN[0:6] when no Elementary record is on file).
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Printer className="w-3.5 h-3.5" /> Export PDF
-        </Button>
+        <ExportCsvButton
+          rows={newOnes}
+          columns={[
+            { header: 'LRN', value: (s) => s.lrn },
+            { header: 'Name', value: (s) => formatLastFirstMiddle(s) },
+            {
+              header: 'Class',
+              value: (s) => {
+                const c = classes.find((k) => k.id === s.currentClassId);
+                return c ? `Grade ${c.gradeLevel} · ${c.sectionName}` : '';
+              },
+            },
+            { header: 'From School ID', value: (s) => (/^\d{12}$/.test(s.lrn) ? schoolIdFromLrn(s.lrn) : '') },
+            { header: 'Elem School', value: (s) => s.elemSchoolGraduatedFrom },
+          ]}
+          filename={`new-enrollees-${currentSY?.code ?? 'all'}`}
+        />
       </div>
 
       <SectionCard heading={`${newOnes.length} new enrollee${newOnes.length === 1 ? '' : 's'}`}>

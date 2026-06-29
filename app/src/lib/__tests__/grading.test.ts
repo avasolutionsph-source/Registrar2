@@ -59,6 +59,15 @@ describe('initialGrade + computeGrade', () => {
       'core',
     )).toBe(90);
   });
+
+  it('rounds the initial grade before transmuting (matches NPS SY2026-2027 sample sheets)', () => {
+    // percentage helper: p% as earned/total
+    const pct = (p: number) => ({ earned: p, total: 100 });
+    // GMRC-CLE sample: Initial Grade 87.7 → round 88 → Final 90
+    expect(computeGrade({ ww: pct(87.7), pt: pct(87.7), st: pct(87.7) }, 'core')).toBe(90);
+    // TLE-ICT sample: Initial Grade 89.4 → round 89 → Final 91
+    expect(computeGrade({ ww: pct(89.4), pt: pct(89.4), st: pct(89.4) }, 'mapeh-tle')).toBe(91);
+  });
 });
 
 describe('descriptors & promotion', () => {

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -60,9 +59,19 @@ export default function Alumni() {
             Forward-looking — current students about to graduate from this terminal grade.
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Printer className="w-3.5 h-3.5" /> Export PDF
-        </Button>
+        <ExportCsvButton
+          rows={candidates}
+          columns={[
+            { header: 'LRN', value: (s) => s.lrn },
+            { header: 'Name', value: (s) => formatLastFirstMiddle(s) },
+            {
+              header: 'Section',
+              value: (s) => matchingClasses.find((c) => c.id === s.currentClassId)?.sectionName ?? '',
+            },
+            { header: 'Loyalty Yrs', value: (s) => s.loyaltyYears },
+          ]}
+          filename={`alumni-grade-${grade}-${currentSY?.code ?? 'all'}`}
+        />
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">

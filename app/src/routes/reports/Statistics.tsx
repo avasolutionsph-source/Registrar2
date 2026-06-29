@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Printer } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
@@ -111,9 +110,17 @@ export default function Statistics() {
             Enrollment counts by grade level × section · {currentSY?.label ?? 'All years'}
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Printer className="w-3.5 h-3.5" /> Export PDF
-        </Button>
+        <ExportCsvButton
+          rows={rows}
+          columns={[
+            { header: 'Grade', value: (r) => r.gradeLevel },
+            { header: 'Section', value: (r) => r.sectionName },
+            { header: 'Male', value: (r) => r.male },
+            { header: 'Female', value: (r) => r.female },
+            { header: 'Total', value: (r) => r.total },
+          ]}
+          filename={`statistics-${currentSY?.code ?? 'all'}`}
+        />
       </div>
 
       {error ? (

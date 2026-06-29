@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Printer, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { listStudentsLite, listClasses } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { isAllTime } from '@/types';
@@ -42,6 +42,30 @@ export default function Loyalty() {
     };
   }, []);
 
+  const eligibleFor = (tier: (typeof TIERS)[number]) =>
+    students.filter((s) => {
+      const klass = classes.find((c) => c.id === s.currentClassId);
+      if (!klass) return false;
+      if (!isAllTime(currentSY) && klass.sy !== currentSY?.code) return false;
+      const matches =
+        tier.key === 'VI'
+          ? klass.gradeLevel === 'VI'
+          : tier.key === 'X'
+            ? klass.gradeLevel === 'X'
+            : klass.gradeLevel.startsWith('XII');
+      return matches && s.loyaltyYears >= tier.minYears;
+    });
+
+  const awardees = TIERS.flatMap((tier) =>
+    eligibleFor(tier).map((s) => ({
+      tier: tier.label,
+      lrn: s.lrn,
+      name: formatLastFirstMiddle(s),
+      section: classes.find((c) => c.id === s.currentClassId)?.sectionName ?? '',
+      years: s.loyaltyYears,
+    })),
+  );
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Reports', to: '/reports' }, { label: 'Loyalty Awardees' }]} />
@@ -52,25 +76,22 @@ export default function Loyalty() {
             Students with continuous NPS enrolment from N1/Kinder through their current grade.
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Printer className="w-3.5 h-3.5" /> Export PDF
-        </Button>
+        <ExportCsvButton
+          rows={awardees}
+          columns={[
+            { header: 'Tier', value: (r) => r.tier },
+            { header: 'LRN', value: (r) => r.lrn },
+            { header: 'Name', value: (r) => r.name },
+            { header: 'Section', value: (r) => r.section },
+            { header: 'Years (NPS)', value: (r) => r.years },
+          ]}
+          filename={`loyalty-awardees-${currentSY?.code ?? 'all'}`}
+        />
       </div>
 
       <div className="flex flex-col gap-3.5">
         {TIERS.map((tier) => {
-          const eligible = students.filter((s) => {
-            const klass = classes.find((c) => c.id === s.currentClassId);
-            if (!klass) return false;
-            if (!isAllTime(currentSY) && klass.sy !== currentSY?.code) return false;
-            const matches =
-              tier.key === 'VI'
-                ? klass.gradeLevel === 'VI'
-                : tier.key === 'X'
-                  ? klass.gradeLevel === 'X'
-                  : klass.gradeLevel.startsWith('XII');
-            return matches && s.loyaltyYears >= tier.minYears;
-          });
+          const eligible = eligibleFor(tier);
           return (
             <SectionCard
               key={tier.key}

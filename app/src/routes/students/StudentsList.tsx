@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { DataTable, type Column } from '@/components/tables/DataTable';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { StatusBadge } from '@/components/entity/StatusBadge';
 import { listStudentsLite, listClasses, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
@@ -97,6 +98,23 @@ export default function StudentsList() {
       ? students
       : students.filter((s) => s.currentSY === currentSY!.code);
 
+  const classLabel = (s: StudentYear): string => {
+    if (isOld) {
+      return s.yearGrade ? `${gradeLabel(s.yearGrade)}${s.yearSection ? ` · ${s.yearSection}` : ''}` : '';
+    }
+    const c = classById.get(s.currentClassId);
+    return c ? `Grade ${c.gradeLevel} · ${c.sectionName}` : '';
+  };
+  const csvColumns = [
+    { header: 'Name', value: (s: StudentYear) => formatLastFirstMiddle(s) },
+    { header: 'LRN', value: (s: StudentYear) => s.lrn },
+    { header: 'Student No.', value: (s: StudentYear) => s.studentNo },
+    { header: isOld ? 'Grade that year' : 'Class', value: classLabel },
+    { header: 'Sex', value: (s: StudentYear) => s.gender },
+    { header: 'Status', value: (s: StudentYear) => s.status },
+  ];
+  const exportName = `students-${isOld || !isAllTime(currentSY) ? (currentSY?.code ?? 'all') : 'all'}`;
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Students' }]} />
@@ -131,11 +149,14 @@ export default function StudentsList() {
                   : `No learners for ${currentSY!.label}. Switch tabs (Old System) to browse another year.`
           }
           rightActions={
-            isOld ? undefined : (
-              <Button onClick={() => navigate('/students/new')}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
-              </Button>
-            )
+            <>
+              <ExportCsvButton rows={visible} columns={csvColumns} filename={exportName} />
+              {!isOld && (
+                <Button onClick={() => navigate('/students/new')}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Student
+                </Button>
+              )}
+            </>
           }
         />
       )}

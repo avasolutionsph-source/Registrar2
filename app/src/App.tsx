@@ -32,6 +32,7 @@ import Loyalty from '@/routes/reports/Loyalty';
 import StudentNo from '@/routes/reports/StudentNo';
 import NewEnrollees from '@/routes/reports/NewEnrollees';
 import NotEnrolled from '@/routes/reports/NotEnrolled';
+import Tracking from '@/routes/reports/Tracking';
 import ComingSoon from '@/routes/ComingSoon';
 import Login from '@/routes/Login';
 
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="reports/student-no" element={<StudentNo />} />
           <Route path="reports/new-enrollees" element={<NewEnrollees />} />
           <Route path="reports/not-enrolled" element={<NotEnrolled />} />
+          <Route path="reports/tracking" element={<Tracking />} />
           <Route path="reports/*" element={<ComingSoon />} />
           <Route path="*" element={<ComingSoon />} />
             </Route>
