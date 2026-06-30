@@ -58,6 +58,37 @@ export function gradeLabel(code?: string): string {
   return GRADE_LABELS[code] ?? code;
 }
 
+// ── F137 → SF 10 effectivity (DepEd Order #58, s. 2017) ────────────────────
+// SF-10 replaced Form 137 on a staggered, per-grade basis. This maps a grade
+// code to the FIRST school-year start (e.g. 2022 = "SY 2022-2023") it used
+// SF-10; earlier years for that grade used Form 137. Kinder/SPED/unknown grades
+// default to the modern SF 10.
+const SF10_FIRST_YEAR: Record<string, number> = {
+  I: 2017, VII: 2017, XI: 2017, XII: 2017,
+  II: 2018, VIII: 2018,
+  III: 2019, IX: 2019,
+  IV: 2020, X: 2020,
+  V: 2021,
+  VI: 2022,
+};
+
+// The correct permanent-record template for a grade level in a given SY.
+export function formVariantFor(gradeCode?: string, sy?: string): 'form137' | 'sf10' {
+  const base = (gradeCode ?? '').split('-')[0]; // "XII-STEM" → "XII"
+  const first = SF10_FIRST_YEAR[base];
+  if (first == null) return 'sf10';
+  const startYear = parseInt(String(sy ?? '').slice(0, 4), 10);
+  if (!Number.isFinite(startYear)) return 'sf10';
+  return startYear >= first ? 'sf10' : 'form137';
+}
+
+// Recommended template for a learner based on their LATEST enrolment year.
+export function recommendedFormVariant(student: Student): 'form137' | 'sf10' {
+  const hist = student.enrolmentHistory ?? [];
+  const latest = hist[hist.length - 1];
+  return formVariantFor(latest?.gradeLevel ?? '', latest?.sy ?? student.currentSY);
+}
+
 // ── Subjects ───────────────────────────────────────────────────────────────
 export function subjectIndex(subjects: Subject[]): Map<string, Subject> {
   return new Map(subjects.map((s) => [s.code.toUpperCase(), s]));

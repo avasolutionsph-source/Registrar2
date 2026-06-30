@@ -384,6 +384,22 @@ export async function saveStudentGrades(lrn: string, grades: Student['grades']):
   if (error) throw error;
 }
 
+// Targeted update of just the enrolment_history JSONB. Used when encoding a
+// learner's prior-school years from a RECEIVED SF 10 (transferee). Re-sorts by
+// SY and recomputes loyalty_years (count of years spent AT NPS).
+export async function saveEnrolmentHistory(
+  lrn: string,
+  history: Student['enrolmentHistory'],
+): Promise<void> {
+  const sorted = [...history].sort((a, b) => String(a.sy).localeCompare(String(b.sy)));
+  const loyaltyYears = sorted.filter((e) => e.schoolId === NPS_SCHOOL_ID).length;
+  const { error } = await client()
+    .from('reg_students')
+    .update({ enrolment_history: sorted, loyalty_years: loyaltyYears })
+    .eq('lrn', lrn);
+  if (error) throw error;
+}
+
 // ── enrolment / re-enrolment ──
 export interface EnrollInput {
   sy: string;

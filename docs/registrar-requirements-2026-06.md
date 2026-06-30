@@ -145,9 +145,12 @@ SY 2026-2027. Initial (computed) grade → Transmuted grade:
 - ✅ #8 Listings already group **Male then Female** (SF 1 / Form 1) — confirmed, no change.
 - ✅ #11 **Add Subject** form added to Setup → Subjects.
 
-Still pending (need DB columns / new screens — deferred):
-- #1 staggered F137/SF10 template auto-pick per grade-year (chart captured; print picker TBD).
-- #3 dedicated screen to encode an SF 10 **received from another school**.
+- ✅ #1 **F137/SF10 auto-pick per grade-year** — `formVariantFor()` / `recommendedFormVariant()`
+  encode the DO#58 s.2017 chart; StudentDetail tags the correct template "rec.".
+- ✅ #3 **Encode Received SF 10** screen (`/students/:lrn/received-sf10`) — add prior-school
+  years from a received SF 10 (name typed, no signature); NPS years stay locked.
+
+All captured items are now implemented.
 
 ## Resolved decisions
 - **Teacher load assignments:** Academic Coordinators (GS/JHS) WILL encode their

@@ -30,6 +30,7 @@ import {
   gradesForSy,
   periodsForSy,
   formatSy,
+  recommendedFormVariant,
 } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
 import type { CredentialState, ClassRecord, Student, Subject } from '@/types';
@@ -138,6 +139,8 @@ export default function StudentDetail() {
   ];
 
   const isElem = klass && ['I', 'II', 'III', 'IV', 'V', 'VI'].includes(klass.gradeLevel);
+  // DepEd DO#58 s.2017 — which permanent-record template fits this learner's latest year.
+  const recommended = recommendedFormVariant(student);
 
   const gradedSy = latestGradedSy(student);
   const gradePeriods = periodsForSy(gradedSy ?? student.currentSY);
@@ -232,6 +235,9 @@ export default function StudentDetail() {
                 onClick={() => setDoc('form137')}
               >
                 <FileText className="w-3.5 h-3.5" /> Form 137
+                {recommended === 'form137' && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-ok-fg">rec.</span>
+                )}
               </Button>
               <Button
                 variant="outline"
@@ -239,6 +245,16 @@ export default function StudentDetail() {
                 onClick={() => setDoc('sf10')}
               >
                 <FileText className="w-3.5 h-3.5" /> SF 10
+                {recommended === 'sf10' && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-ok-fg">rec.</span>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                onClick={() => navigate(`/students/${student.lrn}/received-sf10`)}
+              >
+                <FileText className="w-3.5 h-3.5" /> Received SF 10
               </Button>
               <Button
                 variant="outline"
