@@ -165,7 +165,28 @@ function AttendanceReport({ records, bands }: { records: YearRecord[]; bands: Ba
   );
 }
 
-function Certification({ name, eligibleFor }: { name: string; eligibleFor: string }) {
+// SF 10 carries District + Region on the form face (Form 137 did not). Shown
+// only for the SF 10 variant.
+function SF10Meta() {
+  return (
+    <section className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1">
+      <HField label="District:" value={SCHOOL.district} />
+      <HField label="Division:" value={SCHOOL.division} />
+      <HField label="Region:" value={SCHOOL.region} />
+      <HField label="School ID:" value={SCHOOL.id} />
+    </section>
+  );
+}
+
+function Certification({
+  name,
+  eligibleFor,
+  variant = 'form137',
+}: {
+  name: string;
+  eligibleFor: string;
+  variant?: 'form137' | 'sf10';
+}) {
   return (
     <div className="mt-4 break-inside-avoid">
       <h4 className="text-center text-[10px] font-bold uppercase tracking-wide">Certification</h4>
@@ -174,19 +195,38 @@ function Certification({ name, eligibleFor }: { name: string; eligibleFor: strin
         pupil is eligible for admission to <span className="font-semibold">{eligibleFor}</span>. Copy
         of this record is sent to the principal of __________________________ on ________________.
       </p>
-      <div className="mt-6 text-center text-[10px]">
-        <div className="font-bold uppercase">Marites C. Ramos</div>
-        <div className="text-zinc-600">Registrar</div>
-      </div>
+      {variant === 'sf10' ? (
+        // SF 10 carries a class-adviser/teacher signature alongside the registrar.
+        // NPS teachers sign; for an SF 10 received from another school, the teacher's
+        // name is typed in and the signature is left blank.
+        <div className="mt-8 grid grid-cols-2 gap-12 text-[10px]">
+          <div className="text-center">
+            <div className="h-6" />
+            <div className="border-t border-zinc-500 pt-1">&nbsp;</div>
+            <div className="text-zinc-600">Class Adviser / Teacher</div>
+          </div>
+          <div className="text-center">
+            <div className="h-6" />
+            <div className="border-t border-zinc-500 pt-1 font-bold uppercase">Marites C. Ramos</div>
+            <div className="text-zinc-600">School Registrar</div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 text-center text-[10px]">
+          <div className="font-bold uppercase">Marites C. Ramos</div>
+          <div className="text-zinc-600">Registrar</div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Elementary Pupil's Permanent Record (Grades 1–6) ─────────────────────────
-function ElementaryRecord({ student, records, title }: { student: Student; records: YearRecord[]; title: string }) {
+function ElementaryRecord({ student, records, title, variant = 'form137' }: { student: Student; records: YearRecord[]; title: string; variant?: 'form137' | 'sf10' }) {
   return (
     <div className="font-serif">
       <Letterhead docTitle={title} docSubtitle="Elementary Pupil's Permanent Record" />
+      {variant === 'sf10' && <SF10Meta />}
 
       <section className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1">
         <HField className="col-span-2" label="Name:" value={fullName(student)} />
@@ -211,16 +251,17 @@ function ElementaryRecord({ student, records, title }: { student: Student; recor
       </div>
 
       <AttendanceReport records={records} bands={ELEM_BAND.filter((b) => b.no >= 4)} />
-      <Certification name={fullName(student)} eligibleFor="Grade VII" />
+      <Certification name={fullName(student)} eligibleFor="Grade VII" variant={variant} />
     </div>
   );
 }
 
 // ── Junior High School Permanent Record (Grades 7–10) ────────────────────────
-function JhsRecord({ student, records, title }: { student: Student; records: YearRecord[]; title: string }) {
+function JhsRecord({ student, records, title, variant = 'form137' }: { student: Student; records: YearRecord[]; title: string; variant?: 'form137' | 'sf10' }) {
   return (
     <div className="font-serif">
       <Letterhead docTitle={title} docSubtitle="Junior High School Permanent Record" />
+      {variant === 'sf10' && <SF10Meta />}
 
       <section className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1">
         <HField className="col-span-2" label="Name:" value={fullName(student)} />
@@ -244,7 +285,7 @@ function JhsRecord({ student, records, title }: { student: Student; records: Yea
       </div>
 
       <AttendanceReport records={records} bands={JHS_BAND} />
-      <Certification name={fullName(student)} eligibleFor="Grade XI" />
+      <Certification name={fullName(student)} eligibleFor="Grade XI" variant={variant} />
     </div>
   );
 }
@@ -283,10 +324,11 @@ function EnrolmentHistory({ records }: { records: YearRecord[] }) {
 }
 
 // ── generic fallback (Kinder / SHS / mixed) ──────────────────────────────────
-function GenericRecord({ student, records, title }: { student: Student; records: YearRecord[]; title: string }) {
+function GenericRecord({ student, records, title, variant = 'form137' }: { student: Student; records: YearRecord[]; title: string; variant?: 'form137' | 'sf10' }) {
   return (
     <div className="font-serif">
       <Letterhead docTitle={title} docSubtitle="Permanent Scholastic Record — All Years" />
+      {variant === 'sf10' && <SF10Meta />}
       <section className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1">
         <HField className="col-span-2" label="Name:" value={fullName(student)} />
         <HField label="LRN:" value={student.lrn} />
@@ -308,7 +350,7 @@ function GenericRecord({ student, records, title }: { student: Student; records:
           );
         })
       )}
-      <Certification name={fullName(student)} eligibleFor="the next grade level" />
+      <Certification name={fullName(student)} eligibleFor="the next grade level" variant={variant} />
     </div>
   );
 }
@@ -329,10 +371,10 @@ export function Form137({ student, subjects, variant = 'form137' }: Props) {
   const currentCode = latest?.gradeLevel ?? records[records.length - 1]?.gradeLevel ?? '';
 
   if (JHS_CODES.has(currentCode)) {
-    return <JhsRecord student={student} records={records} title={`Junior High School Permanent Record · ${suffix}`} />;
+    return <JhsRecord student={student} records={records} title={`Junior High School Permanent Record · ${suffix}`} variant={variant} />;
   }
   if (ELEM_CODES.has(currentCode)) {
-    return <ElementaryRecord student={student} records={records} title={`Elementary Pupil's Permanent Record · ${suffix}`} />;
+    return <ElementaryRecord student={student} records={records} title={`Elementary Pupil's Permanent Record · ${suffix}`} variant={variant} />;
   }
-  return <GenericRecord student={student} records={records} title={`Permanent Academic Record · ${suffix}`} />;
+  return <GenericRecord student={student} records={records} title={`Permanent Academic Record · ${suffix}`} variant={variant} />;
 }

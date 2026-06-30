@@ -23,9 +23,15 @@ const CRED_FIELDS: { key: keyof Student['credentials']; label: string; gradeNote
   { key: 'hc', label: 'Health Certificate (HC)' },
   { key: 'pix', label: '1 Recent 1×1 ID Picture (Pix)' },
   { key: 'rf', label: 'Recommendation Form (RF)' },
-  { key: 'f137', label: 'Form 137 / Form 10 (F137)', gradeNote: 'Transferees only' },
-  { key: 'rc', label: 'Certification / Report Card (RC)', gradeNote: 'Grades N–VI' },
+  { key: 'f137', label: 'Form 137 / SF 10 (F137)', gradeNote: 'Transferees only' },
+  { key: 'rc', label: 'Report Card (SF 9 / RC)', gradeNote: 'Grades N–VI' },
+  { key: 'certEligibility', label: 'Certification of Eligibility' },
   { key: 'gmc', label: 'Good Moral Certificate (GMC)', gradeNote: 'Grades II–VI' },
+  { key: 'esc', label: 'ESC Certificate / Voucher' },
+  { key: 'diploma', label: 'Diploma' },
+  { key: 'affidavit', label: 'Affidavit of Undertaking' },
+  { key: 'confirmation', label: 'Confirmation Certificate' },
+  { key: 'others', label: 'Others (specify below)' },
 ];
 
 interface Props {
@@ -82,6 +88,7 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
     const creds = Object.fromEntries(
       CRED_FIELDS.map((c) => [c.key, credentials[c.key] ? 'on-file' : 'na']),
     ) as unknown as CredentialStatus;
+    creds.othersText = get('othersText');
 
     const input: StudentInput = {
       lrn: get('lrn'),
@@ -243,10 +250,12 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
 
       <SectionCard heading="Origin (for transferees)">
         <p className="text-[11.5px] text-ink-muted mb-2 px-1">
-          Leave blank if this is the student's first year at NPS.
+          Fill in for ALL transferees — the school last attended (elementary, JHS, or
+          where Grade 10 was completed for incoming Grade 11). Leave blank only if this is
+          the learner's first year at NPS with no prior school.
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
-          <Field label="Elementary School Graduated From">
+          <Field label="Previous School Attended">
             <Input
               name="elemSchoolGraduatedFrom"
               placeholder="School name (or leave blank)"
@@ -283,6 +292,15 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
               </div>
             </label>
           ))}
+        </div>
+        <div className="px-1 mt-1">
+          <Field label="Others — specify">
+            <Input
+              name="othersText"
+              placeholder="e.g. Confirmation Certificate, special requirement…"
+              defaultValue={student?.credentials?.othersText ?? ''}
+            />
+          </Field>
         </div>
       </SectionCard>
 

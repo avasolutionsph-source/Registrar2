@@ -131,6 +131,24 @@ SY 2026-2027. Initial (computed) grade → Transmuted grade:
 
 ---
 
+## Implementation status (2026-06-30)
+- ✅ #4 Credentials: split Report Card / **Certification of Eligibility**; added ESC,
+  Diploma, Affidavit of Undertaking, Confirmation Certificate, + **Others** free-text.
+  (`credentials` JSONB — no DB migration needed.)
+- ✅ #5 **Previous School Attended** relabel (applies to all transferees); StudentDetail
+  shows "NPS — continuing" instead of "first year at NPS" when loyaltyYears > 1 (#6).
+- ✅ #2 SF 10 print now shows **District + Region + Division + School ID** and a
+  **Class Adviser/Teacher** signature line beside the Registrar (blank for received SF10s).
+- ✅ #10 Loyalty: added **Silver** tier (Grade 12, 3–12 continuous yrs) alongside Gold.
+- ✅ #9 Alumni report now lists **previous-year graduates** (status Graduated) with grad SY.
+- ✅ #7 **Birthdays per month** report added (Reports → Birthdays), for SCO; print + CSV.
+- ✅ #8 Listings already group **Male then Female** (SF 1 / Form 1) — confirmed, no change.
+- ✅ #11 **Add Subject** form added to Setup → Subjects.
+
+Still pending (need DB columns / new screens — deferred):
+- #1 staggered F137/SF10 template auto-pick per grade-year (chart captured; print picker TBD).
+- #3 dedicated screen to encode an SF 10 **received from another school**.
+
 ## Resolved decisions
 - **Teacher load assignments:** Academic Coordinators (GS/JHS) WILL encode their
   teachers' teaching loads themselves. Add a "Teacher Loads" page to both the

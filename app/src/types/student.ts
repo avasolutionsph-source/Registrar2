@@ -13,9 +13,18 @@ export interface CredentialStatus {
   hc: CredentialState; // Health Cert
   pix: CredentialState; // 1x1 photo
   rf: CredentialState; // Recommendation Form
-  f137: CredentialState; // Form 137
-  rc: CredentialState; // Report Card
+  f137: CredentialState; // Form 137 / SF 10
+  rc: CredentialState; // Report Card (SF 9)
   gmc: CredentialState; // Good Moral
+  // SY2026-2027 additions (optional — legacy rows predate them). The
+  // "Certification" item was split out of the old "Certification / Report Card".
+  certEligibility?: CredentialState; // Certification of Eligibility
+  esc?: CredentialState; // ESC Certificate / Voucher
+  diploma?: CredentialState; // Diploma
+  affidavit?: CredentialState; // Affidavit of Undertaking
+  confirmation?: CredentialState; // Confirmation Certificate
+  others?: CredentialState; // catch-all for extra learner-specific requirements
+  othersText?: string; // free-text description of the "Others" requirement(s)
 }
 
 export interface EnrolmentEntry {

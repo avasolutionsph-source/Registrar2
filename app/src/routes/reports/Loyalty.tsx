@@ -10,13 +10,17 @@ import { formatLastFirstMiddle } from '@/lib/format';
 import { isAllTime } from '@/types';
 import type { Student, ClassRecord, SchoolYear } from '@/types';
 
-// A "loyalty awardee" is a student whose loyaltyYears equals or exceeds the
-// current grade level's full-program length (ie. continuous NPS enrollment).
-// Per the registrar, awardees are recognised only at the Grade 10 and Grade 12
-// terminal levels (Grade 6 is intentionally excluded to keep the list short).
+// A "loyalty awardee" is a student whose continuous NPS years (loyaltyYears) fall
+// in a medal band for their terminal grade. Per the registrar:
+//   • Grade 10 — Gold: continuous since N1/Kinder.
+//   • Grade 12 — Gold: continuous since N1/Kinder; Silver: enrolled at NPS from
+//     Grade 10 through Grade 12 (3 continuous years) but not the full program.
+// Grade 6 is intentionally excluded to keep the list short. maxYears bounds a
+// band so a Gold awardee never also appears under Silver.
 const TIERS = [
-  { key: 'X', label: 'Junior HS (Grade 10)', minYears: 11 },
-  { key: 'XII', label: 'Senior HS (Grade 12)', minYears: 13 },
+  { id: 'X-gold', gradeKey: 'X', medal: 'Gold', label: 'Junior HS (Grade 10) · Gold', minYears: 11, maxYears: Infinity },
+  { id: 'XII-gold', gradeKey: 'XII', medal: 'Gold', label: 'Senior HS (Grade 12) · Gold', minYears: 13, maxYears: Infinity },
+  { id: 'XII-silver', gradeKey: 'XII', medal: 'Silver', label: 'Senior HS (Grade 12) · Silver', minYears: 3, maxYears: 12 },
 ];
 
 export default function Loyalty() {
@@ -48,17 +52,14 @@ export default function Loyalty() {
       if (!klass) return false;
       if (!isAllTime(currentSY) && klass.sy !== currentSY?.code) return false;
       const matches =
-        tier.key === 'VI'
-          ? klass.gradeLevel === 'VI'
-          : tier.key === 'X'
-            ? klass.gradeLevel === 'X'
-            : klass.gradeLevel.startsWith('XII');
-      return matches && s.loyaltyYears >= tier.minYears;
+        tier.gradeKey === 'X' ? klass.gradeLevel === 'X' : klass.gradeLevel.startsWith('XII');
+      return matches && s.loyaltyYears >= tier.minYears && s.loyaltyYears <= tier.maxYears;
     });
 
   const awardees = TIERS.flatMap((tier) =>
     eligibleFor(tier).map((s) => ({
       tier: tier.label,
+      medal: tier.medal,
       lrn: s.lrn,
       name: formatLastFirstMiddle(s),
       section: classes.find((c) => c.id === s.currentClassId)?.sectionName ?? '',
@@ -80,6 +81,7 @@ export default function Loyalty() {
           rows={awardees}
           columns={[
             { header: 'Tier', value: (r) => r.tier },
+            { header: 'Medal', value: (r) => r.medal },
             { header: 'LRN', value: (r) => r.lrn },
             { header: 'Name', value: (r) => r.name },
             { header: 'Section', value: (r) => r.section },
@@ -94,7 +96,7 @@ export default function Loyalty() {
           const eligible = eligibleFor(tier);
           return (
             <SectionCard
-              key={tier.key}
+              key={tier.id}
               heading={`${tier.label} · ${eligible.length} awardee${eligible.length === 1 ? '' : 's'}`}
             >
               {eligible.length === 0 ? (

@@ -816,6 +816,34 @@ export async function saveSubjectOrder(orderedCodes: string[]): Promise<void> {
   if (failed?.error) throw failed.error;
 }
 
+// Add a new subject. Appends to the end of the display order. Runs as the
+// signed-in registrar; reg_subjects RLS gates the write.
+export interface SubjectInput {
+  code: string;
+  fullName: string;
+  abbreviation: string;
+  category: SubjectCategory;
+}
+
+export async function addSubject(input: SubjectInput): Promise<void> {
+  const c = client();
+  // place the new subject after the current last one
+  const { data } = await c
+    .from('reg_subjects')
+    .select('sort_order')
+    .order('sort_order', { ascending: false, nullsFirst: false })
+    .limit(1);
+  const nextOrder = Number(data?.[0]?.sort_order ?? 0) + 1;
+  const { error } = await c.from('reg_subjects').insert({
+    code: input.code,
+    full_name: input.fullName,
+    abbreviation: input.abbreviation,
+    category: input.category,
+    sort_order: nextOrder,
+  });
+  if (error) throw error;
+}
+
 // ── schools (transferee origin master list) ──
 export interface SchoolRecord {
   id: string; // 6-digit DepEd School ID (matches LRN[0:6])

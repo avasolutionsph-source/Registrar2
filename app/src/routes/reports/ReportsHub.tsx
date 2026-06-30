@@ -6,6 +6,7 @@ import {
   UserMinus,
   Hash,
   Heart,
+  Cake,
   Route as RouteIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -60,6 +61,12 @@ const TILES: Tile[] = [
     icon: RouteIcon,
     label: 'Tracking Records',
     desc: 'Transferred-out / leaver / graduate destination records (print + CSV)',
+  },
+  {
+    to: '/reports/birthdays',
+    icon: Cake,
+    label: 'Birthdays',
+    desc: 'Active learners with birthdays per month (for SCO) — print + CSV',
   },
 ];
 

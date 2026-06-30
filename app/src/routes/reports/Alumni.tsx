@@ -2,37 +2,48 @@ import { useEffect, useState } from 'react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
-import { listStudentsLite, listClasses } from '@/lib/db';
+import { listStudents } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import { useNavigate, useOutletContext } from 'react-router-dom';
-import { isAllTime } from '@/types';
-import type { Student, ClassRecord, SchoolYear } from '@/types';
+import { formatSy } from '@/lib/forms';
+import { useNavigate } from 'react-router-dom';
+import type { Student } from '@/types';
 
 const TERMINAL_GRADES = [
-  { key: 'VI', label: 'Grade 6 — graduating Elementary' },
-  { key: 'X', label: 'Grade 10 — graduating Junior HS' },
-  { key: 'XII', label: 'Grade 12 — graduating Senior HS' },
+  { key: 'VI', label: 'Grade 6 — Elementary' },
+  { key: 'X', label: 'Grade 10 — Junior HS' },
+  { key: 'XII', label: 'Grade 12 — Senior HS' },
 ] as const;
 
 type TerminalKey = (typeof TERMINAL_GRADES)[number]['key'];
 
+// The school year the learner graduated, taken from their last enrolment entry.
+function graduationSy(s: Student): string {
+  const hist = s.enrolmentHistory ?? [];
+  return hist.length ? String(hist[hist.length - 1].sy) : String(s.currentSY ?? '');
+}
+
+function terminalGrade(s: Student): string {
+  const hist = s.enrolmentHistory ?? [];
+  return hist.length ? String(hist[hist.length - 1].gradeLevel) : '';
+}
+
 export default function Alumni() {
-  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
-  const [grade, setGrade] = useState<TerminalKey>('VI');
+  const [grade, setGrade] = useState<TerminalKey>('XII');
   const [students, setStudents] = useState<Student[]>([]);
-  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, c] = await Promise.all([listStudentsLite(), listClasses()]);
+        const s = await listStudents();
         if (cancelled) return;
         setStudents(s);
-        setClasses(c);
       } catch {
-        /* leave empty — page shows "no candidates" */
+        /* leave empty — page shows "no alumni" */
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -40,14 +51,16 @@ export default function Alumni() {
     };
   }, []);
 
-  const matchingClasses = classes.filter((c) => {
-    if (!isAllTime(currentSY) && c.sy !== currentSY?.code) return false;
-    if (grade === 'VI') return c.gradeLevel === 'VI';
-    if (grade === 'X') return c.gradeLevel === 'X';
-    return c.gradeLevel.startsWith('XII');
-  });
-
-  const candidates = students.filter((s) => matchingClasses.some((c) => c.id === s.currentClassId));
+  // Alumni = learners who have actually graduated (previous school years).
+  const alumni = students
+    .filter((s) => s.status === 'Graduated')
+    .filter((s) => {
+      const g = terminalGrade(s);
+      if (grade === 'VI') return g === 'VI';
+      if (grade === 'X') return g === 'X';
+      return g.startsWith('XII');
+    })
+    .sort((a, b) => graduationSy(b).localeCompare(graduationSy(a)) || a.lastName.localeCompare(b.lastName));
 
   return (
     <>
@@ -56,21 +69,18 @@ export default function Alumni() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Alumni</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Forward-looking — current students about to graduate from this terminal grade.
+            Graduates of previous school years (status “Graduated”), grouped by terminal grade.
           </p>
         </div>
         <ExportCsvButton
-          rows={candidates}
+          rows={alumni}
           columns={[
+            { header: 'Graduated SY', value: (s) => formatSy(graduationSy(s)) },
             { header: 'LRN', value: (s) => s.lrn },
             { header: 'Name', value: (s) => formatLastFirstMiddle(s) },
-            {
-              header: 'Section',
-              value: (s) => matchingClasses.find((c) => c.id === s.currentClassId)?.sectionName ?? '',
-            },
             { header: 'Loyalty Yrs', value: (s) => s.loyaltyYears },
           ]}
-          filename={`alumni-grade-${grade}-${currentSY?.code ?? 'all'}`}
+          filename={`alumni-grade-${grade}`}
         />
       </div>
 
@@ -91,39 +101,40 @@ export default function Alumni() {
         ))}
       </div>
 
-      <SectionCard heading={`${candidates.length} candidate${candidates.length === 1 ? '' : 's'}`}>
-        {candidates.length === 0 ? (
+      <SectionCard
+        heading={
+          loading ? 'Loading…' : `${alumni.length} alumn${alumni.length === 1 ? 'us' : 'i'}`
+        }
+      >
+        {loading ? (
+          <p className="text-[12.5px] text-ink-secondary px-1">Loading…</p>
+        ) : alumni.length === 0 ? (
           <p className="text-[12.5px] text-ink-secondary px-1">
-            No students enrolled in this terminal grade for {currentSY?.label ?? 'any year'}.
+            No graduates on record for this terminal grade yet.
           </p>
         ) : (
           <table className="w-full text-[12.5px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                <th className="py-1.5 pr-3 w-[14%]">Graduated SY</th>
                 <th className="py-1.5 pr-3 w-[14%]">LRN</th>
                 <th className="py-1.5 pr-3">Name</th>
-                <th className="py-1.5 pr-3 w-[22%]">Section</th>
                 <th className="py-1.5 w-[12%]">Loyalty Yrs</th>
               </tr>
             </thead>
             <tbody>
-              {candidates.map((s) => {
-                const klass = matchingClasses.find((c) => c.id === s.currentClassId);
-                return (
-                  <tr
-                    key={s.lrn}
-                    onClick={() => navigate(`/students/${s.lrn}`)}
-                    className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
-                  >
-                    <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                    <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                    <td className="py-1.5 pr-3 text-ink-secondary">
-                      {klass ? klass.sectionName : '—'}
-                    </td>
-                    <td className="py-1.5 tabular-nums">{s.loyaltyYears}</td>
-                  </tr>
-                );
-              })}
+              {alumni.map((s) => (
+                <tr
+                  key={s.lrn}
+                  onClick={() => navigate(`/students/${s.lrn}`)}
+                  className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
+                >
+                  <td className="py-1.5 pr-3 tabular-nums">{formatSy(graduationSy(s))}</td>
+                  <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                  <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                  <td className="py-1.5 tabular-nums">{s.loyaltyYears}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

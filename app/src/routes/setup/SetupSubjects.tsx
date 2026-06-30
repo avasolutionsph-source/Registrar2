@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
-import { ChevronUp, ChevronDown, Save } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ChevronUp, ChevronDown, Save, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { listSubjects, saveSubjectOrder } from '@/lib/db';
+import { listSubjects, saveSubjectOrder, addSubject } from '@/lib/db';
 import type { SubjectCategory, Subject } from '@/types';
+
+const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied'];
 
 const toneFor = (cat: SubjectCategory): 'ok' | 'pending' | 'na' =>
   cat === 'Core' ? 'ok' : cat === 'Specialized' ? 'pending' : 'na';
@@ -17,6 +22,13 @@ export default function SetupSubjects() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  async function reload() {
+    const rows = await listSubjects();
+    setList(rows);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +46,38 @@ export default function SetupSubjects() {
       cancelled = true;
     };
   }, []);
+
+  async function handleAdd(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setAddError(null);
+    const fd = new FormData(e.currentTarget);
+    const get = (k: string) => String(fd.get(k) ?? '').trim();
+    const code = get('code');
+    const fullName = get('fullName');
+    if (!code || !fullName) {
+      setAddError('Code and full name are required.');
+      return;
+    }
+    if (list.some((s) => s.code.toLowerCase() === code.toLowerCase())) {
+      setAddError(`A subject with code "${code}" already exists.`);
+      return;
+    }
+    setAdding(true);
+    try {
+      await addSubject({
+        code,
+        fullName,
+        abbreviation: get('abbreviation') || code,
+        category: (get('category') || 'Core') as SubjectCategory,
+      });
+      await reload();
+      e.currentTarget.reset();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add the subject.');
+    } finally {
+      setAdding(false);
+    }
+  }
 
   const move = (i: number, dir: -1 | 1) => {
     setList((cur) => {
@@ -85,6 +129,45 @@ export default function SetupSubjects() {
           {error}
         </p>
       )}
+
+      <SectionCard heading="Add a subject">
+        <form onSubmit={handleAdd} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
+          <div className="col-span-2">
+            <Field label="Code">
+              <Input name="code" placeholder="e.g. SCI7" required />
+            </Field>
+          </div>
+          <div className="col-span-4">
+            <Field label="Full name">
+              <Input name="fullName" placeholder="e.g. Science 7" required />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Abbrev.">
+              <Input name="abbreviation" placeholder="e.g. Sci" />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Category">
+              <Select name="category" defaultValue="Core">
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Button type="submit" disabled={adding} className="gap-2 w-full">
+              <Plus className="w-3.5 h-3.5" /> {adding ? 'Adding…' : 'Add'}
+            </Button>
+          </div>
+        </form>
+        {addError && (
+          <p className="mt-2 px-1 text-[12.5px] text-nps-red">{addError}</p>
+        )}
+      </SectionCard>
 
       <SectionCard heading={loading ? 'Loading…' : `${list.length} subjects`}>
         {loading ? (

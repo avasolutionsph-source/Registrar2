@@ -44,9 +44,15 @@ const credLabels: Record<string, string> = {
   hc: 'HC · Health Cert',
   pix: 'Pix · 1×1 Photo',
   rf: 'RF · Recommendation Form',
-  f137: 'F137 · Form 137',
+  f137: 'F137 · Form 137 / SF 10',
   rc: 'RC · Report Card',
+  certEligibility: 'Certification of Eligibility',
   gmc: 'GMC · Good Moral',
+  esc: 'ESC Certificate / Voucher',
+  diploma: 'Diploma',
+  affidavit: 'Affidavit of Undertaking',
+  confirmation: 'Confirmation Certificate',
+  others: 'Others',
 };
 
 const credTone = (s: CredentialState): 'ok' | 'pending' | 'na' =>
@@ -307,7 +313,11 @@ export default function StudentDetail() {
                 { label: 'Loyalty Years', value: `${student.loyaltyYears}` },
                 {
                   label: 'Origin School',
-                  value: student.elemSchoolGraduatedFrom || '— (first year at NPS)',
+                  value:
+                    student.elemSchoolGraduatedFrom ||
+                    (student.loyaltyYears > 1
+                      ? 'Naga Parochial School (NPS — continuing)'
+                      : '— (first year at NPS)'),
                 },
                 { label: 'School Type', value: student.schoolType || '—' },
               ]}
@@ -385,10 +395,19 @@ export default function StudentDetail() {
 
           <SectionCard id="credentials" heading="Credentials">
             <KeyValueGrid
-              rows={Object.entries(student.credentials).map(([key, status]) => ({
-                label: credLabels[key] ?? key,
-                value: <StatusBadge tone={credTone(status)}>{credText(status)}</StatusBadge>,
-              }))}
+              rows={Object.entries(student.credentials)
+                .filter(([key]) => key !== 'othersText')
+                .map(([key, status]) => ({
+                  label:
+                    key === 'others' && student.credentials.othersText
+                      ? `Others · ${student.credentials.othersText}`
+                      : credLabels[key] ?? key,
+                  value: (
+                    <StatusBadge tone={credTone(status as CredentialState)}>
+                      {credText(status as CredentialState)}
+                    </StatusBadge>
+                  ),
+                }))}
             />
           </SectionCard>
 
