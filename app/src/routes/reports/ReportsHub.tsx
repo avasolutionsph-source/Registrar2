@@ -54,8 +54,8 @@ const TILES: Tile[] = [
   {
     to: '/reports/honors',
     icon: GraduationCap,
-    label: 'Honor Students',
-    desc: 'Qualifiers per term / year-end by General Average — verify vs. adviser lists',
+    label: 'Academic Excellence Award',
+    desc: 'GA ≥ 90, no grade below 80 — per term / year-end; verify vs. adviser lists',
   },
   {
     to: '/reports/loyalty',

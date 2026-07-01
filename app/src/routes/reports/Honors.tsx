@@ -3,7 +3,6 @@ import { Award, Printer } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { StatusBadge } from '@/components/entity/StatusBadge';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { Button } from '@/components/ui/button';
 import { listStudents, listClasses, listSubjects, listSchoolYears } from '@/lib/db';
@@ -12,28 +11,22 @@ import { gradeLabel, periodsForSy, formatSy } from '@/lib/forms';
 import {
   evaluateHonor,
   isHonorEligibleLevel,
+  minHonorGradeForSy,
   subjectIndex,
-  HONOR_TIERS,
+  HONOR_GA_MIN,
+  HONOR_GRADE_FLOOR,
   type HonorPeriod,
 } from '@/lib/honors';
 import type { Student, ClassRecord, Subject, SchoolYear } from '@/types';
 
 // Grade-level display order (elementary → JHS → SHS), for grouping the list.
 const LEVEL_ORDER = [
-  'IV', 'V', 'VI',
+  'II', 'III', 'IV', 'V', 'VI',
   'VII', 'VIII', 'IX', 'X',
   'XI-GAS', 'XI-HUMSS', 'XI-STEM', 'XI-ABM',
   'XII-GAS', 'XII-HUMSS', 'XII-STEM', 'XII-ABM',
 ];
 const NPS_SCHOOL_ID = '403875';
-
-// The "no grade below" policy floors the registrar can pick from.
-const FLOORS: { label: string; value: number | null }[] = [
-  { label: 'None', value: null },
-  { label: '80', value: 80 },
-  { label: '85', value: 85 },
-  { label: '90', value: 90 },
-];
 
 interface Placement {
   gradeLevel: string;
@@ -63,10 +56,9 @@ interface Awardee {
   gradeName: string;
   section: string;
   adviser: string;
-  ga: number;
+  ga: number; // whole-number GA (matches the card)
+  gaExact: number; // decimal average (for ranking)
   lowest: number | null;
-  tier: string;
-  tierId: string;
 }
 
 export default function Honors() {
@@ -81,7 +73,9 @@ export default function Honors() {
 
   const [sy, setSy] = useState<string>('');
   const [period, setPeriod] = useState<HonorPeriod>('final');
-  const [floor, setFloor] = useState<number | null>(85);
+  // Default order is alphabetical (per policy). Ranking order (by decimal
+  // average) helps pick the year-end NPS Excellence Award for Grade 6/10/12.
+  const [order, setOrder] = useState<'alpha' | 'rank'>('alpha');
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +92,6 @@ export default function Honors() {
         setClasses(cl);
         setSubjects(su);
         setYears(yr);
-        // default SY: the context SY if it's a real year, else the active one.
         const concrete = currentSY && currentSY.code !== 'all' ? currentSY.code : null;
         const active = yr.find((y) => y.isActive)?.code;
         setSy(concrete ?? active ?? yr[0]?.code ?? '');
@@ -116,8 +109,6 @@ export default function Honors() {
   const index = useMemo(() => subjectIndex(subjects), [subjects]);
   const periods = useMemo(() => periodsForSy(sy), [sy]);
 
-  // Reset the period if the chosen SY doesn't have it (e.g. switching a 4-quarter
-  // year back to a 3-term year while "Q4" was selected).
   useEffect(() => {
     if (period === 'final') return;
     if (!periods.some((p) => p.key === period)) setPeriod('final');
@@ -130,9 +121,9 @@ export default function Honors() {
       const grades = s.grades?.[sy as keyof typeof s.grades];
       if (!grades || !grades.length) continue;
       const place = placementFor(s, sy, classes);
-      if (!place || !isHonorEligibleLevel(place.gradeLevel)) continue;
-      const r = evaluateHonor(grades, index, period, floor);
-      if (!r.qualified || r.tier == null || r.ga == null) continue;
+      if (!place || !isHonorEligibleLevel(place.gradeLevel, sy)) continue;
+      const r = evaluateHonor(grades, index, period);
+      if (!r.qualified || r.ga == null || r.gaExact == null) continue;
       out.push({
         lrn: s.lrn,
         name: formatLastFirstMiddle(s),
@@ -141,16 +132,14 @@ export default function Honors() {
         section: place.section,
         adviser: place.adviser,
         ga: r.ga,
+        gaExact: r.gaExact,
         lowest: r.lowest,
-        tier: r.tier.label,
-        tierId: r.tier.id,
       });
     }
-    // sort within a level: highest GA first, then name.
-    return out.sort((a, b) => b.ga - a.ga || a.name.localeCompare(b.name));
-  }, [students, classes, index, sy, period, floor]);
+    return out;
+  }, [students, classes, index, sy, period]);
 
-  // group awardees by grade level, in curriculum order.
+  // group by grade level, in curriculum order; sort inside each group.
   const groups = useMemo(() => {
     const byLevel = new Map<string, Awardee[]>();
     for (const a of awardees) {
@@ -158,13 +147,18 @@ export default function Honors() {
       arr.push(a);
       byLevel.set(a.gradeLevel, arr);
     }
+    const sorter =
+      order === 'rank'
+        ? (a: Awardee, b: Awardee) => b.gaExact - a.gaExact || a.name.localeCompare(b.name)
+        : (a: Awardee, b: Awardee) => a.name.localeCompare(b.name);
     const known = LEVEL_ORDER.filter((lvl) => byLevel.has(lvl));
     const extra = [...byLevel.keys()].filter((lvl) => !LEVEL_ORDER.includes(lvl)).sort();
-    return [...known, ...extra].map((lvl) => ({ level: lvl, rows: byLevel.get(lvl)! }));
-  }, [awardees]);
+    return [...known, ...extra].map((lvl) => ({ level: lvl, rows: byLevel.get(lvl)!.slice().sort(sorter) }));
+  }, [awardees, order]);
 
   const periodLabel =
     period === 'final' ? 'Final (Year-end)' : periods.find((p) => p.key === period)?.label ?? period;
+  const minGrade = minHonorGradeForSy(sy);
 
   return (
     <>
@@ -172,11 +166,12 @@ export default function Honors() {
 
       <div className="mb-4 flex items-start justify-between gap-3 print:hidden">
         <div>
-          <h1 className="text-xl font-bold text-ink-primary">Honor Students</h1>
+          <h1 className="text-xl font-bold text-ink-primary">Academic Excellence Award</h1>
           <p className="text-[13px] text-ink-secondary mt-1 max-w-2xl">
-            System-computed qualifiers by General Average (DepEd DO 36, s. 2016). Use this to
-            verify the Class Adviser's submitted list before forwarding it to the Academic
-            Coordinator. Nursery–Grade 3 use descriptive grades and are not ranked.
+            System-computed qualifiers: General Average of at least {HONOR_GA_MIN}, with no learning-area
+            grade lower than {HONOR_GRADE_FLOOR}. Single flat award, listed alphabetically. Use this to
+            verify the Class Adviser's submitted list before forwarding it to the Academic Coordinator.
+            Derogatory-record screening is a manual check. This SY covers Grade {minGrade}–12.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -184,18 +179,18 @@ export default function Honors() {
             <Printer className="w-3.5 h-3.5" /> Print
           </Button>
           <ExportCsvButton
-            rows={awardees}
+            rows={groups.flatMap((g) => g.rows)}
             columns={[
               { header: 'Grade', value: (r) => r.gradeName },
               { header: 'Section', value: (r) => r.section },
               { header: 'LRN', value: (r) => r.lrn },
               { header: 'Name', value: (r) => r.name },
               { header: 'General Average', value: (r) => r.ga },
+              { header: 'Average (decimal)', value: (r) => r.gaExact.toFixed(2) },
               { header: 'Lowest Grade', value: (r) => r.lowest ?? '' },
-              { header: 'Honor', value: (r) => r.tier },
               { header: 'Adviser', value: (r) => r.adviser },
             ]}
-            filename={`honor-students-${sy || 'sy'}-${period}`}
+            filename={`academic-excellence-${sy || 'sy'}-${period}`}
           />
         </div>
       </div>
@@ -223,11 +218,7 @@ export default function Honors() {
           <span className="text-[11px] uppercase tracking-[0.04em] text-ink-muted">Period</span>
           <div className="flex gap-1.5">
             {periods.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setPeriod(p.key)}
-                className={btnCls(period === p.key)}
-              >
+              <button key={p.key} onClick={() => setPeriod(p.key)} className={btnCls(period === p.key)}>
                 {p.label}
               </button>
             ))}
@@ -238,42 +229,30 @@ export default function Honors() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-[0.04em] text-ink-muted">No grade below</span>
+          <span className="text-[11px] uppercase tracking-[0.04em] text-ink-muted">Order</span>
           <div className="flex gap-1.5">
-            {FLOORS.map((f) => (
-              <button
-                key={f.label}
-                onClick={() => setFloor(f.value)}
-                className={btnCls(floor === f.value)}
-              >
-                {f.label}
-              </button>
-            ))}
+            <button onClick={() => setOrder('alpha')} className={btnCls(order === 'alpha')}>
+              Alphabetical
+            </button>
+            <button onClick={() => setOrder('rank')} className={btnCls(order === 'rank')}>
+              Ranking (decimal)
+            </button>
           </div>
         </div>
       </div>
 
       {/* Print header */}
       <div className="hidden print:block mb-3">
-        <h1 className="text-lg font-bold">Naga Parochial School — Honor Students</h1>
+        <h1 className="text-lg font-bold">Naga Parochial School — Academic Excellence Award</h1>
         <p className="text-sm">
-          {sy ? formatSy(sy) : ''} · {periodLabel}
-          {floor != null ? ` · no grade below ${floor}` : ''}
+          {sy ? formatSy(sy) : ''} · {periodLabel} · Grade {minGrade}–12 · GA ≥ {HONOR_GA_MIN}, no grade below{' '}
+          {HONOR_GRADE_FLOOR}
         </p>
       </div>
 
-      {/* Summary chips */}
       <div className="mb-4 flex flex-wrap gap-2 text-[12px]">
-        {HONOR_TIERS.map((t) => {
-          const n = awardees.filter((a) => a.tierId === t.id).length;
-          return (
-            <span key={t.id} className="px-2.5 py-1 rounded bg-panel border border-border text-ink-secondary">
-              {t.label}: <span className="font-semibold text-ink-primary">{n}</span>
-            </span>
-          );
-        })}
         <span className="px-2.5 py-1 rounded bg-panel border border-border text-ink-secondary">
-          Total: <span className="font-semibold text-ink-primary">{awardees.length}</span>
+          Total awardees: <span className="font-semibold text-ink-primary">{awardees.length}</span>
         </span>
       </div>
 
@@ -284,9 +263,8 @@ export default function Honors() {
           <div className="flex items-center gap-2 text-[12.5px] text-ink-secondary px-1">
             <Award className="w-3.5 h-3.5 text-ink-muted" />
             <span>
-              No students reach an honor tier for {periodLabel.toLowerCase()} in {sy ? formatSy(sy) : 'the selected year'}
-              {floor != null ? ` with the "no grade below ${floor}" rule` : ''}. Check that grades are encoded
-              for this period.
+              No students reach the Academic Excellence Award for {periodLabel.toLowerCase()} in{' '}
+              {sy ? formatSy(sy) : 'the selected year'}. Check that grades are encoded for this period.
             </span>
           </div>
         </SectionCard>
@@ -300,29 +278,29 @@ export default function Honors() {
               <table className="w-full text-[12.5px]">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                    {order === 'rank' && <th className="py-1.5 pr-2 w-[5%]">#</th>}
                     <th className="py-1.5 pr-3 w-[14%]">LRN</th>
                     <th className="py-1.5 pr-3">Name</th>
-                    <th className="py-1.5 pr-3 w-[20%]">Section</th>
-                    <th className="py-1.5 pr-3 w-[8%]">GA</th>
-                    <th className="py-1.5 pr-3 w-[8%]">Lowest</th>
-                    <th className="py-1.5 w-[22%]">Honor</th>
+                    <th className="py-1.5 pr-3 w-[18%]">Section</th>
+                    <th className="py-1.5 pr-3 w-[7%]">GA</th>
+                    <th className="py-1.5 pr-3 w-[10%]">Average</th>
+                    <th className="py-1.5 w-[8%]">Lowest</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((a) => (
+                  {rows.map((a, i) => (
                     <tr
                       key={a.lrn}
                       onClick={() => navigate(`/students/${a.lrn}`)}
                       className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
                     >
+                      {order === 'rank' && <td className="py-1.5 pr-2 tabular-nums text-ink-secondary">{i + 1}</td>}
                       <td className="py-1.5 pr-3 font-mono">{a.lrn}</td>
                       <td className="py-1.5 pr-3">{a.name}</td>
                       <td className="py-1.5 pr-3 text-ink-secondary">{a.section || '—'}</td>
                       <td className="py-1.5 pr-3 font-semibold tabular-nums">{a.ga}</td>
-                      <td className="py-1.5 pr-3 tabular-nums text-ink-secondary">{a.lowest ?? '—'}</td>
-                      <td className="py-1.5">
-                        <StatusBadge tone={a.tierId === 'honors' ? 'pending' : 'ok'}>{a.tier}</StatusBadge>
-                      </td>
+                      <td className="py-1.5 pr-3 tabular-nums text-ink-secondary">{a.gaExact.toFixed(2)}</td>
+                      <td className="py-1.5 tabular-nums text-ink-secondary">{a.lowest ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
