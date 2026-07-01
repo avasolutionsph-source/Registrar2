@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Award,
+  GraduationCap,
   UserPlus,
   UserMinus,
   Hash,
@@ -49,6 +50,12 @@ const TILES: Tile[] = [
     icon: Hash,
     label: 'Student No.',
     desc: 'Lookup table — Student No. ↔ Name ↔ Grade/Section ↔ LRN',
+  },
+  {
+    to: '/reports/honors',
+    icon: GraduationCap,
+    label: 'Honor Students',
+    desc: 'Qualifiers per term / year-end by General Average — verify vs. adviser lists',
   },
   {
     to: '/reports/loyalty',
