@@ -36,6 +36,19 @@
   }
 }
 
+/* ── Accessibility: bolder text across the app ───────────────────────────────
+   The registrar using this system prefers heavier text for readability. Force a
+   minimum semibold weight on all in-app text, keeping headings/labels heavier so
+   visual hierarchy survives. Scoped to #root so printed documents (Form 137, SF 9,
+   Report Card) keep their official, lighter weights. */
+#root, #root * {
+  font-weight: 600 !important;
+}
+#root h1, #root h2, #root h3, #root th, #root strong, #root b,
+#root .font-bold, #root .font-semibold {
+  font-weight: 700 !important;
+}
+
 /* ── Printing ───────────────────────────────────────────────────────────────
    Printable documents (Form 137, SF 9, …) are rendered into a portal that is a
    sibling of #root. When printing we hide the whole app and let only the
