@@ -6,7 +6,7 @@ export function SectionCard({
   children,
 }: {
   id?: string;
-  heading: string;
+  heading: ReactNode;
   children: ReactNode;
 }) {
   return (

@@ -20,7 +20,7 @@ import {
   type HonorPeriod,
   type HonorTier,
 } from '@/lib/honors';
-import type { Student, ClassRecord, Subject, SchoolYear } from '@/types';
+import { ALL_TIME_CODE, type Student, type ClassRecord, type Subject, type SchoolYear } from '@/types';
 
 // Grade-level display order (elementary → JHS → SHS), for grouping the list.
 const LEVEL_ORDER = [
@@ -100,7 +100,7 @@ export default function Honors() {
         setClasses(cl);
         setSubjects(su);
         setYears(yr);
-        const concrete = currentSY && currentSY.code !== 'all' ? currentSY.code : null;
+        const concrete = currentSY && currentSY.code !== ALL_TIME_CODE ? currentSY.code : null;
         const active = yr.find((y) => y.isActive)?.code;
         setSy(concrete ?? active ?? yr[0]?.code ?? '');
       } catch {
@@ -252,7 +252,7 @@ export default function Honors() {
             className="bg-panel border border-border rounded px-2.5 py-1.5 text-[13px] text-ink-primary"
           >
             {years
-              .filter((y) => y.code !== 'all')
+              .filter((y) => y.code !== ALL_TIME_CODE)
               .map((y) => (
                 <option key={y.code} value={y.code}>
                   {y.label}
