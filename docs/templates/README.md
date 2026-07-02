@@ -24,7 +24,8 @@ teacher grading sheets.
 | [grading-sheet-computation.md](grading-sheet-computation.md) | Official subject grading-sheet columns + WW/PT/STE weights + transmutation + attitude |
 | [report-card-grades-2-6.md](report-card-grades-2-6.md) | Form 138 report card — EXACT layout for Grades 2–6 (subjects per grade, special programs, deportment, attendance, valid-for-transfer + TO PDF) |
 | [report-card-grades-7-10.md](report-card-grades-7-10.md) | Form 138 report card — EXACT layout for Grades 7–10 (JHS) — deltas vs elementary |
-| [subject-grade-sheet-ui.md](subject-grade-sheet-ui.md) | Subject grade sheet encode/view UI (empty + encoded states, WW/PT/exam item columns, attitude, quarterly grade) — with open questions |
+| [subject-grade-sheet-ui.md](subject-grade-sheet-ui.md) | Subject grade sheet encode/view UI (empty + encoded states, WW/PT/exam item columns, attitude, term grade) — with open questions |
+| [descriptive-grading-k-3.md](descriptive-grading-k-3.md) | MATATAG descriptive grading A–E for Grades 1–3 (+ Kinder pending); phase-in Grade 1 first in SY 2026-2027 |
 
 Signatory on all registrar-certified forms: **MARITES C. RAMOS, Registrar**.
 Canonical school name: **Naga Parochial School**, City of Naga.

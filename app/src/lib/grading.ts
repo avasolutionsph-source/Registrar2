@@ -177,28 +177,81 @@ export function descriptorFor(grade: number | null): Descriptor | null {
 }
 
 // ── Key stages ──────────────────────────────────────────────────────────────
-// KS1 (Kinder–Grade 3) uses DESCRIPTIVE letter grades, NOT numerical ones.
-// NPS pre-Kinder (Nursery) is treated the same. Grade levels use the app's
-// internal codes (N1, N2, K = Kinder, I/II/III = Grades 1–3).
-const DESCRIPTIVE_LEVELS = new Set(['N1', 'N2', 'K', 'I', 'II', 'III']);
+// Kinder & Nursery are ALWAYS descriptive. For the numbered grades, DepEd's
+// MATATAG descriptive grading phases IN one grade per year, so a numbered grade
+// is descriptive only until numerical grading reaches it:
+//   SY 2026-2027 → numerical from Grade 2 (only Grade 1 descriptive)
+//   SY 2027-2028 → numerical from Grade 3 (Grades 1–2 descriptive)
+//   SY 2028-2029+ → numerical from Grade 4 (Grades 1–3 descriptive)
+// This is the mirror of the honors coverage phase-in (see honors.ts).
+const KINDER_LEVELS = new Set(['N1', 'N2', 'K']);
+const NUMBERED_ORDINAL: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+};
 
-export function isDescriptiveLevel(gradeLevel?: string): boolean {
-  return !!gradeLevel && DESCRIPTIVE_LEVELS.has(gradeLevel);
+// First numbered grade that is NUMERICAL in a given SY (this + up = numerical).
+export function numericalFloorForSy(sy?: string): number {
+  const y = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
+  if (!Number.isFinite(y)) return 2;
+  if (y <= 2026) return 2;
+  if (y === 2027) return 3;
+  return 4;
+}
+
+export function isDescriptiveLevel(gradeLevel?: string, sy?: string): boolean {
+  if (!gradeLevel) return false;
+  if (KINDER_LEVELS.has(gradeLevel)) return true;
+  const ord = NUMBERED_ORDINAL[gradeLevel.split('-')[0]] ?? 0;
+  if (ord === 0) return false; // SHS strands & unknowns → numerical
+  return ord < numericalFloorForSy(sy);
 }
 
 export interface LetterDescriptor {
   letter: string;
   label: string;
   filipino: string;
+  description?: string; // MATATAG "General Description"
 }
 
-// Grade 1–3 descriptive scale.
+// Grade 1–3 descriptive scale (DepEd MATATAG "Table 8. Grade 1 to 3 Descriptive
+// Grading"). NPS applies it grade-by-grade — SY 2026-2027 = Grade 1 only (see
+// numericalFloorForSy / isDescriptiveLevel).
 export const G1_3_SCALE: LetterDescriptor[] = [
-  { letter: 'A', label: 'Advancing', filipino: 'Namumukodtangi' },
-  { letter: 'B', label: 'Benchmarking', filipino: 'Napamamalas' },
-  { letter: 'C', label: 'Connecting', filipino: 'Natutungo' },
-  { letter: 'D', label: 'Developing', filipino: 'Napauunlad' },
-  { letter: 'E', label: 'Emerging', filipino: 'Nagsisimula' },
+  {
+    letter: 'A',
+    label: 'Advancing',
+    filipino: 'Namumukod-tangi',
+    description:
+      'Consistently demonstrates advanced skills, understanding, and values beyond expectations; performs with confidence, accuracy, and independence',
+  },
+  {
+    letter: 'B',
+    label: 'Benchmarking',
+    filipino: 'Napamamalas',
+    description:
+      'Demonstrates expected skills, understanding, and values at grade level with consistency; performs tasks accurately and independently',
+  },
+  {
+    letter: 'C',
+    label: 'Connecting',
+    filipino: 'Natutungo',
+    description:
+      'Demonstrates foundational skills, understanding, and values; applies learning in familiar tasks with minimal guidance',
+  },
+  {
+    letter: 'D',
+    label: 'Developing',
+    filipino: 'Napauunlad',
+    description:
+      'Demonstrates partial understanding and inconsistent application of skills and values; requires targeted support and regular practice to improve performance',
+  },
+  {
+    letter: 'E',
+    label: 'Emerging',
+    filipino: 'Nagsisimula',
+    description:
+      'Beginning to demonstrate basic skills, understanding, and values; requires intensive support and close guidance',
+  },
 ];
 
 // Kindergarten descriptive scale.

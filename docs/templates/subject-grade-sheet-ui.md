@@ -36,7 +36,8 @@ Row header: **`NAME`** (numbered list of students). Then three column groups sep
 
 ### Trailing columns
 - `Att` — **Attitude** (encoded here, right before the grade)
-- `QG` — **Quarterly Grade**
+- `TG` — **Term Grade** (SY 2026-2027 uses 3 TERMS, not 4 quarters; the legacy screenshot
+  labelled this `QG`/Quarterly Grade — it is now the **Term Grade**)
 
 > The per-subject **weights are shown in the headers** (`.3`, `.5`, `.2`) and differ by
 > subject — confirming weights are configured per subject (registrar/admin-managed).

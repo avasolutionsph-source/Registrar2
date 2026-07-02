@@ -116,7 +116,7 @@ export default function EncodeGrades() {
     () => (student?.enrolmentHistory ?? []).find((h) => h.sy === sy)?.gradeLevel,
     [student, sy],
   );
-  const ks1 = isDescriptiveLevel(gradeLevel);
+  const ks1 = isDescriptiveLevel(gradeLevel, sy);
   const scale = descriptiveScaleFor(gradeLevel);
 
   const used = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
