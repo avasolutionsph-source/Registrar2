@@ -22,6 +22,8 @@ teacher grading sheets.
 | [f137-jhs-permanent-record.md](f137-jhs-permanent-record.md) | Junior High School Permanent Record (Form 137) — Grade 7–10 layout |
 | [tracking-records.md](tracking-records.md) | Transferred-out / School Leavers / Graduates destination tracking records |
 | [grading-sheet-computation.md](grading-sheet-computation.md) | Official subject grading-sheet columns + WW/PT/STE weights + transmutation + attitude |
+| [report-card-grades-2-6.md](report-card-grades-2-6.md) | Form 138 report card — EXACT layout for Grades 2–6 (subjects per grade, special programs, deportment, attendance, valid-for-transfer + TO PDF) |
+| [report-card-grades-7-10.md](report-card-grades-7-10.md) | Form 138 report card — EXACT layout for Grades 7–10 (JHS) — deltas vs elementary |
 
 Signatory on all registrar-certified forms: **MARITES C. RAMOS, Registrar**.
 Canonical school name: **Naga Parochial School**, City of Naga.
