@@ -46,11 +46,42 @@ export function minHonorGradeForSy(sy?: string): number {
   return 4; // 2028-2029 onward: Grade 4 up
 }
 
-// A learner's grade level is honor-eligible in a given SY when it falls within
-// that year's numerical band (min..Grade 12).
+// Which honor regime applies to a school year.
+//   'excellence' — SY 2026-2027 onward: the flat Academic Excellence Award
+//                  (GA ≥ 90 AND no learning-area grade below 80).
+//   'tiered'     — SY 2025-2026 and earlier: the old DepEd tiered honors
+//                  (With / High / Highest Honors) with NO per-subject floor —
+//                  a learner still made honors with a grade in the 70s as long
+//                  as the GA reached 90. The 80 floor is exactly what the new
+//                  award added ("ngayon dapat walang line of 7").
+export type HonorRegime = 'excellence' | 'tiered';
+export function honorRegimeForSy(sy?: string): HonorRegime {
+  const y = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
+  return Number.isFinite(y) && y <= 2025 ? 'tiered' : 'excellence';
+}
+
+// Old tiered honor bands (quarterly average). No per-subject floor applied.
+export type HonorTier = 'with' | 'high' | 'highest';
+export const TIER_LABEL: Record<HonorTier, string> = {
+  with: 'With Honors',
+  high: 'With High Honors',
+  highest: 'With Highest Honors',
+};
+export function tierForGa(ga: number | null): HonorTier | null {
+  if (ga == null) return null;
+  if (ga >= 98) return 'highest';
+  if (ga >= 95) return 'high';
+  if (ga >= HONOR_GA_MIN) return 'with';
+  return null;
+}
+
+// A learner's grade level is honor-eligible in a given SY. Under the current
+// award the band phases in (minHonorGradeForSy..12); under the old tiered
+// regime any numerical level (Grade 1..12) was eligible.
 export function isHonorEligibleLevel(gradeLevel: string | undefined, sy?: string): boolean {
   const ord = ordinalOf(gradeLevel);
-  return ord >= minHonorGradeForSy(sy) && ord <= 12;
+  if (ord < 1 || ord > 12) return false;
+  return honorRegimeForSy(sy) === 'tiered' ? true : ord >= minHonorGradeForSy(sy);
 }
 
 export interface PeriodAverage {
@@ -101,6 +132,31 @@ export function evaluateHonor(
   const gaMet = pa.ga != null && pa.ga >= HONOR_GA_MIN;
   const belowFloor = gaMet && pa.lowest != null && pa.lowest < HONOR_GRADE_FLOOR;
   return { ...pa, gaMet, belowFloor, qualified: gaMet && !belowFloor };
+}
+
+export interface AwardResult extends PeriodAverage {
+  regime: HonorRegime;
+  qualified: boolean;
+  tier: HonorTier | null; // set only under the tiered (old) regime
+  belowFloor: boolean; // meaningful only under the excellence regime
+}
+
+// Regime-aware evaluation. Under 'excellence' this is evaluateHonor (GA ≥ 90 AND
+// no grade below 80). Under 'tiered' it is GA ≥ 90 with a tier label and NO floor.
+export function evaluateAward(
+  grades: QuarterGrade[],
+  index: Map<string, Subject>,
+  period: HonorPeriod,
+  sy?: string,
+): AwardResult {
+  const pa = periodAverage(grades, index, period);
+  const regime = honorRegimeForSy(sy);
+  const gaMet = pa.ga != null && pa.ga >= HONOR_GA_MIN;
+  if (regime === 'tiered') {
+    return { ...pa, regime, qualified: gaMet, tier: tierForGa(pa.ga), belowFloor: false };
+  }
+  const belowFloor = gaMet && pa.lowest != null && pa.lowest < HONOR_GRADE_FLOOR;
+  return { ...pa, regime, qualified: gaMet && !belowFloor, tier: null, belowFloor };
 }
 
 // Convenience for building `index` once per report render.
