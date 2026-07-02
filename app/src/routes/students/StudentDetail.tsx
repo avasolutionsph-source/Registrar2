@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Form137 } from '@/components/print/Form137';
 import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
+import { ReportCard138 } from '@/components/print/ReportCard138';
 import { GoodMoral } from '@/components/print/GoodMoral';
 import { CertEnrollment } from '@/components/print/CertEnrollment';
 import { StudentId } from '@/components/print/StudentId';
@@ -37,7 +38,7 @@ import type { CredentialState, ClassRecord, Student, Subject } from '@/types';
 
 const REF_DATE = '2026-05-04'; // reference "today" for age display
 const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '—');
-type DocKind = 'form137' | 'sf10' | 'sf9' | 'gmc' | 'coe' | 'id';
+type DocKind = 'form137' | 'sf10' | 'sf9' | 'card138' | 'gmc' | 'coe' | 'id';
 
 const credLabels: Record<string, string> = {
   bc: 'BC · Birth Certificate',
@@ -221,6 +222,13 @@ export default function StudentDetail() {
               >
                 <Upload className="w-3.5 h-3.5" />{' '}
                 {photoBusy ? 'Uploading…' : photoUrl ? 'Change photo' : 'Upload photo'}
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2 w-full"
+                onClick={() => setDoc('card138')}
+              >
+                <Printer className="w-3.5 h-3.5" /> Report Card (Form 138)
               </Button>
               <Button
                 variant="outline"
@@ -473,7 +481,9 @@ export default function StudentDetail() {
       <PrintHost
         open={doc !== null}
         docTitle={
-          doc === 'sf9'
+          doc === 'card138'
+            ? `Report Card (Form 138) · ${student.lastName}, ${student.firstName}`
+            : doc === 'sf9'
             ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
             : doc === 'sf10'
               ? `SF 10 · ${student.lastName}, ${student.firstName}`
@@ -487,7 +497,9 @@ export default function StudentDetail() {
         }
         onClose={() => setDoc(null)}
       >
-        {doc === 'sf9' ? (
+        {doc === 'card138' ? (
+          <ReportCard138 student={student} subjects={subjects} />
+        ) : doc === 'sf9' ? (
           <ReportCardSF9 student={student} subjects={subjects} />
         ) : doc === 'gmc' ? (
           <GoodMoral student={student} />
