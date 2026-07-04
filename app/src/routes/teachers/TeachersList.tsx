@@ -14,6 +14,7 @@ export default function TeachersList() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false); // default: active for the current year only
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +34,9 @@ export default function TeachersList() {
       cancelled = true;
     };
   }, []);
+
+  const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
+  const visibleTeachers = showAll ? teachers : activeTeachers;
 
   const advisedSection = (t: Teacher) => {
     const klass = classes.find((c) => c.adviser.id === t.id);
@@ -67,9 +71,36 @@ export default function TeachersList() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-ink-primary">Teachers</h1>
         <p className="text-[13px] text-ink-secondary mt-1">
-          {loading ? 'Loading…' : `${teachers.length} on roster`}
+          {loading
+            ? 'Loading…'
+            : showAll
+              ? `${teachers.length} on masterlist`
+              : `${activeTeachers.length} active this year`}
         </p>
       </div>
+
+      {!loading && !error && (
+        <div className="inline-flex rounded-md border border-border overflow-hidden mb-3 text-[12.5px]">
+          <button
+            onClick={() => setShowAll(false)}
+            className={[
+              'px-3 py-1.5',
+              !showAll ? 'bg-accent text-white' : 'bg-panel text-ink-secondary hover:bg-panel-alt',
+            ].join(' ')}
+          >
+            Active this year
+          </button>
+          <button
+            onClick={() => setShowAll(true)}
+            className={[
+              'px-3 py-1.5 border-l border-border',
+              showAll ? 'bg-accent text-white' : 'bg-panel text-ink-secondary hover:bg-panel-alt',
+            ].join(' ')}
+          >
+            Masterlist (all)
+          </button>
+        </div>
+      )}
 
       {error ? (
         <p className="text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
@@ -77,7 +108,7 @@ export default function TeachersList() {
         </p>
       ) : (
         <DataTable<Teacher>
-          data={teachers}
+          data={visibleTeachers}
           columns={cols}
           searchableText={(t) => `${t.familyName} ${t.firstName} ${t.email}`}
           onRowClick={(t) => navigate(`/teachers/${t.id}`)}

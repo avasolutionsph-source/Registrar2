@@ -24,7 +24,7 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
       'XII-ABM',
     ],
   },
-  { label: 'SPED', levels: ['S'] },
+  { label: 'SNED', levels: ['S'] },
 ];
 
 export default function ClassesList() {

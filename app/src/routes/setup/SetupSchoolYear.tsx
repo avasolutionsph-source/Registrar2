@@ -7,7 +7,7 @@ import { SectionCard } from '@/components/entity/SectionCard';
 import { listSchoolYears } from '@/lib/db';
 import type { SchoolYear } from '@/types';
 
-const QUARTERS = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 const MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
 
 export default function SetupSchoolYear() {
@@ -89,13 +89,15 @@ export default function SetupSchoolYear() {
 
         <SectionCard heading="School days per month">
           <p className="text-[11.5px] text-ink-muted mb-2 px-1">
-            Drives attendance reports. Holidays and suspensions subtract from these.
+            Leave a month blank if there are no class days. Only the months you
+            fill in appear on the report card, and their total is the encoded
+            number of school days.
           </p>
           <div className="grid grid-cols-6 gap-2 px-1">
             {MONTHS.map((m) => (
               <label key={m} className="block">
                 <span className="text-[11px] text-ink-secondary block mb-0.5">{m}</span>
-                <Input type="number" min={0} max={31} defaultValue={m === 'Apr' ? 5 : m === 'May' || m === 'Jun' ? 0 : 20} />
+                <Input type="number" min={0} max={31} placeholder="—" />
               </label>
             ))}
           </div>
@@ -103,12 +105,14 @@ export default function SetupSchoolYear() {
 
         <SectionCard heading="Grade-encoding deadlines">
           <p className="text-[11.5px] text-ink-muted mb-2 px-1">
-            Encoding window opens 5 days after each quarter's start date (legacy NPS rule).
+            Enter the last day of encoding for each term. Setting a deadline
+            opens encoding for that entire term — teachers can start right away.
+            Leave blank to keep a term closed.
           </p>
           <div className="grid grid-cols-2 gap-3 px-1">
-            {QUARTERS.map((q) => (
-              <label key={q} className="block">
-                <span className="text-[12px] text-ink-secondary block mb-1">{q}</span>
+            {TERMS.map((t) => (
+              <label key={t} className="block">
+                <span className="text-[12px] text-ink-secondary block mb-1">{t} — encoding deadline</span>
                 <Input type="date" />
               </label>
             ))}

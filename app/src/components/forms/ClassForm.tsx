@@ -29,7 +29,7 @@ const GRADE_OPTIONS: { value: string; label: string }[] = [
   { value: 'XII-HUMSS', label: 'Grade XII — HUMSS' },
   { value: 'XII-STEM', label: 'Grade XII — STEM' },
   { value: 'XII-ABM', label: 'Grade XII — ABM' },
-  { value: 'S', label: 'SPED' },
+  { value: 'S', label: 'SNED' },
 ];
 
 interface Props {

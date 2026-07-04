@@ -43,14 +43,15 @@ export default function SetupSchools() {
       width: '12%',
       render: (s) => <span className="font-mono">{s.id}</span>,
     },
-    { key: 'name', header: 'Name', width: '32%', render: (s) => s.name },
+    { key: 'name', header: 'Name', width: '28%', render: (s) => s.name },
     {
       key: 'addr',
       header: 'Address',
-      width: '24%',
+      width: '22%',
       render: (s) => <span className="text-ink-secondary">{s.address}</span>,
     },
-    { key: 'div', header: 'Division', width: '14%', render: (s) => s.division },
+    { key: 'district', header: 'District', width: '13%', render: (s) => s.district },
+    { key: 'div', header: 'Division', width: '13%', render: (s) => s.division },
     {
       key: 'type',
       header: 'Type',
@@ -79,8 +80,8 @@ export default function SetupSchools() {
       <DataTable<SchoolRecord>
         data={schools}
         columns={cols}
-        searchableText={(s) => `${s.id} ${s.name} ${s.address} ${s.division}`}
-        searchPlaceholder="Search by School ID, name, or division…"
+        searchableText={(s) => `${s.id} ${s.name} ${s.address} ${s.district} ${s.division}`}
+        searchPlaceholder="Search by School ID, name, district, or division…"
         rightActions={
           <Button>
             <Plus className="w-3.5 h-3.5 mr-1" /> Add School

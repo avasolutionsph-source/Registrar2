@@ -32,7 +32,7 @@ const GRADE_LABELS: Record<string, string> = {
   N2: 'Nursery 2',
   K: 'Kinder',
   P: 'Preparatory',
-  S: 'SPED',
+  S: 'SNED',
   I: 'Grade 1',
   II: 'Grade 2',
   III: 'Grade 3',

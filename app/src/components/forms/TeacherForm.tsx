@@ -33,7 +33,8 @@ export function TeacherForm({ teacher, onSubmit, onCancel, submitLabel }: Props)
       familyName: get('familyName'),
       email: get('email'),
       yearStarted: Number(get('yearStarted')) || new Date().getFullYear(),
-      yearEnded: teacher?.yearEnded ?? 0,
+      // 0 = still active. Only editable when editing an existing teacher.
+      yearEnded: teacher ? Number(get('yearEnded')) || 0 : 0,
       isAdviser: teacher?.isAdviser ?? false,
       curriculum: get('curriculum') || 'Kto12-B',
     };
@@ -113,6 +114,18 @@ export function TeacherForm({ teacher, onSubmit, onCancel, submitLabel }: Props)
           <Field label="Curriculum">
             <Input name="curriculum" defaultValue={teacher?.curriculum ?? 'Kto12-B'} />
           </Field>
+          {teacher && (
+            <Field label="Year ended" hint="Leave blank (or 0) if still active">
+              <Input
+                name="yearEnded"
+                type="number"
+                min={2000}
+                max={2100}
+                placeholder="—"
+                defaultValue={teacher.yearEnded ? teacher.yearEnded : ''}
+              />
+            </Field>
+          )}
         </div>
       </SectionCard>
 
