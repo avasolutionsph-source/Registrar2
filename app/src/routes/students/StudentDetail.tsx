@@ -21,8 +21,10 @@ import {
   listForm137Log,
   uploadStudentPhoto,
   getPhotoSignedUrl,
+  listAttitudeScale,
   type Form137Release,
 } from '@/lib/db';
+import type { AttitudeBand } from '@/lib/grading';
 import {
   subjectIndex,
   buildSubjectRows,
@@ -72,6 +74,7 @@ export default function StudentDetail() {
   const [doc, setDoc] = useState<DocKind | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -94,6 +97,7 @@ export default function StudentDetail() {
         setSubjects(subs);
         setReleases(rel);
         setKlass(s ? classes.find((c) => c.id === s.currentClassId) : undefined);
+        listAttitudeScale().then((sc) => { if (!cancelled) setAttitudeScale(sc); }).catch(() => {});
         if (s?.photoPath) {
           const url = await getPhotoSignedUrl(s.photoPath);
           if (!cancelled) setPhotoUrl(url);
@@ -500,7 +504,7 @@ export default function StudentDetail() {
         {doc === 'card138' ? (
           <ReportCard138 student={student} subjects={subjects} />
         ) : doc === 'sf9' ? (
-          <ReportCardSF9 student={student} subjects={subjects} />
+          <ReportCardSF9 student={student} subjects={subjects} attitudeScale={attitudeScale} />
         ) : doc === 'gmc' ? (
           <GoodMoral student={student} />
         ) : doc === 'coe' ? (

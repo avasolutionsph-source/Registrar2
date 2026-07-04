@@ -1,14 +1,16 @@
 import type { ClassRecord, Student, Subject } from '@/types';
+import type { AttitudeBand } from '@/lib/grading';
 import { ReportCardSF9 } from './ReportCardSF9';
 
 interface Props {
   klass: ClassRecord;
   roster: Student[];
   subjects: Subject[];
+  attitudeScale?: AttitudeBand[];
 }
 
 // One SF 9 report card per learner, each starting on a fresh page.
-export function BatchReportCards({ klass, roster, subjects }: Props) {
+export function BatchReportCards({ klass, roster, subjects, attitudeScale }: Props) {
   const ordered = [...roster].sort((a, b) => a.lastName.localeCompare(b.lastName));
 
   if (ordered.length === 0) {
@@ -19,7 +21,7 @@ export function BatchReportCards({ klass, roster, subjects }: Props) {
     <div>
       {ordered.map((s, i) => (
         <div key={s.lrn} className={i < ordered.length - 1 ? 'break-after-page' : ''}>
-          <ReportCardSF9 student={s} subjects={subjects} sy={klass.sy} />
+          <ReportCardSF9 student={s} subjects={subjects} sy={klass.sy} attitudeScale={attitudeScale} />
         </div>
       ))}
     </div>

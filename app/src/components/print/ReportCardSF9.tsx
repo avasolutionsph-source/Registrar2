@@ -13,7 +13,7 @@ import {
   VALUE_TRAITS,
   PROGRAM_LABELS,
 } from '@/lib/forms';
-import { attitudeLetter } from '@/lib/grading';
+import { attitudeLetter, DEFAULT_ATTITUDE_SCALE, type AttitudeBand } from '@/lib/grading';
 import { Letterhead, LearnerInfo, SignatureBlock } from './parts';
 
 const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '');
@@ -31,9 +31,10 @@ interface Props {
   student: Student;
   subjects: Subject[];
   sy?: string;
+  attitudeScale?: AttitudeBand[];
 }
 
-export function ReportCardSF9({ student, subjects, sy }: Props) {
+export function ReportCardSF9({ student, subjects, sy, attitudeScale = DEFAULT_ATTITUDE_SCALE }: Props) {
   const year = sy ?? latestGradedSy(student) ?? student.currentSY;
   const periods = periodsForSy(year);
   const PCOLS = periods.map((p) => p.short);
@@ -165,11 +166,11 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
                 <td className="border border-zinc-400 px-1.5 py-0.5">Attitude</td>
                 {attByPeriod.map((v, i) => (
                   <td key={i} className="border border-zinc-400 px-0.5 py-0.5 text-center">
-                    {attitudeLetter(v)?.letter ?? ''}
+                    {attitudeLetter(v, attitudeScale)?.letter ?? ''}
                   </td>
                 ))}
                 <td className="border border-zinc-400 px-0.5 py-0.5 text-center font-semibold">
-                  {attitudeLetter(attFinalNum)?.letter ?? ''}
+                  {attitudeLetter(attFinalNum, attitudeScale)?.letter ?? ''}
                 </td>
               </tr>
             </tbody>

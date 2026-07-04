@@ -26,8 +26,10 @@ import {
   saveClassSubjects,
   listStudentsLite,
   bulkEnrollForSy,
+  listAttitudeScale,
   type Transfer,
 } from '@/lib/db';
+import type { AttitudeBand } from '@/lib/grading';
 import { schoolIdFromLrn } from '@/lib/lrn';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
@@ -100,6 +102,7 @@ export default function ClassDetail() {
   const [addSel, setAddSel] = useState<Set<string>>(new Set());
   const [addBusy, setAddBusy] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadSaved, setLoadSaved] = useState(false);
@@ -127,6 +130,7 @@ export default function ClassDetail() {
         setTransfers(trans);
         setRoster(rosterList);
         setTeachers(tchs);
+        listAttitudeScale().then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
         setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
         if (c && rosterList.length) {
           const esc = await listEscForClass(rosterList.map((s) => s.lrn), c.sy);
@@ -1071,9 +1075,9 @@ export default function ClassDetail() {
         ) : doc?.kind === 'sf5' ? (
           <ClassForm5 klass={klass} roster={roster} subjects={subjects} />
         ) : doc?.kind === 'batch' ? (
-          <BatchReportCards klass={klass} roster={roster} subjects={subjects} />
+          <BatchReportCards klass={klass} roster={roster} subjects={subjects} attitudeScale={attitudeScale} />
         ) : doc?.kind === 'one' ? (
-          <ReportCardSF9 student={doc.student} subjects={subjects} sy={klass.sy} />
+          <ReportCardSF9 student={doc.student} subjects={subjects} sy={klass.sy} attitudeScale={attitudeScale} />
         ) : null}
       </PrintHost>
     </>
