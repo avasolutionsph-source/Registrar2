@@ -451,6 +451,16 @@ export async function enrollStudentForSy(lrn: string, input: EnrollInput): Promi
   if (error) throw error;
 }
 
+// Enroll several learners into the same section/SY (used by the class roster's
+// "Add learners" panel). Sequential — sections are small and each call reads +
+// updates one student.
+export async function bulkEnrollForSy(lrns: string[], input: EnrollInput): Promise<void> {
+  for (const lrn of lrns) {
+    // eslint-disable-next-line no-await-in-loop
+    await enrollStudentForSy(lrn, input);
+  }
+}
+
 // ── ID photos (private `student-photos` bucket) ──
 const PHOTO_BUCKET = 'student-photos';
 

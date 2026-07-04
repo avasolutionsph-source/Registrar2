@@ -24,6 +24,8 @@ import {
   listTeachers,
   listClassSubjects,
   saveClassSubjects,
+  listStudentsLite,
+  bulkEnrollForSy,
   type Transfer,
 } from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
@@ -92,6 +94,11 @@ export default function ClassDetail() {
   const [escState, setEscState] = useState<Record<string, { grantee: boolean; escNo: string }>>({});
   const [escBusy, setEscBusy] = useState(false);
   const [escSaved, setEscSaved] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [allLite, setAllLite] = useState<Student[] | null>(null);
+  const [addSearch, setAddSearch] = useState('');
+  const [addSel, setAddSel] = useState<Set<string>>(new Set());
+  const [addBusy, setAddBusy] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
   const [loadBusy, setLoadBusy] = useState(false);
@@ -250,6 +257,64 @@ export default function ClassDetail() {
     }
   }
 
+  const rosterLrns = new Set(roster.map((s) => s.lrn));
+  const addResults = (() => {
+    if (!allLite) return [];
+    const q = addSearch.trim().toLowerCase();
+    return allLite
+      .filter((s) => !rosterLrns.has(s.lrn))
+      .filter((s) =>
+        !q
+          ? false
+          : `${s.lastName} ${s.firstName} ${s.lrn}`.toLowerCase().includes(q),
+      )
+      .slice(0, 40);
+  })();
+
+  async function openAdd() {
+    setAddOpen((v) => !v);
+    if (allLite === null) {
+      try {
+        setAllLite(await listStudentsLite());
+      } catch {
+        setAllLite([]);
+      }
+    }
+  }
+  const toggleAdd = (lrn: string) =>
+    setAddSel((s) => {
+      const next = new Set(s);
+      if (next.has(lrn)) next.delete(lrn);
+      else next.add(lrn);
+      return next;
+    });
+  async function enrollSelected() {
+    if (!klass || addSel.size === 0) return;
+    setAddBusy(true);
+    try {
+      const adviserName = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      await bulkEnrollForSy([...addSel], {
+        sy: klass.sy,
+        classId: klass.id,
+        gradeLevel: klass.gradeLevel,
+        sectionName: klass.sectionName,
+        adviserName,
+        action: 'promoted',
+      });
+      const fresh = await listStudentsByClass(klass.id);
+      setRoster(fresh);
+      setAddSel(new Set());
+      setAddSearch('');
+      setAddOpen(false);
+    } catch {
+      // keep selection for retry
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
   return (
     <>
       <Breadcrumb
@@ -321,6 +386,66 @@ export default function ClassDetail() {
 
             <TabsContent value="list">
               <SectionCard heading="Class List">
+                <div className="flex justify-end mb-3">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={openAdd}>
+                    <Plus className="w-3.5 h-3.5" /> Add learners
+                  </Button>
+                </div>
+
+                {addOpen && (
+                  <div className="mb-4 rounded-md border border-border bg-app/40 p-3">
+                    <p className="text-[11.5px] text-ink-muted mb-2">
+                      Search learners by name or LRN, tick them, then enroll into{' '}
+                      <span className="font-medium">
+                        Grade {klass.gradeLevel} · {klass.sectionName}
+                      </span>{' '}
+                      for SY {klass.sy}.
+                    </p>
+                    <input
+                      value={addSearch}
+                      onChange={(e) => setAddSearch(e.target.value)}
+                      placeholder={allLite === null ? 'Loading learners…' : 'Type a name or LRN…'}
+                      disabled={allLite === null}
+                      className="w-full rounded border border-border bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-primary mb-2"
+                    />
+                    <div className="max-h-[220px] overflow-y-auto">
+                      {addSearch.trim() === '' ? (
+                        <p className="text-[12px] text-ink-muted px-1 py-2">Start typing to find learners.</p>
+                      ) : addResults.length === 0 ? (
+                        <p className="text-[12px] text-ink-muted px-1 py-2">No matches (already-enrolled learners are hidden).</p>
+                      ) : (
+                        addResults.map((s) => (
+                          <label
+                            key={s.lrn}
+                            className="flex items-center gap-2 py-1 px-1 text-[12.5px] cursor-pointer hover:bg-app rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={addSel.has(s.lrn)}
+                              onChange={() => toggleAdd(s.lrn)}
+                              className="h-3.5 w-3.5 accent-nps-red"
+                            />
+                            <span className="flex-1">{formatLastFirstMiddle(s)}</span>
+                            <span className="font-mono text-ink-muted text-[11px]">{s.lrn}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border-soft">
+                      <Button size="sm" disabled={addBusy || addSel.size === 0} onClick={enrollSelected}>
+                        {addBusy ? 'Enrolling…' : `Enroll ${addSel.size} learner${addSel.size === 1 ? '' : 's'}`}
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setAddOpen(false)}
+                        className="text-[12px] text-ink-muted hover:text-ink-primary"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-x-4">
                   <div>
                     <div className="bg-panel-alt -mx-4 px-4 py-2 border-b border-border text-label uppercase font-bold text-ink-muted">
