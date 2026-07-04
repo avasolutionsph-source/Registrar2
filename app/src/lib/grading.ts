@@ -182,6 +182,36 @@ export function computeGrade(
   return ig == null ? null : transmute(Math.round(ig));
 }
 
+// ── Attitude / behaviour rating (numerical → letter) ────────────────────────
+// The subject grade sheet has a final column where the teacher encodes a
+// NUMERICAL attitude score; it is converted to a letter using this scale. The
+// bands are registrar-configurable (Setup → Grade Weights), stored in
+// reg_attitude_scale, and default to the values below.
+export interface AttitudeBand {
+  min: number; // lower bound (inclusive); rows are matched high → low
+  letter: string; // e.g. 'O', 'VS'
+  label: string; // e.g. 'Outstanding'
+}
+
+export const DEFAULT_ATTITUDE_SCALE: AttitudeBand[] = [
+  { min: 90, letter: 'O', label: 'Outstanding' },
+  { min: 85, letter: 'VS', label: 'Very Satisfactory' },
+  { min: 80, letter: 'S', label: 'Satisfactory' },
+  { min: 75, letter: 'FS', label: 'Fairly Satisfactory' },
+  { min: 0, letter: 'NI', label: 'Needs Improvement' },
+];
+
+// Convert a numerical attitude score to its letter using the given scale
+// (bands are sorted high → low so the first satisfied lower-bound wins).
+export function attitudeLetter(
+  score: number | null | undefined,
+  scale: AttitudeBand[] = DEFAULT_ATTITUDE_SCALE,
+): AttitudeBand | null {
+  if (score == null || !Number.isFinite(score)) return null;
+  const ordered = [...scale].sort((a, b) => b.min - a.min);
+  return ordered.find((b) => score >= b.min) ?? null;
+}
+
 // ── Qualitative descriptors (KS2–KS4 numerical grades) ──────────────────────
 export interface Descriptor {
   min: number;

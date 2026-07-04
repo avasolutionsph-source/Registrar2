@@ -50,7 +50,7 @@ const TILES: Tile[] = [
     to: '/setup/weights',
     icon: Percent,
     label: 'Grade Weights',
-    desc: 'WW / PT / Exam split per learning-area group (DepEd defaults, editable)',
+    desc: 'WW / PT / Exam split per learning-area group + attitude → letter scale (editable)',
   },
   {
     to: '/setup/schools',

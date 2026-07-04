@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, Save } from 'lucide-react';
+import { RotateCcw, Save, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -8,10 +8,18 @@ import {
   AREA_GROUPS,
   AREA_GROUP_LABEL,
   DEPED_DEFAULT_WEIGHTS,
+  DEFAULT_ATTITUDE_SCALE,
   type AreaGroup,
   type Weights,
+  type AttitudeBand,
 } from '@/lib/grading';
-import { listWeightConfig, saveWeightConfig, type WeightConfig } from '@/lib/db';
+import {
+  listWeightConfig,
+  saveWeightConfig,
+  listAttitudeScale,
+  saveAttitudeScale,
+  type WeightConfig,
+} from '@/lib/db';
 
 type Component = keyof Weights; // 'ww' | 'pt' | 'st'
 const COMPONENTS: { key: Component; label: string }[] = [
@@ -29,14 +37,20 @@ export default function SetupWeights() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [attitude, setAttitude] = useState<AttitudeBand[]>([]);
+  const [attSaving, setAttSaving] = useState(false);
+  const [attSaved, setAttSaved] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const c = await listWeightConfig();
-        if (!cancelled) setConfig(c);
+        const [c, att] = await Promise.all([listWeightConfig(), listAttitudeScale()]);
+        if (cancelled) return;
+        setConfig(c);
+        setAttitude(att);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the weights.');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the configuration.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -45,6 +59,39 @@ export default function SetupWeights() {
       cancelled = true;
     };
   }, []);
+
+  const setBand = (i: number, patch: Partial<AttitudeBand>) => {
+    setAttitude((bands) => bands.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+    setAttSaved(false);
+  };
+  const addBand = () => {
+    setAttitude((bands) => [...bands, { min: 0, letter: '', label: '' }]);
+    setAttSaved(false);
+  };
+  const removeBand = (i: number) => {
+    setAttitude((bands) => bands.filter((_, j) => j !== i));
+    setAttSaved(false);
+  };
+  const restoreAttitude = () => {
+    setAttitude(DEFAULT_ATTITUDE_SCALE.map((b) => ({ ...b })));
+    setAttSaved(false);
+  };
+  const attValid =
+    attitude.length > 0 && attitude.every((b) => b.letter.trim() && b.min >= 0 && b.min <= 100);
+
+  async function saveAtt() {
+    if (!attValid) return;
+    setAttSaving(true);
+    setError(null);
+    try {
+      await saveAttitudeScale(attitude);
+      setAttSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save the attitude scale.');
+    } finally {
+      setAttSaving(false);
+    }
+  }
 
   const setValue = (group: AreaGroup, comp: Component, value: number) => {
     setConfig((c) => (c ? { ...c, [group]: { ...c[group], [comp]: value } } : c));
@@ -154,6 +201,91 @@ export default function SetupWeights() {
             </p>
           )}
         </SectionCard>
+      )}
+
+      {!loading && config && (
+        <div className="mt-4">
+          <div className="mb-2 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-bold text-ink-primary">Attitude → Letter</h2>
+              <p className="text-[12.5px] text-ink-secondary mt-0.5 max-w-[620px]">
+                The attitude column on the grade sheet is encoded as a number, then shown as a
+                letter using this scale. A score matches the highest band whose minimum it reaches.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {attSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
+              <Button variant="outline" onClick={restoreAttitude} className="gap-2">
+                <RotateCcw className="w-3.5 h-3.5" /> Defaults
+              </Button>
+              <Button onClick={saveAtt} disabled={!attValid || attSaving} className="gap-2">
+                <Save className="w-3.5 h-3.5" /> {attSaving ? 'Saving…' : 'Save attitude'}
+              </Button>
+            </div>
+          </div>
+          <SectionCard heading={`${attitude.length} bands`}>
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                  <th className="py-2 pr-3 w-[16%]">Letter</th>
+                  <th className="py-2 pr-3">Description</th>
+                  <th className="py-2 px-2 w-[20%] text-center">Minimum score</th>
+                  <th className="py-2 w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {attitude.map((b, i) => (
+                  <tr key={i} className="border-b border-border-soft last:border-0">
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={b.letter}
+                        placeholder="e.g. O"
+                        onChange={(e) => setBand(i, { letter: e.target.value })}
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Input
+                        value={b.label}
+                        placeholder="e.g. Outstanding"
+                        onChange={(e) => setBand(i, { label: e.target.value })}
+                      />
+                    </td>
+                    <td className="py-2 px-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={b.min}
+                        onChange={(e) => setBand(i, { min: Number(e.target.value) || 0 })}
+                        className="text-center tabular-nums"
+                      />
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeBand(i)}
+                        className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
+                        aria-label="Remove band"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-3 flex items-center justify-between px-1">
+              <Button variant="outline" size="sm" onClick={addBand} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Add band
+              </Button>
+              {!attValid && (
+                <span className="text-[12px] text-nps-red">
+                  Every band needs a letter and a minimum score (0–100).
+                </span>
+              )}
+            </div>
+          </SectionCard>
+        </div>
       )}
     </>
   );

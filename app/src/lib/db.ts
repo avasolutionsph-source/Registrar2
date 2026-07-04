@@ -4,7 +4,15 @@
 
 import { supabase } from './supabase';
 import { idbGet, idbSet, SNAP } from './offlineCache';
-import { AREA_GROUPS, isAreaGroup, resolveWeights, type AreaGroup, type Weights } from './grading';
+import {
+  AREA_GROUPS,
+  isAreaGroup,
+  resolveWeights,
+  DEFAULT_ATTITUDE_SCALE,
+  type AreaGroup,
+  type Weights,
+  type AttitudeBand,
+} from './grading';
 import type {
   Student,
   ClassRecord,
@@ -938,6 +946,41 @@ export async function saveWeightConfig(config: WeightConfig): Promise<void> {
     st: config[g].st,
   }));
   const { error } = await client().from('reg_grade_weights').upsert(rows, { onConflict: 'area_group' });
+  if (error) throw error;
+}
+
+// ── attitude scale (numerical → letter, registrar-configurable) ──
+// The subject grade sheet's attitude column converts a numerical score to a
+// letter using these bands. Stored in reg_attitude_scale; falls back to the
+// DepEd-style default when the table is empty or unavailable.
+export async function listAttitudeScale(): Promise<AttitudeBand[]> {
+  try {
+    const { data, error } = await client()
+      .from('reg_attitude_scale')
+      .select('*')
+      .order('min', { ascending: false });
+    if (error) throw error;
+    const rows = (data ?? []).map((r) => ({
+      min: Number(r.min),
+      letter: str(r.letter),
+      label: str(r.label),
+    }));
+    return rows.length ? rows : DEFAULT_ATTITUDE_SCALE;
+  } catch {
+    return DEFAULT_ATTITUDE_SCALE;
+  }
+}
+
+// Replace the whole attitude scale with the given bands. Runs as the signed-in
+// registrar; reg_attitude_scale RLS gates the writes.
+export async function saveAttitudeScale(bands: AttitudeBand[]): Promise<void> {
+  const c = client();
+  const del = await c.from('reg_attitude_scale').delete().gte('min', -1);
+  if (del.error) throw del.error;
+  if (!bands.length) return;
+  const { error } = await c
+    .from('reg_attitude_scale')
+    .insert(bands.map((b) => ({ letter: b.letter, label: b.label, min: b.min })));
   if (error) throw error;
 }
 
