@@ -23,9 +23,9 @@ import {
 import type { Student, Subject, QuarterGrade, QuarterComponents, QuarterKey } from '@/types';
 
 const COMPONENTS: { key: Component; label: string }[] = [
-  { key: 'ww', label: 'Written / Oral Works' },
-  { key: 'pt', label: 'Performance Tasks' },
-  { key: 'st', label: 'Summative Tests + Exam' },
+  { key: 'ww', label: 'WWs — Written & Oral Works' },
+  { key: 'pt', label: 'PTs — Performance Tasks' },
+  { key: 'st', label: 'EXs — Summative Tests & Term Exam' },
 ];
 
 type Row = {

@@ -23,9 +23,9 @@ import {
 
 type Component = keyof Weights; // 'ww' | 'pt' | 'st'
 const COMPONENTS: { key: Component; label: string }[] = [
-  { key: 'ww', label: 'Written Works' },
-  { key: 'pt', label: 'Performance Tasks' },
-  { key: 'st', label: 'Quarterly / Summative Exam' },
+  { key: 'ww', label: 'WWs' }, // Written & Oral Works
+  { key: 'pt', label: 'PTs' }, // Performance Tasks
+  { key: 'st', label: 'EXs' }, // Summative Tests & Term Examination
 ];
 
 const sumOf = (w: Weights) => w.ww + w.pt + w.st;
