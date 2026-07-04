@@ -920,6 +920,30 @@ export async function saveClassSubjects(
   if (error) throw error;
 }
 
+// ── term encoding status (open/close grade encoding per SY term) ──
+// Returns { [periodKey]: isOpen }. A missing table or row means OPEN.
+export async function listTermStatus(sy: string): Promise<Record<string, boolean>> {
+  try {
+    const { data, error } = await client()
+      .from('reg_term_status')
+      .select('term, is_open')
+      .eq('sy', sy);
+    if (error) throw error;
+    const m: Record<string, boolean> = {};
+    for (const r of data ?? []) m[str(r.term)] = !!r.is_open;
+    return m;
+  } catch {
+    return {};
+  }
+}
+
+export async function setTermStatus(sy: string, term: string, isOpen: boolean): Promise<void> {
+  const { error } = await client()
+    .from('reg_term_status')
+    .upsert({ sy, term, is_open: isOpen }, { onConflict: 'sy,term' });
+  if (error) throw error;
+}
+
 // ── grade weight configuration (registrar-managed, DepEd defaults) ──
 // Each learning-area group has a WW/PT/ST split. The DepEd values are the
 // defaults (see grading.ts); the registrar may override any group here. Stored

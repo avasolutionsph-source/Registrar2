@@ -4,16 +4,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listSchoolYears } from '@/lib/db';
+import { listSchoolYears, listTermStatus, setTermStatus } from '@/lib/db';
 import type { SchoolYear } from '@/types';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
+const TERM_DEFS = [
+  { key: 'q1', label: 'Term 1' },
+  { key: 'q2', label: 'Term 2' },
+  { key: 'q3', label: 'Term 3' },
+];
 const MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
 
 export default function SetupSchoolYear() {
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [, setSelected] = useState('');
+  const [termStatus, setTermStatusState] = useState<Record<string, boolean>>({});
+  const [savingTerm, setSavingTerm] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +43,33 @@ export default function SetupSchoolYear() {
   }, []);
 
   const active = schoolYears.find((sy) => sy.isActive) ?? schoolYears[0];
+
+  useEffect(() => {
+    if (!active?.code) return;
+    let cancelled = false;
+    listTermStatus(active.code)
+      .then((m) => {
+        if (!cancelled) setTermStatusState(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.code]);
+
+  async function toggleTerm(key: string) {
+    if (!active) return;
+    const next = !(termStatus[key] ?? true);
+    setSavingTerm(key);
+    try {
+      await setTermStatus(active.code, key, next);
+      setTermStatusState((s) => ({ ...s, [key]: next }));
+    } catch {
+      /* ignore — leave as-is for retry */
+    } finally {
+      setSavingTerm(null);
+    }
+  }
 
   return (
     <>
@@ -116,6 +150,40 @@ export default function SetupSchoolYear() {
                 <Input type="date" />
               </label>
             ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard heading="Encoding status">
+          <p className="text-[11.5px] text-ink-muted mb-2 px-1">
+            Open or close grade encoding per term. When a term is closed, teachers can still
+            view but cannot save grades — use this to finalize honors, then reopen for the next
+            term. Terms are open by default.
+          </p>
+          <div className="grid grid-cols-3 gap-3 px-1">
+            {TERM_DEFS.map((t) => {
+              const open = termStatus[t.key] ?? true;
+              return (
+                <div
+                  key={t.key}
+                  className="flex items-center justify-between bg-app border border-border-soft rounded px-3 py-2"
+                >
+                  <div>
+                    <div className="text-[12.5px] font-medium text-ink-primary">{t.label}</div>
+                    <div className={`text-[11px] font-semibold ${open ? 'text-ok-fg' : 'text-nps-red'}`}>
+                      {open ? 'Open' : 'Closed'}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={savingTerm === t.key}
+                    onClick={() => toggleTerm(t.key)}
+                  >
+                    {savingTerm === t.key ? '…' : open ? 'Close' : 'Open'}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </SectionCard>
 
