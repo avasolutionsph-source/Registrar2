@@ -21,11 +21,14 @@ import {
   deleteTransfer,
   listEscForClass,
   saveEsc,
+  listTeachers,
+  listClassSubjects,
+  saveClassSubjects,
   type Transfer,
 } from '@/lib/db';
 import { schoolIdFromLrn } from '@/lib/lrn';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
-import type { ClassRecord, Student, Subject } from '@/types';
+import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
 type ClassDoc =
   | { kind: 'sf1' }
@@ -44,6 +47,7 @@ const TAB_KEYS = [
   'ncae',
   'nat',
   'reportcard',
+  'load',
   'esc',
   'transferees',
 ] as const;
@@ -59,6 +63,7 @@ const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
   ncae: 'NCAE',
   nat: 'NAT',
   reportcard: 'Report Card',
+  load: 'Subjects & Teachers',
   esc: 'ESC Billing',
   transferees: 'Transferees',
 };
@@ -87,6 +92,10 @@ export default function ClassDetail() {
   const [escState, setEscState] = useState<Record<string, { grantee: boolean; escNo: string }>>({});
   const [escBusy, setEscBusy] = useState(false);
   const [escSaved, setEscSaved] = useState(false);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
+  const [loadBusy, setLoadBusy] = useState(false);
+  const [loadSaved, setLoadSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,11 +105,13 @@ export default function ClassDetail() {
         return;
       }
       try {
-        const [c, roster, subs, trans] = await Promise.all([
+        const [c, roster, subs, trans, tchs, classSubs] = await Promise.all([
           getClass(id),
           listStudentsByClass(id),
           listSubjects(),
           listTransfersForClass(id),
+          listTeachers(),
+          listClassSubjects(id),
         ]);
         if (cancelled) return;
         const rosterList = c ? roster : [];
@@ -108,6 +119,8 @@ export default function ClassDetail() {
         setSubjects(subs);
         setTransfers(trans);
         setRoster(rosterList);
+        setTeachers(tchs);
+        setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
         if (c && rosterList.length) {
           const esc = await listEscForClass(rosterList.map((s) => s.lrn), c.sy);
           if (cancelled) return;
@@ -201,6 +214,39 @@ export default function ClassDetail() {
       // ignore — leave edits in place for retry
     } finally {
       setEscBusy(false);
+    }
+  }
+
+  const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
+  const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
+
+  const isOffered = (code: string) => Object.prototype.hasOwnProperty.call(load, code);
+  const toggleOffered = (code: string, offered: boolean) => {
+    setLoad((l) => {
+      const next = { ...l };
+      if (offered) next[code] = next[code] ?? null;
+      else delete next[code];
+      return next;
+    });
+    setLoadSaved(false);
+  };
+  const setSubjectTeacher = (code: string, teacherId: number | null) => {
+    setLoad((l) => ({ ...l, [code]: teacherId }));
+    setLoadSaved(false);
+  };
+  async function saveLoad() {
+    if (!klass) return;
+    setLoadBusy(true);
+    try {
+      await saveClassSubjects(
+        klass.id,
+        Object.entries(load).map(([subjectCode, teacherId]) => ({ subjectCode, teacherId })),
+      );
+      setLoadSaved(true);
+    } catch {
+      // ignore — keep edits for retry
+    } finally {
+      setLoadBusy(false);
     }
   }
 
@@ -634,6 +680,85 @@ export default function ClassDetail() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </SectionCard>
+            </TabsContent>
+
+            <TabsContent value="load">
+              <SectionCard heading="Subjects & Teachers — this section's teaching load">
+                <div className="flex items-start justify-between gap-3 mb-3 px-1">
+                  <p className="text-[11.5px] text-ink-muted max-w-[560px]">
+                    Tick the subjects taken by this section and choose who teaches each. The
+                    assigned teacher is who encodes the grades for that subject. Only ticked
+                    subjects are saved.
+                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {loadSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={loadBusy}
+                      onClick={saveLoad}
+                    >
+                      <Save className="w-3.5 h-3.5" /> {loadBusy ? 'Saving…' : 'Save load'}
+                    </Button>
+                  </div>
+                </div>
+                <table className="w-full text-[12.5px]">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                      <th className="py-1.5 pr-3 w-[10%] text-center">Taken</th>
+                      <th className="py-1.5 pr-3">Subject</th>
+                      <th className="py-1.5 w-[45%]">Teacher</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjects.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-6 text-center text-ink-secondary">
+                          No subjects in the catalog yet. Add them in Setup ▸ Subjects.
+                        </td>
+                      </tr>
+                    ) : (
+                      subjects.map((s) => {
+                        const offered = isOffered(s.code);
+                        return (
+                          <tr key={s.code} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={offered}
+                                onChange={(e) => toggleOffered(s.code, e.target.checked)}
+                                className="h-3.5 w-3.5 accent-nps-red align-middle"
+                              />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <span className="font-mono text-ink-secondary mr-2">{s.code}</span>
+                              {s.fullName}
+                            </td>
+                            <td className="py-1.5">
+                              <select
+                                value={load[s.code] ?? ''}
+                                disabled={!offered}
+                                onChange={(e) =>
+                                  setSubjectTeacher(s.code, e.target.value ? Number(e.target.value) : null)
+                                }
+                                className="w-full max-w-[320px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                              >
+                                <option value="">— Not assigned yet</option>
+                                {activeTeachers.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {teacherLabel(t)}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </SectionCard>

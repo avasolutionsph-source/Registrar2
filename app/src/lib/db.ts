@@ -861,6 +861,47 @@ export async function addSubject(input: SubjectInput): Promise<void> {
   if (error) throw error;
 }
 
+// ── teaching load (which teacher teaches which subject in a section) ──
+// One row per (class, subject). teacherId may be null while a subject is
+// offered in the section but not yet assigned to a teacher. Backs the acad
+// "subject load" assignment and scopes the teacher grade sheet later.
+export interface ClassSubjectAssignment {
+  subjectCode: string;
+  teacherId: number | null;
+}
+
+export async function listClassSubjects(classId: string): Promise<ClassSubjectAssignment[]> {
+  const { data, error } = await client()
+    .from('reg_class_subjects')
+    .select('*')
+    .eq('class_id', classId);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    subjectCode: str(r.subject_code),
+    teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
+  }));
+}
+
+// Replace the section's whole teaching load with the given rows (subjects with
+// no teacher are stored with teacher_id null; subjects not passed are dropped).
+export async function saveClassSubjects(
+  classId: string,
+  rows: ClassSubjectAssignment[],
+): Promise<void> {
+  const c = client();
+  const del = await c.from('reg_class_subjects').delete().eq('class_id', classId);
+  if (del.error) throw del.error;
+  if (!rows.length) return;
+  const { error } = await c.from('reg_class_subjects').insert(
+    rows.map((r) => ({
+      class_id: classId,
+      subject_code: r.subjectCode,
+      teacher_id: r.teacherId,
+    })),
+  );
+  if (error) throw error;
+}
+
 // ── grade weight configuration (registrar-managed, DepEd defaults) ──
 // Each learning-area group has a WW/PT/ST split. The DepEd values are the
 // defaults (see grading.ts); the registrar may override any group here. Stored
