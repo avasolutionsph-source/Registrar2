@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Archive,
   WifiOff,
+  Percent,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -44,6 +45,12 @@ const TILES: Tile[] = [
     icon: BookOpen,
     label: 'Subjects',
     desc: 'Master catalog (Core / Specialized / Applied / Elective) + SETS + Order',
+  },
+  {
+    to: '/setup/weights',
+    icon: Percent,
+    label: 'Grade Weights',
+    desc: 'WW / PT / Exam split per learning-area group (DepEd defaults, editable)',
   },
   {
     to: '/setup/schools',

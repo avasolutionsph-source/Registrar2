@@ -14,6 +14,7 @@ export const SNAP = {
   teachers: 'teachers',
   schoolYears: 'schoolYears',
   subjects: 'subjects',
+  weights: 'weights',
   schools: 'schools',
   transfers: 'transfers',
   esc: 'esc',

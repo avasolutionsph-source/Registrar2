@@ -28,7 +28,11 @@ export type AreaGroup =
   | 'shs-techpro' // SHS TechPro Electives
   | 'shs-immersion'; // SHS Work Immersion
 
-export const AREA_WEIGHTS: Record<AreaGroup, Weights> = {
+// DepEd default weights (DepEd Order 8, s. 2015 / 2026 briefer). These are the
+// FIXED national defaults; the registrar may override them per area group in
+// Setup → Grade Weights (persisted in reg_grade_weights). `AREA_WEIGHTS` stays
+// the fallback used whenever no override is loaded/configured.
+export const DEPED_DEFAULT_WEIGHTS: Record<AreaGroup, Weights> = {
   core: { ww: 20, pt: 50, st: 30 },
   'mapeh-tle': { ww: 20, pt: 60, st: 20 },
   'shs-core': { ww: 20, pt: 50, st: 30 },
@@ -38,6 +42,24 @@ export const AREA_WEIGHTS: Record<AreaGroup, Weights> = {
   'shs-techpro': { ww: 15, pt: 65, st: 20 },
   'shs-immersion': { ww: 20, pt: 80, st: 0 },
 };
+
+// Back-compat alias: existing callers import AREA_WEIGHTS as "the weights to use".
+export const AREA_WEIGHTS: Record<AreaGroup, Weights> = DEPED_DEFAULT_WEIGHTS;
+
+// Merge registrar overrides over the DepEd defaults, keeping only rows whose
+// three components sum to 100 (an invalid/partial override is ignored so the
+// computation never silently uses a bad split).
+export function resolveWeights(
+  overrides?: Partial<Record<AreaGroup, Weights>> | null,
+): Record<AreaGroup, Weights> {
+  if (!overrides) return DEPED_DEFAULT_WEIGHTS;
+  const merged = { ...DEPED_DEFAULT_WEIGHTS };
+  for (const g of AREA_GROUPS) {
+    const o = overrides[g];
+    if (o && o.ww + o.pt + o.st === 100) merged[g] = { ww: o.ww, pt: o.pt, st: o.st };
+  }
+  return merged;
+}
 
 export const AREA_GROUPS = Object.keys(AREA_WEIGHTS) as AreaGroup[];
 
@@ -151,8 +173,12 @@ export function transmute(initial: number | null): number | null {
 // number — exactly as shown on the school's official SY 2026-2027 grading
 // sheets (e.g. IG 87.7 → round 88 → 90; IG 89.4 → round 89 → 91). Rounding here
 // (and not inside `transmute`) keeps the raw table lookups testable.
-export function computeGrade(raw: RawComponents, group: AreaGroup): number | null {
-  const ig = initialGrade(raw, AREA_WEIGHTS[group]);
+export function computeGrade(
+  raw: RawComponents,
+  group: AreaGroup,
+  weights: Record<AreaGroup, Weights> = AREA_WEIGHTS,
+): number | null {
+  const ig = initialGrade(raw, weights[group]);
   return ig == null ? null : transmute(Math.round(ig));
 }
 

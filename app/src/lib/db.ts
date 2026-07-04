@@ -4,6 +4,7 @@
 
 import { supabase } from './supabase';
 import { idbGet, idbSet, SNAP } from './offlineCache';
+import { AREA_GROUPS, isAreaGroup, resolveWeights, type AreaGroup, type Weights } from './grading';
 import type {
   Student,
   ClassRecord,
@@ -857,6 +858,45 @@ export async function addSubject(input: SubjectInput): Promise<void> {
     category: input.category ?? null,
     sort_order: nextOrder,
   });
+  if (error) throw error;
+}
+
+// ── grade weight configuration (registrar-managed, DepEd defaults) ──
+// Each learning-area group has a WW/PT/ST split. The DepEd values are the
+// defaults (see grading.ts); the registrar may override any group here. Stored
+// in reg_grade_weights (area_group PK). A group with no row falls back to the
+// DepEd default via resolveWeights().
+export type WeightConfig = Record<AreaGroup, Weights>;
+
+export async function listWeightConfig(): Promise<WeightConfig> {
+  const overrides = await offlineRead<Partial<Record<AreaGroup, Weights>>>(
+    async () => {
+      const { data, error } = await client().from('reg_grade_weights').select('*');
+      if (error) throw error;
+      const map: Partial<Record<AreaGroup, Weights>> = {};
+      for (const r of data ?? []) {
+        const g = str(r.area_group);
+        if (isAreaGroup(g)) {
+          map[g] = { ww: Number(r.ww), pt: Number(r.pt), st: Number(r.st) };
+        }
+      }
+      return map;
+    },
+    async () => idbGet<Partial<Record<AreaGroup, Weights>>>(SNAP.weights),
+  );
+  return resolveWeights(overrides);
+}
+
+// Persist the full weight table (one upsert per group). Runs as the signed-in
+// registrar; reg_grade_weights RLS gates the writes.
+export async function saveWeightConfig(config: WeightConfig): Promise<void> {
+  const rows = AREA_GROUPS.map((g) => ({
+    area_group: g,
+    ww: config[g].ww,
+    pt: config[g].pt,
+    st: config[g].st,
+  }));
+  const { error } = await client().from('reg_grade_weights').upsert(rows, { onConflict: 'area_group' });
   if (error) throw error;
 }
 

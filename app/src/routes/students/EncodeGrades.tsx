@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy } from '@/lib/forms';
 import {
@@ -49,6 +49,7 @@ export default function EncodeGrades() {
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null | undefined>(undefined);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [weights, setWeights] = useState(AREA_WEIGHTS); // registrar-configured WW/PT/ST, DepEd defaults until loaded
   const [years, setYears] = useState<string[]>([]);
   const [sy, setSy] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
@@ -67,10 +68,16 @@ export default function EncodeGrades() {
         return;
       }
       try {
-        const [s, subs, sys] = await Promise.all([getStudent(lrn), listSubjects(), listSchoolYears()]);
+        const [s, subs, sys, w] = await Promise.all([
+          getStudent(lrn),
+          listSubjects(),
+          listSchoolYears(),
+          listWeightConfig(),
+        ]);
         if (cancelled) return;
         setStudent(s);
         setSubjects(subs);
+        setWeights(w);
         const fromGrades = s ? Object.keys(s.grades ?? {}) : [];
         const all = Array.from(new Set([...sys.map((y) => String(y.code)), ...fromGrades])).sort();
         setYears(all);
@@ -128,7 +135,7 @@ export default function EncodeGrades() {
   // Displayed/saved quarter grade: from raw scores when encoded, else the legacy number.
   const quarterValue = (row: Row, q: QuarterKey): number | undefined => {
     const r = row.raw[q];
-    if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row)) ?? undefined;
+    if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row), weights) ?? undefined;
     return row.legacy[q];
   };
   const finalOf = (row: Row): number | undefined => {
@@ -399,7 +406,7 @@ export default function EncodeGrades() {
                 >
                   {AREA_GROUPS.map((g) => (
                     <option key={g} value={g}>
-                      {AREA_GROUP_LABEL[g]} ({AREA_WEIGHTS[g].ww}/{AREA_WEIGHTS[g].pt}/{AREA_WEIGHTS[g].st})
+                      {AREA_GROUP_LABEL[g]} ({weights[g].ww}/{weights[g].pt}/{weights[g].st})
                     </option>
                   ))}
                 </select>
@@ -460,8 +467,8 @@ export default function EncodeGrades() {
             </table>
             <p className="mt-2 text-[11px] text-ink-muted">
               Enter points earned over the highest possible per component. The grade is the weighted score
-              ({AREA_WEIGHTS[groupOf(editingRow)].ww}/{AREA_WEIGHTS[groupOf(editingRow)].pt}/
-              {AREA_WEIGHTS[groupOf(editingRow)].st}) transmuted with the SY 2026-2027 table.
+              ({weights[groupOf(editingRow)].ww}/{weights[groupOf(editingRow)].pt}/
+              {weights[groupOf(editingRow)].st}) transmuted with the SY 2026-2027 table.
             </p>
           </div>
         )}
