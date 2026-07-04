@@ -241,9 +241,10 @@ export default function ReceivedSf10() {
             <table className="w-full text-[12.5px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                  <th className="py-1.5 pr-3 w-[14%]">SY</th>
-                  <th className="py-1.5 pr-3 w-[14%]">Grade</th>
+                  <th className="py-1.5 pr-3 w-[12%]">SY</th>
+                  <th className="py-1.5 pr-3 w-[12%]">Grade</th>
                   <th className="py-1.5 pr-3">School</th>
+                  <th className="py-1.5 pr-3 w-[20%]">Adviser / Teacher</th>
                   <th className="py-1.5 pr-3 w-[10%]">Gen. Ave.</th>
                   <th className="py-1.5 w-[8%]" />
                 </tr>
@@ -259,6 +260,7 @@ export default function ReceivedSf10() {
                         <span className="ml-1.5 text-[10px] uppercase tracking-wide text-ok-fg">NPS</span>
                       )}
                     </td>
+                    <td className="py-1.5 pr-3">{e.adviserName || '—'}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{e.generalAverage ?? '—'}</td>
                     <td className="py-1.5">
                       {isNps(e) ? (

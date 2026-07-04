@@ -68,7 +68,7 @@ export default function SetupSubjects() {
         code,
         fullName,
         abbreviation: get('abbreviation') || code,
-        category: (get('category') || 'Core') as SubjectCategory,
+        category: (get('category') as SubjectCategory) || undefined,
       });
       await reload();
       e.currentTarget.reset();
@@ -148,8 +148,9 @@ export default function SetupSubjects() {
             </Field>
           </div>
           <div className="col-span-2">
-            <Field label="Category">
-              <Select name="category" defaultValue="Core">
+            <Field label="Category" hint="SHS only">
+              <Select name="category" defaultValue="">
+                <option value="">— None (Elem / JHS)</option>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -182,7 +183,11 @@ export default function SetupSubjects() {
                 <span className="w-7 text-right text-[11.5px] tabular-nums text-ink-muted">{i + 1}</span>
                 <span className="font-mono text-[12px] text-ink-secondary w-16">{s.code}</span>
                 <span className="flex-1 text-[13px] text-ink-primary truncate">{s.fullName}</span>
-                <StatusBadge tone={toneFor(s.category)}>{s.category}</StatusBadge>
+                {s.category ? (
+                  <StatusBadge tone={toneFor(s.category)}>{s.category}</StatusBadge>
+                ) : (
+                  <span className="text-[11px] text-ink-muted">—</span>
+                )}
                 <div className="flex items-center gap-1">
                   <button
                     type="button"

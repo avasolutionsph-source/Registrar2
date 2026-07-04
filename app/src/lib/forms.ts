@@ -51,6 +51,12 @@ const GRADE_LABELS: Record<string, string> = {
   'XII-HUMSS': 'Grade 12 · HUMSS',
   'XII-STEM': 'Grade 12 · STEM',
   'XII-ABM': 'Grade 12 · ABM',
+  'XI-ASSH': 'Grade 11 · ASSH',
+  'XI-STEM-ENG': 'Grade 11 · STEM (Engineering)',
+  'XI-STEM-HA': 'Grade 11 · STEM (Health Allied)',
+  'XII-ASSH': 'Grade 12 · ASSH',
+  'XII-STEM-ENG': 'Grade 12 · STEM (Engineering)',
+  'XII-STEM-HA': 'Grade 12 · STEM (Health Allied)',
 };
 
 export function gradeLabel(code?: string): string {

@@ -29,6 +29,13 @@ const GRADE_OPTIONS: { value: string; label: string }[] = [
   { value: 'XII-HUMSS', label: 'Grade XII — HUMSS' },
   { value: 'XII-STEM', label: 'Grade XII — STEM' },
   { value: 'XII-ABM', label: 'Grade XII — ABM' },
+  // New strands (added; legacy GAS/HUMSS/STEM/ABM kept so prior-year sections stay intact)
+  { value: 'XI-ASSH', label: 'Grade XI — ASSH' },
+  { value: 'XI-STEM-ENG', label: 'Grade XI — STEM (Engineering)' },
+  { value: 'XI-STEM-HA', label: 'Grade XI — STEM (Health Allied)' },
+  { value: 'XII-ASSH', label: 'Grade XII — ASSH' },
+  { value: 'XII-STEM-ENG', label: 'Grade XII — STEM (Engineering)' },
+  { value: 'XII-STEM-HA', label: 'Grade XII — STEM (Health Allied)' },
   { value: 'S', label: 'SNED' },
 ];
 

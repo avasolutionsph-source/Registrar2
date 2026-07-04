@@ -22,6 +22,13 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
       'XII-HUMSS',
       'XII-STEM',
       'XII-ABM',
+      // New strands (legacy kept so prior-year sections still group here)
+      'XI-ASSH',
+      'XI-STEM-ENG',
+      'XI-STEM-HA',
+      'XII-ASSH',
+      'XII-STEM-ENG',
+      'XII-STEM-HA',
     ],
   },
   { label: 'SNED', levels: ['S'] },

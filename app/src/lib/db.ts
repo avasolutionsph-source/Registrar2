@@ -813,7 +813,7 @@ export async function listSubjects(): Promise<Subject[]> {
         code: str(r.code),
         fullName: str(r.full_name),
         abbreviation: str(r.abbreviation),
-        category: (str(r.category) || 'Core') as SubjectCategory,
+        category: (str(r.category) || undefined) as SubjectCategory | undefined,
         order: r.sort_order == null ? 9000 + i : Number(r.sort_order),
       }));
     },
@@ -838,7 +838,7 @@ export interface SubjectInput {
   code: string;
   fullName: string;
   abbreviation: string;
-  category: SubjectCategory;
+  category?: SubjectCategory; // SHS-only; omit for Elementary / JHS
 }
 
 export async function addSubject(input: SubjectInput): Promise<void> {
@@ -854,7 +854,7 @@ export async function addSubject(input: SubjectInput): Promise<void> {
     code: input.code,
     full_name: input.fullName,
     abbreviation: input.abbreviation,
-    category: input.category,
+    category: input.category ?? null,
     sort_order: nextOrder,
   });
   if (error) throw error;

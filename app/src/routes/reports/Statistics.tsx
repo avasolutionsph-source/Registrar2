@@ -23,7 +23,10 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'Junior High School', levels: ['VII', 'VIII', 'IX', 'X'] },
   {
     label: 'Senior High School',
-    levels: ['XI-GAS', 'XI-HUMSS', 'XI-STEM', 'XI-ABM', 'XII-GAS', 'XII-HUMSS', 'XII-STEM', 'XII-ABM'],
+    levels: [
+      'XI-GAS', 'XI-HUMSS', 'XI-STEM', 'XI-ABM', 'XII-GAS', 'XII-HUMSS', 'XII-STEM', 'XII-ABM',
+      'XI-ASSH', 'XI-STEM-ENG', 'XI-STEM-HA', 'XII-ASSH', 'XII-STEM-ENG', 'XII-STEM-HA',
+    ],
   },
   { label: 'SNED', levels: ['S'] },
 ];

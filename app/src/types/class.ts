@@ -23,7 +23,13 @@ export type GradeLevel =
   | 'XII-GAS'
   | 'XII-HUMSS'
   | 'XII-STEM'
-  | 'XII-ABM'; // SHS Gr 12
+  | 'XII-ABM' // SHS Gr 12 (legacy strands, kept for prior-year sections)
+  | 'XI-ASSH'
+  | 'XI-STEM-ENG'
+  | 'XI-STEM-HA' // SHS Gr 11 (current strands)
+  | 'XII-ASSH'
+  | 'XII-STEM-ENG'
+  | 'XII-STEM-HA'; // SHS Gr 12 (current strands)
 
 export interface ClassRecord {
   id: string; // UUID; sections are immutable across SYs
