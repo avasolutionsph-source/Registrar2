@@ -10,6 +10,7 @@ import {
   Archive,
   WifiOff,
   Percent,
+  UserCog,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -57,6 +58,12 @@ const TILES: Tile[] = [
     icon: School,
     label: 'Schools',
     desc: 'Master list of schools (referenced by transferee origin)',
+  },
+  {
+    to: '/setup/accounts',
+    icon: UserCog,
+    label: 'Accounts & Roles',
+    desc: 'Assign any office/portal role to an account by email (teacher, guidance, HR…)',
   },
   {
     to: '/setup/admin',

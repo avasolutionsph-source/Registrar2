@@ -920,6 +920,33 @@ export async function saveClassSubjects(
   if (error) throw error;
 }
 
+// ── account roles (portal user_roles; registrar/admin may manage) ──
+export interface UserRoleRow {
+  email: string;
+  role: string;
+}
+
+export async function listUserRoles(): Promise<UserRoleRow[]> {
+  const { data, error } = await client()
+    .from('user_roles')
+    .select('user_email, role')
+    .order('role', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ email: str(r.user_email), role: str(r.role) }));
+}
+
+export async function setUserRole(email: string, role: string): Promise<void> {
+  const { error } = await client()
+    .from('user_roles')
+    .upsert({ user_email: email.trim().toLowerCase(), role }, { onConflict: 'user_email' });
+  if (error) throw error;
+}
+
+export async function deleteUserRole(email: string): Promise<void> {
+  const { error } = await client().from('user_roles').delete().eq('user_email', email);
+  if (error) throw error;
+}
+
 // ── term encoding status (open/close grade encoding per SY term) ──
 // Returns { [periodKey]: isOpen }. A missing table or row means OPEN.
 export async function listTermStatus(sy: string): Promise<Record<string, boolean>> {

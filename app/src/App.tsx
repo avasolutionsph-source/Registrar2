@@ -25,6 +25,7 @@ import SetupSchools from '@/routes/setup/SetupSchools';
 import SetupAdmin from '@/routes/setup/SetupAdmin';
 import SetupGradeLevels from '@/routes/setup/SetupGradeLevels';
 import SetupWeights from '@/routes/setup/SetupWeights';
+import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
 import ReportsHub from '@/routes/reports/ReportsHub';
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="setup/admin" element={<SetupAdmin />} />
           <Route path="setup/grade-levels" element={<SetupGradeLevels />} />
           <Route path="setup/weights" element={<SetupWeights />} />
+          <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />
           <Route path="setup/teachers" element={<Navigate to="/teachers" replace />} />
