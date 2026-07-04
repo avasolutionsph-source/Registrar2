@@ -13,6 +13,7 @@ import {
   VALUE_TRAITS,
   PROGRAM_LABELS,
 } from '@/lib/forms';
+import { attitudeLetter } from '@/lib/grading';
 import { Letterhead, LearnerInfo, SignatureBlock } from './parts';
 
 const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '');
@@ -38,6 +39,23 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
   const PCOLS = periods.map((p) => p.short);
   const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects));
   const ga = generalAverage(rows);
+
+  // Attitude: teachers encode a numerical attitude per subject (extra field on
+  // each grade entry). The report card shows it AVERAGED across all subjects
+  // per period, then converted to a letter via the attitude scale.
+  const attEntries = gradesForSy(student, year) as Array<{ attitude?: Record<string, number> }>;
+  const attFor = (pk: string): number | null => {
+    const nums = attEntries
+      .map((e) => e.attitude?.[pk])
+      .filter((v): v is number => typeof v === 'number');
+    return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : null;
+  };
+  const attByPeriod = periods.map((p) => attFor(p.key));
+  const attHasAny = attByPeriod.some((v) => v != null);
+  const attFinalNum = (() => {
+    const xs = attByPeriod.filter((v): v is number => v != null);
+    return xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+  })();
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
   const conduct = conductForSy(student, year);
   const att = conduct.attendance;
@@ -124,6 +142,40 @@ export function ReportCardSF9({ student, subjects, sy }: Props) {
           )}
         </tbody>
       </table>
+
+      {attHasAny && (
+        <div className="mt-3">
+          <h4 className="text-[9.5px] font-bold uppercase tracking-wide">Attitude</h4>
+          <table className="mt-1 w-full border-collapse text-[9px]">
+            <thead>
+              <tr className="bg-zinc-100 text-[8.5px] uppercase">
+                <th className="border border-zinc-400 px-1.5 py-0.5 text-left">
+                  Rating (averaged across subjects)
+                </th>
+                {periods.map((p) => (
+                  <th key={p.key} className="w-9 border border-zinc-400 px-0.5 py-0.5">
+                    {p.short}
+                  </th>
+                ))}
+                <th className="w-12 border border-zinc-400 px-0.5 py-0.5">Final</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-zinc-400 px-1.5 py-0.5">Attitude</td>
+                {attByPeriod.map((v, i) => (
+                  <td key={i} className="border border-zinc-400 px-0.5 py-0.5 text-center">
+                    {attitudeLetter(v)?.letter ?? ''}
+                  </td>
+                ))}
+                <td className="border border-zinc-400 px-0.5 py-0.5 text-center font-semibold">
+                  {attitudeLetter(attFinalNum)?.letter ?? ''}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="mt-3 flex gap-4">
         {att && (att.present || att.tardy) && (
