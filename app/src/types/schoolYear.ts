@@ -6,6 +6,7 @@ export interface SchoolYear {
   startDate: string; // ISO YYYY-MM-DD
   endDate: string;
   isActive: boolean; // current SY indicator
+  schoolDays?: Record<string, number>; // month key (jun…may) → class days
 }
 
 // Sentinel option for the School Year selector meaning "don't filter by SY".

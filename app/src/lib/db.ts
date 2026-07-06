@@ -774,13 +774,32 @@ export async function deleteClass(id: string): Promise<void> {
 
 // ── school years ──
 function rowToSchoolYear(r: Row): SchoolYear {
+  const days =
+    r.school_days && typeof r.school_days === 'object'
+      ? (r.school_days as Record<string, number>)
+      : undefined;
   return {
     code: str(r.code) as unknown as SchoolYear['code'],
     label: str(r.label),
     startDate: str(r.start_date),
     endDate: str(r.end_date),
     isActive: Boolean(r.is_active),
+    schoolDays: days,
   };
+}
+
+// Save the editable School Year config (date range + school days per month).
+export async function updateSchoolYear(
+  code: string,
+  patch: { startDate?: string; endDate?: string; schoolDays?: Record<string, number> },
+): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (patch.startDate !== undefined) row.start_date = patch.startDate || null;
+  if (patch.endDate !== undefined) row.end_date = patch.endDate || null;
+  if (patch.schoolDays !== undefined) row.school_days = patch.schoolDays;
+  if (Object.keys(row).length === 0) return;
+  const { error } = await client().from('reg_school_years').update(row).eq('code', code);
+  if (error) throw error;
 }
 
 export async function listSchoolYears(): Promise<SchoolYear[]> {
@@ -968,6 +987,37 @@ export async function setTermStatus(sy: string, term: string, isOpen: boolean): 
   const { error } = await client()
     .from('reg_term_status')
     .upsert({ sy, term, is_open: isOpen }, { onConflict: 'sy,term' });
+  if (error) throw error;
+}
+
+// Per-term encoding deadlines (term key → ISO date). Missing table/column → {}.
+export async function listTermDeadlines(sy: string): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await client()
+      .from('reg_term_status')
+      .select('term, deadline')
+      .eq('sy', sy);
+    if (error) throw error;
+    const m: Record<string, string> = {};
+    for (const r of data ?? []) if (r.deadline) m[str(r.term)] = str(r.deadline);
+    return m;
+  } catch {
+    return {};
+  }
+}
+
+// Set (or clear) a term's encoding deadline. Setting a deadline also OPENS the
+// term for encoding; clearing it leaves the open/close status untouched.
+export async function setTermDeadline(
+  sy: string,
+  term: string,
+  deadline: string | null,
+): Promise<void> {
+  const row: Record<string, unknown> = { sy, term, deadline: deadline || null };
+  if (deadline) row.is_open = true;
+  const { error } = await client()
+    .from('reg_term_status')
+    .upsert(row, { onConflict: 'sy,term' });
   if (error) throw error;
 }
 
