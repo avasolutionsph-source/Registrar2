@@ -33,7 +33,10 @@ export default function TeacherDetail() {
         ]);
         if (cancelled) return;
         setTeacher(t);
-        const advised = classes.filter((c) => c.adviser.id === numId);
+        // Latest school year first (current SY on top), then by grade level.
+        const advised = classes
+          .filter((c) => c.adviser.id === numId)
+          .sort((a, b) => b.sy.localeCompare(a.sy) || a.gradeLevel.localeCompare(b.gradeLevel));
         setAdvisedClasses(advised);
         const counts = new Map<string, number>();
         for (const c of advised) {
