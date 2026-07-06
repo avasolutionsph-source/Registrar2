@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X, WifiOff } from 'lucide-react';
 import { Sidebar } from './Sidebar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { listSchoolYears, syncToDevice } from '@/lib/db';
 import { getOfflineMeta } from '@/lib/offlineCache';
 import npsLogo from '@/assets/nps-logo.png';
@@ -19,6 +20,7 @@ export function AppShell() {
   const [mode, setMode] = useState<RegMode>('current');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const location = useLocation();
 
   // Real school years from Supabase (replaces the old mock list).
   useEffect(() => {
@@ -167,7 +169,9 @@ export function AppShell() {
           <span className="text-[11px] text-ink-secondary ml-auto">{currentSY?.label ?? ''}</span>
         </div>
         <div className="px-4 md:px-7 py-5 md:py-6 max-w-[1280px]">
-          <Outlet context={{ currentSY, mode }} />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet context={{ currentSY, mode }} />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

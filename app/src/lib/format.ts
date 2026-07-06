@@ -22,12 +22,12 @@ interface NameParts {
 
 export function formatLastFirstMiddle(p: NameParts): string {
   const ext = p.extension ? `, ${p.extension}` : '';
-  return `${p.lastName.toUpperCase()}, ${p.firstName} ${p.middleName}${ext}`.trim();
+  return `${(p.lastName ?? '').toUpperCase()}, ${p.firstName ?? ''} ${p.middleName ?? ''}${ext}`.trim();
 }
 
 export function formatFullName(p: NameParts): string {
   const ext = p.extension ? ` ${p.extension}` : '';
-  return `${p.firstName} ${p.middleName} ${p.lastName}${ext}`.trim();
+  return `${p.firstName ?? ''} ${p.middleName ?? ''} ${p.lastName ?? ''}${ext}`.trim();
 }
 
 export function formatBirthdate(iso: string): string {
