@@ -254,11 +254,19 @@ export function numericalFloorForSy(sy?: string): number {
   return 4;
 }
 
+// MATATAG descriptive (letter) grading for the numbered grades STARTED at NPS in
+// SY 2026-2027. Earlier records — e.g. a transferee's prior-school SF10 — used
+// numeric grades even in Grades 1–3, so those must be encoded as numbers.
+const DESCRIPTIVE_ROLLOUT_START = 2026;
+
 export function isDescriptiveLevel(gradeLevel?: string, sy?: string): boolean {
   if (!gradeLevel) return false;
   if (KINDER_LEVELS.has(gradeLevel)) return true;
   const ord = NUMBERED_ORDINAL[gradeLevel.split('-')[0]] ?? 0;
   if (ord === 0) return false; // SHS strands & unknowns → numerical
+  const y = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
+  // Before the roll-out year, numbered grades were numeric (historical / transferee data).
+  if (Number.isFinite(y) && y < DESCRIPTIVE_ROLLOUT_START) return false;
   return ord < numericalFloorForSy(sy);
 }
 

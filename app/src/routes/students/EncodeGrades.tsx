@@ -524,31 +524,39 @@ export default function EncodeGrades() {
                             </td>
                           );
                         })}
-                    {!ks1 && (
-                      <td className="text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={r.legacyFinal ?? ''}
-                          onChange={(e) => setLegacyFinal(r.subjectCode, e.target.value)}
-                          placeholder={avgOf(r) != null ? String(avgOf(r)) : '—'}
-                          title="Final Rating — leave blank to use the average of the terms"
-                          className={`${numIn} font-semibold`}
-                        />
-                      </td>
-                    )}
-                    {!ks1 && (
-                      <td className="pl-2 text-[11.5px]">
-                        {fin == null ? (
-                          <span className="text-ink-secondary">—</span>
-                        ) : fin >= 75 ? (
-                          <span className="text-ok-fg font-medium">Passed</span>
-                        ) : (
-                          <span className="text-nps-red font-medium">Failed</span>
-                        )}
-                      </td>
-                    )}
+                    {!ks1 &&
+                      (isComp ? (
+                        // MAPEH components carry term grades only — the Final lives on the
+                        // derived MAPEH parent row above them.
+                        <td />
+                      ) : (
+                        <td className="text-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={r.legacyFinal ?? ''}
+                            onChange={(e) => setLegacyFinal(r.subjectCode, e.target.value)}
+                            placeholder={avgOf(r) != null ? String(avgOf(r)) : '—'}
+                            title="Final Rating — leave blank to use the average of the terms"
+                            className={`${numIn} font-semibold`}
+                          />
+                        </td>
+                      ))}
+                    {!ks1 &&
+                      (isComp ? (
+                        <td />
+                      ) : (
+                        <td className="pl-2 text-[11.5px]">
+                          {fin == null ? (
+                            <span className="text-ink-secondary">—</span>
+                          ) : fin >= 75 ? (
+                            <span className="text-ok-fg font-medium">Passed</span>
+                          ) : (
+                            <span className="text-nps-red font-medium">Failed</span>
+                          )}
+                        </td>
+                      ))}
                     <td className="text-center">
                       <div className="flex items-center justify-end gap-1">
                         {!ks1 && (
