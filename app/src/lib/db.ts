@@ -767,6 +767,16 @@ export async function saveClass(input: ClassInput, id?: string): Promise<void> {
   if (error) throw error;
 }
 
+// Assign (or change) a section's adviser directly — used from the Teacher page so an
+// advisory can be set from the teacher's side, not only by editing the section.
+export async function setClassAdviser(classId: string, teacherId: number): Promise<void> {
+  const { error } = await client()
+    .from('reg_classes')
+    .update({ adviser_id: teacherId })
+    .eq('id', classId);
+  if (error) throw error;
+}
+
 export async function deleteClass(id: string): Promise<void> {
   const { error } = await client().from('reg_classes').delete().eq('id', id);
   if (error) throw error;

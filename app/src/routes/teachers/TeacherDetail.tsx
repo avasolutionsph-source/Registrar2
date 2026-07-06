@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Pencil, KeyRound, FileText, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -7,42 +7,39 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getTeacher, listClasses, listStudentsLite } from '@/lib/db';
-import type { Teacher, ClassRecord } from '@/types';
+import { getTeacher, listClasses, listStudentsLite, setClassAdviser } from '@/lib/db';
+import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student } from '@/types';
 
 export default function TeacherDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [teacher, setTeacher] = useState<Teacher | null | undefined>(undefined); // undefined = loading
-  const [advisedClasses, setAdvisedClasses] = useState<ClassRecord[]>([]);
-  const [rosterByClass, setRosterByClass] = useState<Map<string, number>>(new Map());
+  const [allClasses, setAllClasses] = useState<ClassRecord[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [assignId, setAssignId] = useState('');
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignErr, setAssignErr] = useState<string | null>(null);
+
+  const numId = Number(id);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const numId = Number(id);
       if (!id || Number.isNaN(numId)) {
         setTeacher(null);
         return;
       }
       try {
-        const [t, classes, students] = await Promise.all([
+        const [t, classes, studs] = await Promise.all([
           getTeacher(numId),
           listClasses(),
           listStudentsLite(),
         ]);
         if (cancelled) return;
         setTeacher(t);
-        // Latest school year first (current SY on top), then by grade level.
-        const advised = classes
-          .filter((c) => c.adviser.id === numId)
-          .sort((a, b) => b.sy.localeCompare(a.sy) || a.gradeLevel.localeCompare(b.gradeLevel));
-        setAdvisedClasses(advised);
-        const counts = new Map<string, number>();
-        for (const c of advised) {
-          counts.set(c.id, students.filter((s) => s.currentClassId === c.id).length);
-        }
-        setRosterByClass(counts);
+        setAllClasses(classes);
+        setStudents(studs);
       } catch {
         if (!cancelled) setTeacher(null);
       }
@@ -50,7 +47,50 @@ export default function TeacherDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, numId]);
+
+  // Sections this teacher advises — latest SY first, then grade level.
+  const advisedClasses = useMemo(
+    () =>
+      allClasses
+        .filter((c) => c.adviser.id === numId)
+        .sort((a, b) => b.sy.localeCompare(a.sy) || a.gradeLevel.localeCompare(b.gradeLevel)),
+    [allClasses, numId],
+  );
+  const rosterByClass = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of advisedClasses) m.set(c.id, students.filter((s) => s.currentClassId === c.id).length);
+    return m;
+  }, [advisedClasses, students]);
+
+  // Sections available to assign: the current SY's sections this teacher doesn't already advise.
+  const targetSy =
+    currentSY && currentSY.code !== ALL_TIME_CODE
+      ? currentSY.code
+      : [...allClasses].map((c) => c.sy).sort().pop();
+  const assignable = useMemo(
+    () =>
+      allClasses
+        .filter((c) => c.sy === targetSy && c.adviser.id !== numId)
+        .sort((a, b) => a.gradeLevel.localeCompare(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName)),
+    [allClasses, targetSy, numId],
+  );
+
+  async function assignAdvisory() {
+    const cls = allClasses.find((c) => c.id === assignId);
+    if (!cls || !teacher) return;
+    setAssignBusy(true);
+    setAssignErr(null);
+    try {
+      await setClassAdviser(cls.id, numId);
+      setAllClasses((cur) => cur.map((c) => (c.id === cls.id ? { ...c, adviser: teacher } : c)));
+      setAssignId('');
+    } catch (e) {
+      setAssignErr(e instanceof Error ? e.message : 'Could not assign advisory.');
+    } finally {
+      setAssignBusy(false);
+    }
+  }
 
   if (teacher === undefined) {
     return (
@@ -132,6 +172,33 @@ export default function TeacherDetail() {
           </SectionCard>
 
           <SectionCard id="advisory" heading="Advisory">
+            {/* Assign this teacher as adviser of a section for the current SY. */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 px-1">
+              <span className="text-[11.5px] text-ink-muted">Assign advisory{targetSy ? ` (SY ${targetSy})` : ''}:</span>
+              <select
+                value={assignId}
+                onChange={(e) => setAssignId(e.target.value)}
+                className="flex-1 min-w-[220px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+              >
+                <option value="">Choose a section…</option>
+                {assignable.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Grade {c.gradeLevel} · {c.sectionName}
+                    {c.adviser.id !== 0 ? ` — now: ${c.adviser.familyName}` : ''}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" disabled={!assignId || assignBusy} onClick={assignAdvisory} className="gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5" /> {assignBusy ? 'Assigning…' : 'Assign'}
+              </Button>
+            </div>
+            {assignErr && <p className="mb-2 px-1 text-[12px] text-nps-red">{assignErr}</p>}
+            {assignable.length === 0 && (
+              <p className="mb-2 px-1 text-[11.5px] text-ink-muted">
+                No other sections for {targetSy ?? 'this SY'} to assign.
+              </p>
+            )}
+
             {advisedClasses.length === 0 ? (
               <p className="text-[12.5px] text-ink-secondary px-1">Not assigned to any class this SY.</p>
             ) : (

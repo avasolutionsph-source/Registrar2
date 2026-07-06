@@ -9,7 +9,7 @@ import { SectionCard } from '@/components/entity/SectionCard';
 import { listSubjects, saveSubjects, addSubject } from '@/lib/db';
 import type { SubjectCategory, SubjectLevel, Subject } from '@/types';
 
-const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied'];
+const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
 
 // Education-level groups, in display order. 'uncategorized' catches anything untagged.
 const LEVELS: { key: SubjectLevel; label: string }[] = [
