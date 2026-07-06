@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -83,6 +83,7 @@ const toNum = (s: string): number | undefined => {
 export default function EncodeGrades() {
   const { lrn } = useParams<{ lrn: string }>();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [student, setStudent] = useState<Student | null | undefined>(undefined);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [weights, setWeights] = useState(AREA_WEIGHTS); // registrar-configured WW/PT/ST, DepEd defaults until loaded
@@ -115,10 +116,22 @@ export default function EncodeGrades() {
         setSubjects(subs);
         setWeights(w);
         const fromGrades = s ? Object.keys(s.grades ?? {}) : [];
-        const all = Array.from(new Set([...sys.map((y) => String(y.code)), ...fromGrades])).sort();
+        // Include the learner's prior-school years (from enrolment history) so a
+        // transferee's SY is selectable even before any grade is encoded.
+        const fromHist = s ? (s.enrolmentHistory ?? []).map((e) => String(e.sy)) : [];
+        const wanted = params.get('sy') ?? undefined; // deep-link from "Encode grades" per SY
+        const all = Array.from(
+          new Set([...sys.map((y) => String(y.code)), ...fromGrades, ...fromHist, ...(wanted ? [wanted] : [])]),
+        ).sort();
         setYears(all);
         const active = sys.find((y) => y.isActive)?.code as string | undefined;
-        setSy(active ?? fromGrades.sort().pop() ?? all[all.length - 1] ?? '');
+        setSy(
+          (wanted && all.includes(wanted) ? wanted : undefined) ??
+            active ??
+            fromGrades.sort().pop() ??
+            all[all.length - 1] ??
+            '',
+        );
       } catch {
         if (!cancelled) setStudent(null);
       }

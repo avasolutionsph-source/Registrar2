@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -62,6 +62,23 @@ export default function ReceivedSf10() {
     [history],
   );
 
+  // Persist a new history immediately (auto-save — no separate "Save" click needed).
+  async function persist(next: EnrolmentEntry[]) {
+    setHistory(next);
+    if (!student) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await saveEnrolmentHistory(student.lrn, next);
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save the records.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function addEntry(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFormErr(null);
@@ -96,28 +113,12 @@ export default function ReceivedSf10() {
       daysPresent: days ? Number(days) : undefined,
       action: (get('action') || undefined) as EnrolmentEntry['action'],
     };
-    setHistory((h) => [...h.filter((x) => x.sy !== entry.sy), entry]);
-    setSaved(false);
+    void persist([...history.filter((x) => x.sy !== entry.sy), entry]);
     e.currentTarget.reset();
   }
 
   function removeEntry(sy: string) {
-    setHistory((h) => h.filter((x) => x.sy !== sy));
-    setSaved(false);
-  }
-
-  async function save() {
-    if (!student) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await saveEnrolmentHistory(student.lrn, history);
-      setSaved(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save the records.');
-    } finally {
-      setSaving(false);
-    }
+    void persist(history.filter((x) => x.sy !== sy));
   }
 
   if (student === undefined) {
@@ -246,7 +247,7 @@ export default function ReceivedSf10() {
                   <th className="py-1.5 pr-3">School</th>
                   <th className="py-1.5 pr-3 w-[20%]">Adviser / Teacher</th>
                   <th className="py-1.5 pr-3 w-[10%]">Gen. Ave.</th>
-                  <th className="py-1.5 w-[8%]" />
+                  <th className="py-1.5 w-[22%]" />
                 </tr>
               </thead>
               <tbody>
@@ -263,18 +264,27 @@ export default function ReceivedSf10() {
                     <td className="py-1.5 pr-3">{e.adviserName || '—'}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{e.generalAverage ?? '—'}</td>
                     <td className="py-1.5">
-                      {isNps(e) ? (
-                        <span className="text-[11px] text-ink-muted">locked</span>
-                      ) : (
+                      <div className="flex items-center justify-end gap-3">
                         <button
                           type="button"
-                          onClick={() => removeEntry(e.sy)}
-                          className="text-ink-muted hover:text-nps-red"
-                          aria-label="Remove year"
+                          onClick={() => navigate(`/students/${student.lrn}/grades?sy=${e.sy}`)}
+                          className="text-[11.5px] text-accent hover:underline inline-flex items-center gap-1"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Pencil className="w-3 h-3" /> Encode grades
                         </button>
-                      )}
+                        {isNps(e) ? (
+                          <span className="text-[11px] text-ink-muted">locked</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removeEntry(e.sy)}
+                            className="text-ink-muted hover:text-nps-red"
+                            aria-label="Remove year"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -283,13 +293,12 @@ export default function ReceivedSf10() {
           )}
 
           <div className="flex items-center gap-3 mt-3 px-1">
-            <Button onClick={save} disabled={saving} className="gap-2">
-              <FileText className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save records'}
-            </Button>
-            {saved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
+            {saving && <span className="text-[12px] text-ink-muted">Saving…</span>}
+            {saved && !saving && <span className="text-[12px] text-ok-fg">✓ Saved automatically</span>}
             {error && <span className="text-[12px] text-nps-red">{error}</span>}
             <span className="text-[11.5px] text-ink-muted">
-              NPS years stay locked — only externally received years can be edited here.
+              Changes save automatically. NPS years stay locked — only externally received years can be
+              edited here.
             </span>
           </div>
         </SectionCard>
