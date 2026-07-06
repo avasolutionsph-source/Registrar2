@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ChevronUp, ChevronDown, Save, Plus } from 'lucide-react';
+import { ChevronUp, ChevronDown, Save, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -24,6 +24,8 @@ export default function SetupSubjects() {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   async function reload() {
     const rows = await listSubjects();
@@ -91,6 +93,19 @@ export default function SetupSubjects() {
     setSaved(false);
   };
 
+  // Drag to reorder: pull the dragged row out and reinsert it at the drop position.
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
+    setList((cur) => {
+      const next = [...cur];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDirty(true);
+    setSaved(false);
+  };
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -113,7 +128,7 @@ export default function SetupSubjects() {
           <h1 className="text-xl font-bold text-ink-primary">Subjects — Order</h1>
           <p className="text-[13px] text-ink-secondary mt-1 max-w-[560px]">
             This order is followed everywhere subjects are listed — the grade sheet, Report Card (SF 9),
-            and Form 137. Use the arrows to arrange them, then Save.
+            and Form 137. Drag a row by its handle (or use the arrows) to arrange them, then Save.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -178,8 +193,36 @@ export default function SetupSubjects() {
             {list.map((s, i) => (
               <li
                 key={s.code}
-                className="flex items-center gap-3 border-b border-border-soft last:border-0 py-1.5 px-1"
+                onDragOver={(e) => {
+                  if (dragIndex === null) return;
+                  e.preventDefault();
+                  setOverIndex(i);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIndex !== null) reorder(dragIndex, i);
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+                className={[
+                  'flex items-center gap-3 border-b border-border-soft last:border-0 py-1.5 px-1',
+                  dragIndex === i ? 'opacity-40' : '',
+                  overIndex === i && dragIndex !== null && dragIndex !== i ? 'bg-app' : '',
+                ].join(' ')}
               >
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={() => setDragIndex(i)}
+                  onDragEnd={() => {
+                    setDragIndex(null);
+                    setOverIndex(null);
+                  }}
+                  aria-label="Drag to reorder"
+                  className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-ink-muted hover:text-ink-primary"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </button>
                 <span className="w-7 text-right text-[11.5px] tabular-nums text-ink-muted">{i + 1}</span>
                 <span className="font-mono text-[12px] text-ink-secondary w-16">{s.code}</span>
                 <span className="flex-1 text-[13px] text-ink-primary truncate">{s.fullName}</span>
