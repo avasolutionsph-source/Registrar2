@@ -852,6 +852,7 @@ export async function listSubjects(): Promise<Subject[]> {
         fullName: str(r.full_name),
         abbreviation: str(r.abbreviation),
         category: (str(r.category) || undefined) as SubjectCategory | undefined,
+        level: (str(r.level) || undefined) as Subject['level'],
         order: r.sort_order == null ? 9000 + i : Number(r.sort_order),
       }));
     },
@@ -870,6 +871,21 @@ export async function saveSubjectOrder(orderedCodes: string[]): Promise<void> {
   if (failed?.error) throw failed.error;
 }
 
+// Persist display order AND education-level grouping in one save (positions 1..N
+// by array index). Needs reg_subjects.level (setup-subject-level.sql).
+export async function saveSubjects(
+  ordered: { code: string; level?: string | null }[],
+): Promise<void> {
+  const c = client();
+  const results = await Promise.all(
+    ordered.map((s, i) =>
+      c.from('reg_subjects').update({ sort_order: i + 1, level: s.level ?? null }).eq('code', s.code),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}
+
 // Add a new subject. Appends to the end of the display order. Runs as the
 // signed-in registrar; reg_subjects RLS gates the write.
 export interface SubjectInput {
@@ -877,6 +893,7 @@ export interface SubjectInput {
   fullName: string;
   abbreviation: string;
   category?: SubjectCategory; // SHS-only; omit for Elementary / JHS
+  level?: string | null; // 'preschool' | 'elem' | 'jhs' | 'shs'
 }
 
 export async function addSubject(input: SubjectInput): Promise<void> {
@@ -893,6 +910,7 @@ export async function addSubject(input: SubjectInput): Promise<void> {
     full_name: input.fullName,
     abbreviation: input.abbreviation,
     category: input.category ?? null,
+    level: input.level ?? null,
     sort_order: nextOrder,
   });
   if (error) throw error;
