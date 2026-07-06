@@ -6,14 +6,13 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import { subjectIndex, formatSy, gradeLabel, periodsForSy } from '@/lib/forms';
+import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
   AREA_GROUPS,
   AREA_GROUP_LABEL,
   AREA_WEIGHTS,
   classifyArea,
   computeGrade,
-  descriptorFor,
   descriptiveScaleFor,
   isAreaGroup,
   isDescriptiveLevel,
@@ -30,6 +29,7 @@ const COMPONENTS: { key: Component; label: string }[] = [
 
 type Row = {
   subjectCode: string;
+  customName?: string; // registrar-typed name override for this learner (else catalog name)
   legacy: Partial<Record<QuarterKey, number>>; // directly-typed quarter grades (also fallback for migrated data)
   legacyFinal?: number; // directly-typed Final Rating (overrides the computed average, e.g. transferee SF10)
   raw: Partial<Record<QuarterKey, QuarterComponents>>;
@@ -50,17 +50,27 @@ function gradeBand(gradeLevel?: string): 'lower' | 'upper' | 'unknown' {
   return o <= 3 ? 'lower' : 'upper';
 }
 const DEFAULT_AREAS: { label: string; code: string; kw: string[]; band: 'lower' | 'upper' | 'all' }[] = [
-  { label: 'Mother Tongue', code: 'MT', kw: ['mother tongue', 'mother-tongue', 'mtb'], band: 'lower' },
-  { label: 'Filipino', code: 'FIL', kw: ['filipino'], band: 'all' },
-  { label: 'English', code: 'ENG', kw: ['english'], band: 'all' },
-  { label: 'Mathematics', code: 'MATH', kw: ['math'], band: 'all' },
-  { label: 'Science', code: 'SCI', kw: ['science'], band: 'all' },
-  { label: 'Araling Panlipunan', code: 'AP', kw: ['araling', 'panlipunan'], band: 'all' },
-  { label: 'EPP / TLE', code: 'EPP', kw: ['epp', 'tle', 'livelihood', 'pantahanan'], band: 'upper' },
-  { label: 'Music & Arts', code: 'MUA', kw: ['music', 'mua'], band: 'all' },
-  { label: 'Physical Education & Health', code: 'PEH', kw: ['physical', 'health', 'peh'], band: 'all' },
-  { label: 'Edukasyon sa Pagpapakatao', code: 'ESP', kw: ['pagpapakatao', 'esp', 'gmrc', 'values', 'christian'], band: 'all' },
+  // Always the plain/generic learning area — NEVER a school's SHS specialization
+  // like "General Mathematics" or "Earth and Life Science". kw is empty so the
+  // prefill uses the canonical code + name; a school's own subject can still be
+  // added from the catalog afterwards, and any row's name is editable.
+  { label: 'Mother Tongue', code: 'MT', kw: [], band: 'lower' },
+  { label: 'Filipino', code: 'FIL', kw: [], band: 'all' },
+  { label: 'English', code: 'ENG', kw: [], band: 'all' },
+  { label: 'Mathematics', code: 'MATH', kw: [], band: 'all' },
+  { label: 'Science', code: 'SCI', kw: [], band: 'all' },
+  { label: 'Araling Panlipunan', code: 'AP', kw: [], band: 'all' },
+  { label: 'EPP / TLE', code: 'EPP', kw: [], band: 'upper' },
+  // MAPEH shown as its four components (like the SF10); each row is deletable and the
+  // MAPEH line is derived from them.
+  { label: 'Music', code: 'MUS', kw: [], band: 'all' },
+  { label: 'Arts', code: 'ART', kw: [], band: 'all' },
+  { label: 'Physical Education', code: 'PED', kw: [], band: 'all' },
+  { label: 'Health', code: 'HEA', kw: [], band: 'all' },
+  // Default to Edukasyon sa Pagpapakatao (transferees come from EsP schools), NOT CLE.
+  { label: 'Edukasyon sa Pagpapakatao', code: 'ESP', kw: [], band: 'all' },
 ];
+const MAPEH_CODE_SET = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
 
 const numIn =
   'w-12 rounded border border-border bg-panel px-1 py-1 text-center text-[12px] text-ink-primary tabular-nums focus:outline-none focus:border-ring';
@@ -127,6 +137,7 @@ export default function EncodeGrades() {
     setRows(
       (g[sy] ?? []).map((e) => ({
         subjectCode: e.subjectCode,
+        customName: e.customName,
         legacy: { q1: e.q1, q2: e.q2, q3: e.q3, q4: e.q4 },
         legacyFinal: e.final,
         raw: e.raw ?? {},
@@ -210,10 +221,14 @@ export default function EncodeGrades() {
   const fillTemplate = () => {
     const band = gradeBand(gradeLevel);
     const existing = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
+    // Don't mix MAPEH component sets — if any component is already present, skip adding
+    // the template's four (e.g. a learner already encoded with MUA/PEH).
+    const hasMapeh = [...existing].some((c) => MAPEH_CODE_SET.has(c));
     const additions: Row[] = [];
     for (const a of DEFAULT_AREAS) {
       if (a.band === 'lower' && band === 'upper') continue;
       if (a.band === 'upper' && band === 'lower') continue;
+      if (MAPEH_CODE_SET.has(a.code) && hasMapeh) continue;
       const match = subjects.find((s) => {
         const t = `${s.code} ${s.fullName}`.toLowerCase();
         return a.kw.some((k) => t.includes(k));
@@ -227,6 +242,15 @@ export default function EncodeGrades() {
       setRows((rs) => [...rs, ...additions]);
       dirty();
     }
+  };
+
+  // Rename the subject on THIS learner's record only (catalog untouched). Empty
+  // clears the override so it falls back to the catalog name.
+  const setCustomName = (code: string, value: string) => {
+    setRows((rs) =>
+      rs.map((r) => (r.subjectCode === code ? { ...r, customName: value.trimStart() || undefined } : r)),
+    );
+    dirty();
   };
 
   const setAreaGroup = (code: string, group: string) => {
@@ -263,6 +287,8 @@ export default function EncodeGrades() {
         .filter((r) => r.subjectCode)
         .map((r) => {
           const entry: QuarterGrade = { subjectCode: r.subjectCode.toUpperCase() };
+          const cn = r.customName?.trim();
+          if (cn) entry.customName = cn;
           if (ks1) {
             const letters: Partial<Record<QuarterKey, string>> = {};
             QKEYS.forEach((q) => {
@@ -375,7 +401,7 @@ export default function EncodeGrades() {
                 </th>
               ))}
               {!ks1 && <th className="w-12 font-medium">Final</th>}
-              {!ks1 && <th className="w-28 font-medium text-left pl-2">Descriptor</th>}
+              {!ks1 && <th className="w-20 font-medium text-left pl-2">Remarks</th>}
               <th className="w-16" />
             </tr>
           </thead>
@@ -390,12 +416,20 @@ export default function EncodeGrades() {
               rows.map((r) => {
                 const subj = index.get(r.subjectCode.toUpperCase());
                 const fin = finalOf(r);
-                const desc = descriptorFor(fin ?? null);
                 return (
                   <tr key={r.subjectCode} className="border-b border-border-soft">
                     <td className="py-1.5 pr-3 text-ink-primary">
-                      {subj?.fullName || r.subjectCode}
-                      <span className="ml-1 text-[11px] text-ink-muted">({r.subjectCode})</span>
+                      <span className="inline-flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={r.customName ?? subj?.fullName ?? FALLBACK_SUBJECT_NAMES[r.subjectCode.toUpperCase()] ?? ''}
+                          onChange={(e) => setCustomName(r.subjectCode, e.target.value)}
+                          placeholder={r.subjectCode}
+                          title="Subject name on this learner's record — edit to match their SF10; the catalog is not changed"
+                          className="min-w-[9rem] rounded border border-transparent bg-transparent px-1 py-0.5 text-[12.5px] text-ink-primary hover:border-border focus:border-ring focus:bg-panel focus:outline-none"
+                        />
+                        <span className="text-[11px] text-ink-muted">({r.subjectCode})</span>
+                      </span>
                     </td>
                     {ks1
                       ? QKEYS.map((q) => (
@@ -455,7 +489,15 @@ export default function EncodeGrades() {
                       </td>
                     )}
                     {!ks1 && (
-                      <td className="pl-2 text-[11.5px] text-ink-secondary">{desc ? desc.label : '—'}</td>
+                      <td className="pl-2 text-[11.5px]">
+                        {fin == null ? (
+                          <span className="text-ink-secondary">—</span>
+                        ) : fin >= 75 ? (
+                          <span className="text-ok-fg font-medium">Passed</span>
+                        ) : (
+                          <span className="text-nps-red font-medium">Failed</span>
+                        )}
+                      </td>
                     )}
                     <td className="text-center">
                       <div className="flex items-center justify-end gap-1">

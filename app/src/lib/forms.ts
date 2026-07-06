@@ -140,7 +140,7 @@ export function buildSubjectRows(
       const subj = index.get(g.subjectCode.toUpperCase());
       return {
         ...g,
-        name: subj?.fullName || g.subjectCode,
+        name: g.customName?.trim() || subj?.fullName || FALLBACK_SUBJECT_NAMES[g.subjectCode.toUpperCase()] || g.subjectCode,
         category: subj?.category || 'Core',
         order: subj?.order ?? 9999,
         remark: remark(g.final),
@@ -163,6 +163,26 @@ export function buildSubjectRows(
 // components, and the overall MAPEH final = the mean of those period grades.
 const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
 const ALL_PERIOD_KEYS: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
+
+// Readable names for the standard learning areas (incl. MAPEH components), so a
+// template/transferee row displays nicely even when the school's subject isn't in
+// the NPS catalog. Keyed by the canonical fallback code used in EncodeGrades.
+export const FALLBACK_SUBJECT_NAMES: Record<string, string> = {
+  MT: 'Mother Tongue',
+  FIL: 'Filipino',
+  ENG: 'English',
+  MATH: 'Mathematics',
+  SCI: 'Science',
+  AP: 'Araling Panlipunan',
+  EPP: 'EPP / TLE',
+  ESP: 'Edukasyon sa Pagpapakatao',
+  MUA: 'Music & Arts',
+  PEH: 'Physical Education & Health',
+  MUS: 'Music',
+  ART: 'Arts',
+  PED: 'Physical Education',
+  HEA: 'Health',
+};
 
 const meanRound = (ns: number[]): number | undefined =>
   ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) / ns.length) : undefined;

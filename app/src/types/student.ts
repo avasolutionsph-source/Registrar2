@@ -61,6 +61,11 @@ export type QuarterKey = 'q1' | 'q2' | 'q3' | 'q4';
 
 export interface QuarterGrade {
   subjectCode: string;
+  // Optional per-student subject name override. Lets the registrar rename the
+  // subject on this learner's record (e.g. to match exactly how a transferee's
+  // SF10 spells it) without touching the shared subject catalog. Falls back to
+  // the catalog name when unset.
+  customName?: string;
   // Transmuted quarterly grades + the subject's final. For grades encoded the
   // new way these are DERIVED from `raw`; legacy/migrated rows carry them directly.
   q1?: number;
