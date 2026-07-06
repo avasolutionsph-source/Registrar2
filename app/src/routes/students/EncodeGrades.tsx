@@ -30,11 +30,37 @@ const COMPONENTS: { key: Component; label: string }[] = [
 
 type Row = {
   subjectCode: string;
-  legacy: Partial<Record<QuarterKey, number>>; // migrated quarter grades (fallback when no raw)
+  legacy: Partial<Record<QuarterKey, number>>; // directly-typed quarter grades (also fallback for migrated data)
+  legacyFinal?: number; // directly-typed Final Rating (overrides the computed average, e.g. transferee SF10)
   raw: Partial<Record<QuarterKey, QuarterComponents>>;
   areaGroup?: string;
   letters: Partial<Record<QuarterKey, string>>;
 };
+
+// Standard learning areas in DepEd/report-card order. Used to prefill an editable
+// template so encoding (especially a transferee's prior-school SF10) is fast. The
+// `band` phases Mother Tongue (Grades 1–3) vs EPP/TLE (Grades 4–12); `code` is the
+// fallback subject code when the catalog has no matching subject.
+const GRADE_ORDINAL: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+};
+function gradeBand(gradeLevel?: string): 'lower' | 'upper' | 'unknown' {
+  const o = GRADE_ORDINAL[(gradeLevel ?? '').split('-')[0]] ?? 0;
+  if (!o) return (gradeLevel ?? '').startsWith('X') ? 'upper' : 'unknown';
+  return o <= 3 ? 'lower' : 'upper';
+}
+const DEFAULT_AREAS: { label: string; code: string; kw: string[]; band: 'lower' | 'upper' | 'all' }[] = [
+  { label: 'Mother Tongue', code: 'MT', kw: ['mother tongue', 'mother-tongue', 'mtb'], band: 'lower' },
+  { label: 'Filipino', code: 'FIL', kw: ['filipino'], band: 'all' },
+  { label: 'English', code: 'ENG', kw: ['english'], band: 'all' },
+  { label: 'Mathematics', code: 'MATH', kw: ['math'], band: 'all' },
+  { label: 'Science', code: 'SCI', kw: ['science'], band: 'all' },
+  { label: 'Araling Panlipunan', code: 'AP', kw: ['araling', 'panlipunan'], band: 'all' },
+  { label: 'EPP / TLE', code: 'EPP', kw: ['epp', 'tle', 'livelihood', 'pantahanan'], band: 'upper' },
+  { label: 'Music & Arts', code: 'MUA', kw: ['music', 'mua'], band: 'all' },
+  { label: 'Physical Education & Health', code: 'PEH', kw: ['physical', 'health', 'peh'], band: 'all' },
+  { label: 'Edukasyon sa Pagpapakatao', code: 'ESP', kw: ['pagpapakatao', 'esp', 'gmrc', 'values', 'christian'], band: 'all' },
+];
 
 const numIn =
   'w-12 rounded border border-border bg-panel px-1 py-1 text-center text-[12px] text-ink-primary tabular-nums focus:outline-none focus:border-ring';
@@ -102,6 +128,7 @@ export default function EncodeGrades() {
       (g[sy] ?? []).map((e) => ({
         subjectCode: e.subjectCode,
         legacy: { q1: e.q1, q2: e.q2, q3: e.q3, q4: e.q4 },
+        legacyFinal: e.final,
         raw: e.raw ?? {},
         areaGroup: e.areaGroup,
         letters: e.letters ?? {},
@@ -138,10 +165,15 @@ export default function EncodeGrades() {
     if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row), weights) ?? undefined;
     return row.legacy[q];
   };
-  const finalOf = (row: Row): number | undefined => {
+  // Average of the encoded period grades (the auto-computed Final).
+  const avgOf = (row: Row): number | undefined => {
     const qs = QKEYS.map((q) => quarterValue(row, q)).filter((v): v is number => typeof v === 'number');
     return qs.length ? Math.round(qs.reduce((a, b) => a + b, 0) / qs.length) : undefined;
   };
+  // The Final Rating: a directly-typed value wins (transferee SF10 may differ from the
+  // plain average); otherwise it is the computed average.
+  const finalOf = (row: Row): number | undefined =>
+    typeof row.legacyFinal === 'number' ? row.legacyFinal : avgOf(row);
 
   const dirty = () => setSaved(false);
 
@@ -158,6 +190,43 @@ export default function EncodeGrades() {
       }),
     );
     dirty();
+  };
+
+  // Direct entry of a whole period grade (no raw breakdown) — for registrar encoding
+  // of transferees' prior-school grades and legacy records.
+  const setLegacyCell = (code: string, q: QuarterKey, value: string) => {
+    const n = toNum(value);
+    setRows((rs) => rs.map((r) => (r.subjectCode === code ? { ...r, legacy: { ...r.legacy, [q]: n } } : r)));
+    dirty();
+  };
+  const setLegacyFinal = (code: string, value: string) => {
+    const n = toNum(value);
+    setRows((rs) => rs.map((r) => (r.subjectCode === code ? { ...r, legacyFinal: n } : r)));
+    dirty();
+  };
+
+  // Prefill the standard learning areas (in report-card order) for this grade level,
+  // skipping any already present. Rows stay fully editable (add/remove/type grades).
+  const fillTemplate = () => {
+    const band = gradeBand(gradeLevel);
+    const existing = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
+    const additions: Row[] = [];
+    for (const a of DEFAULT_AREAS) {
+      if (a.band === 'lower' && band === 'upper') continue;
+      if (a.band === 'upper' && band === 'lower') continue;
+      const match = subjects.find((s) => {
+        const t = `${s.code} ${s.fullName}`.toLowerCase();
+        return a.kw.some((k) => t.includes(k));
+      });
+      const code = match?.code ?? a.code;
+      if (existing.has(code.toUpperCase())) continue;
+      existing.add(code.toUpperCase());
+      additions.push({ subjectCode: code, legacy: {}, raw: {}, letters: {} });
+    }
+    if (additions.length) {
+      setRows((rs) => [...rs, ...additions]);
+      dirty();
+    }
   };
 
   const setAreaGroup = (code: string, group: string) => {
@@ -314,7 +383,7 @@ export default function EncodeGrades() {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={ks1 ? periods.length + 2 : periods.length + 4} className="py-3 text-center text-ink-secondary">
-                  No subjects yet for {formatSy(sy)}. Add one below.
+                  No subjects yet for {formatSy(sy)}. Use “Fill standard subjects” below, or add one.
                 </td>
               </tr>
             ) : (
@@ -346,18 +415,44 @@ export default function EncodeGrades() {
                           </td>
                         ))
                       : QKEYS.map((q) => {
-                          const v = quarterValue(r, q);
-                          const fromRaw = !!r.raw[q];
+                          const rawq = r.raw[q];
+                          const fromRaw = !!(rawq && (rawq.ww || rawq.pt || rawq.st));
                           return (
                             <td key={q} className="text-center tabular-nums">
-                              <span className={fromRaw ? 'text-ink-primary font-medium' : 'text-ink-secondary'}>
-                                {v ?? '—'}
-                              </span>
+                              {fromRaw ? (
+                                <span
+                                  className="text-ink-primary font-medium"
+                                  title="Computed from raw scores — edit via the sliders"
+                                >
+                                  {quarterValue(r, q) ?? '—'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={r.legacy[q] ?? ''}
+                                  onChange={(e) => setLegacyCell(r.subjectCode, q, e.target.value)}
+                                  placeholder="—"
+                                  className={numIn}
+                                />
+                              )}
                             </td>
                           );
                         })}
                     {!ks1 && (
-                      <td className="text-center font-semibold text-ink-primary tabular-nums">{fin ?? '—'}</td>
+                      <td className="text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={r.legacyFinal ?? ''}
+                          onChange={(e) => setLegacyFinal(r.subjectCode, e.target.value)}
+                          placeholder={avgOf(r) != null ? String(avgOf(r)) : '—'}
+                          title="Final Rating — leave blank to use the average of the terms"
+                          className={`${numIn} font-semibold`}
+                        />
+                      </td>
                     )}
                     {!ks1 && (
                       <td className="pl-2 text-[11.5px] text-ink-secondary">{desc ? desc.label : '—'}</td>
@@ -489,12 +584,17 @@ export default function EncodeGrades() {
           <Button variant="outline" size="sm" onClick={addRow} disabled={!addCode} className="gap-1.5">
             <Plus className="w-3.5 h-3.5" /> Add
           </Button>
+          <span className="mx-1 text-ink-muted">·</span>
+          <Button variant="outline" size="sm" onClick={fillTemplate} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Fill standard subjects
+            {gradeLevel ? ` (${gradeBand(gradeLevel) === 'lower' ? 'w/ Mother Tongue' : 'w/ EPP-TLE'})` : ''}
+          </Button>
         </div>
 
         <p className="mt-3 px-1 text-[11px] text-ink-muted">
           {ks1
             ? 'Kinder–Grade 3 use descriptive letters per DepEd guidelines; pick a letter per period.'
-            : `Open the sliders icon on a subject to encode/correct its raw scores. The Final grade is the average of the ${periods.length} ${periods.length === 3 ? 'terms' : 'quarters'}. MAPEH is graded through Music & Arts and Physical Education & Health; its line is computed automatically.`}
+            : `Type each period grade directly (for transferees / prior-school records), or open the sliders icon to encode raw WW/PT/EX scores (teacher workflow — a computed period grade then can't be typed over). The Final defaults to the average of the ${periods.length} ${periods.length === 3 ? 'terms' : 'quarters'} — type a value to override it (e.g. a transferee's SF10 Final Rating). MAPEH is graded through Music & Arts and Physical Education & Health; its line is computed automatically.`}
         </p>
       </SectionCard>
     </div>
