@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -198,6 +198,19 @@ export default function EncodeGrades() {
   // plain average); otherwise it is the computed average.
   const finalOf = (row: Row): number | undefined =>
     typeof row.legacyFinal === 'number' ? row.legacyFinal : avgOf(row);
+
+  // Derived MAPEH parent line (numeric levels): the per-period average of the
+  // encoded Music/Arts/PE/Health components. Read-only — shown above its components.
+  const mapehComps = rows.filter((r) => MAPEH_CODE_SET.has(r.subjectCode.toUpperCase()));
+  const mapehPeriod = (q: QuarterKey): number | undefined => {
+    const vals = mapehComps.map((r) => quarterValue(r, q)).filter((v): v is number => typeof v === 'number');
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : undefined;
+  };
+  const mapehFinal = (): number | undefined => {
+    const vals = QKEYS.map((q) => mapehPeriod(q)).filter((v): v is number => typeof v === 'number');
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : undefined;
+  };
+  const firstMapehIndex = rows.findIndex((r) => MAPEH_CODE_SET.has(r.subjectCode.toUpperCase()));
 
   const dirty = () => setSaved(false);
 
@@ -426,12 +439,36 @@ export default function EncodeGrades() {
                 </td>
               </tr>
             ) : (
-              rows.map((r) => {
+              rows.map((r, idx) => {
                 const subj = index.get(r.subjectCode.toUpperCase());
                 const fin = finalOf(r);
+                const isComp = MAPEH_CODE_SET.has(r.subjectCode.toUpperCase());
+                const mFin = mapehFinal();
                 return (
-                  <tr key={r.subjectCode} className="border-b border-border-soft">
-                    <td className="py-1.5 pr-3 text-ink-primary">
+                  <Fragment key={r.subjectCode}>
+                    {!ks1 && idx === firstMapehIndex && (
+                      <tr className="border-b border-border-soft bg-app/40">
+                        <td className="py-1.5 pr-3 pl-2 font-semibold text-ink-primary">MAPEH</td>
+                        {QKEYS.map((q) => (
+                          <td key={q} className="text-center tabular-nums font-medium">
+                            {mapehPeriod(q) ?? '—'}
+                          </td>
+                        ))}
+                        <td className="text-center font-semibold tabular-nums">{mFin ?? '—'}</td>
+                        <td className="pl-2 text-[11.5px]">
+                          {mFin == null ? (
+                            <span className="text-ink-secondary">—</span>
+                          ) : mFin >= 75 ? (
+                            <span className="text-ok-fg font-medium">Passed</span>
+                          ) : (
+                            <span className="text-nps-red font-medium">Failed</span>
+                          )}
+                        </td>
+                        <td />
+                      </tr>
+                    )}
+                    <tr className="border-b border-border-soft">
+                      <td className={`py-1.5 pr-3 text-ink-primary ${isComp ? 'pl-6' : ''}`}>
                       <span className="inline-flex items-center gap-1">
                         <input
                           type="text"
@@ -533,7 +570,8 @@ export default function EncodeGrades() {
                         </button>
                       </div>
                     </td>
-                  </tr>
+                    </tr>
+                  </Fragment>
                 );
               })
             )}
