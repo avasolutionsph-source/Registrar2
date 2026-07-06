@@ -61,8 +61,10 @@ const DEFAULT_AREAS: { label: string; code: string; kw: string[]; band: 'lower' 
   { label: 'Science', code: 'SCI', kw: [], band: 'all' },
   { label: 'Araling Panlipunan', code: 'AP', kw: [], band: 'all' },
   { label: 'EPP / TLE', code: 'EPP', kw: [], band: 'upper' },
-  // MAPEH shown as its four components (like the SF10); each row is deletable and the
-  // MAPEH line is derived from them.
+  // MAPEH as an editable parent (some schools give only a single MAPEH grade) followed
+  // by its four components (like the SF10). If the components are filled, MAPEH derives
+  // from them; if only MAPEH is typed, that value is kept. Each row is deletable.
+  { label: 'MAPEH', code: 'MAPEH', kw: [], band: 'all' },
   { label: 'Music', code: 'MUS', kw: [], band: 'all' },
   { label: 'Arts', code: 'ART', kw: [], band: 'all' },
   { label: 'Physical Education', code: 'PED', kw: [], band: 'all' },
@@ -211,6 +213,9 @@ export default function EncodeGrades() {
     return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : undefined;
   };
   const firstMapehIndex = rows.findIndex((r) => MAPEH_CODE_SET.has(r.subjectCode.toUpperCase()));
+  // A directly-typed MAPEH row means the school gave a single MAPEH grade — then we DON'T
+  // inject the read-only derived parent; the typed row is the editable MAPEH instead.
+  const hasMapehRow = rows.some((r) => r.subjectCode.toUpperCase() === 'MAPEH');
 
   const dirty = () => setSaved(false);
 
@@ -247,14 +252,15 @@ export default function EncodeGrades() {
   const fillTemplate = () => {
     const band = gradeBand(gradeLevel);
     const existing = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
-    // Don't mix MAPEH component sets — if any component is already present, skip adding
-    // the template's four (e.g. a learner already encoded with MUA/PEH).
-    const hasMapeh = [...existing].some((c) => MAPEH_CODE_SET.has(c));
+    // Treat MAPEH + its components as one area — if any MAPEH-ish row is already present,
+    // skip the template's MAPEH/Music/Arts/PE/Health (e.g. already encoded with MUA/PEH).
+    const mapehAreaCodes = new Set(['MAPEH', ...MAPEH_CODE_SET]);
+    const hasMapeh = [...existing].some((c) => mapehAreaCodes.has(c));
     const additions: Row[] = [];
     for (const a of DEFAULT_AREAS) {
       if (a.band === 'lower' && band === 'upper') continue;
       if (a.band === 'upper' && band === 'lower') continue;
-      if (MAPEH_CODE_SET.has(a.code) && hasMapeh) continue;
+      if (mapehAreaCodes.has(a.code) && hasMapeh) continue;
       const match = subjects.find((s) => {
         const t = `${s.code} ${s.fullName}`.toLowerCase();
         return a.kw.some((k) => t.includes(k));
@@ -443,10 +449,11 @@ export default function EncodeGrades() {
                 const subj = index.get(r.subjectCode.toUpperCase());
                 const fin = finalOf(r);
                 const isComp = MAPEH_CODE_SET.has(r.subjectCode.toUpperCase());
+                const isMapehRow = r.subjectCode.toUpperCase() === 'MAPEH';
                 const mFin = mapehFinal();
                 return (
                   <Fragment key={r.subjectCode}>
-                    {!ks1 && idx === firstMapehIndex && (
+                    {!ks1 && !hasMapehRow && idx === firstMapehIndex && (
                       <tr className="border-b border-border-soft bg-app/40">
                         <td className="py-1.5 pr-3 pl-2 font-semibold text-ink-primary">MAPEH</td>
                         {QKEYS.map((q) => (
@@ -517,7 +524,8 @@ export default function EncodeGrades() {
                                   max={100}
                                   value={r.legacy[q] ?? ''}
                                   onChange={(e) => setLegacyCell(r.subjectCode, q, e.target.value)}
-                                  placeholder="—"
+                                  placeholder={isMapehRow && mapehPeriod(q) != null ? String(mapehPeriod(q)) : '—'}
+                                  title={isMapehRow ? 'Type MAPEH directly, or leave blank to use the average of its components' : undefined}
                                   className={numIn}
                                 />
                               )}
@@ -537,7 +545,13 @@ export default function EncodeGrades() {
                             max={100}
                             value={r.legacyFinal ?? ''}
                             onChange={(e) => setLegacyFinal(r.subjectCode, e.target.value)}
-                            placeholder={avgOf(r) != null ? String(avgOf(r)) : '—'}
+                            placeholder={
+                              isMapehRow && mFin != null
+                                ? String(mFin)
+                                : avgOf(r) != null
+                                  ? String(avgOf(r))
+                                  : '—'
+                            }
                             title="Final Rating — leave blank to use the average of the terms"
                             className={`${numIn} font-semibold`}
                           />

@@ -176,6 +176,7 @@ export const FALLBACK_SUBJECT_NAMES: Record<string, string> = {
   AP: 'Araling Panlipunan',
   EPP: 'EPP / TLE',
   ESP: 'Edukasyon sa Pagpapakatao',
+  MAPEH: 'MAPEH',
   MUA: 'Music & Arts',
   PEH: 'Physical Education & Health',
   MUS: 'Music',
@@ -189,7 +190,16 @@ const meanRound = (ns: number[]): number | undefined =>
 
 export function withDerivedMapeh(rows: SubjectRow[]): SubjectRow[] {
   const comps = rows.filter((r) => MAPEH_COMPONENT_CODES.has(r.subjectCode.toUpperCase()));
-  if (comps.length === 0) return rows;
+  if (comps.length === 0) return rows; // a directly-typed MAPEH row (if any) stays as-is
+
+  // Some schools give only a single MAPEH grade (no Music/Arts/PE/Health breakdown).
+  // If the components carry no grades, drop those empty rows and keep the typed MAPEH.
+  const compsHaveData = comps.some(
+    (c) => ALL_PERIOD_KEYS.some((q) => typeof c[q] === 'number') || typeof c.final === 'number',
+  );
+  if (!compsHaveData) {
+    return rows.filter((r) => !MAPEH_COMPONENT_CODES.has(r.subjectCode.toUpperCase()));
+  }
 
   const baseOrder = Math.min(...comps.map((c) => c.order));
   const mapeh: SubjectRow = {
