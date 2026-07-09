@@ -29,6 +29,21 @@ const nextRoman = (code?: string) => {
   const o = ordOf(code);
   return o > 0 && o < 12 ? ROMAN[o] : '';
 };
+// roman portion only (SHS codes look like "XI-STEM-ENG" → "XI")
+const romanPart = (code?: string) => (code ?? '').split('-')[0];
+// SHS strand/track from the grade code suffix (e.g. "XI-STEM-ENG" → "STEM - ENGINEERING")
+function trackLabel(code?: string): string {
+  const rest = (code ?? '').split('-').slice(1).join('-').toUpperCase();
+  if (!rest) return '';
+  const map: Record<string, string> = {
+    ASSH: 'ASSH',
+    'STEM-ENG': 'STEM - ENGINEERING',
+    'STEM-HA': 'STEM - HEALTH ALLIED',
+    HUMSS: 'HUMSS',
+    ABM: 'ABM',
+  };
+  return map[rest] ?? rest.replace(/-/g, ' - ');
+}
 
 const num = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '');
 
@@ -114,6 +129,9 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
   const gradeCode = entry?.gradeLevel;
   const ord = ordOf(gradeCode);
+  const isSHS = ord >= 11;
+  const gradeRoman = romanPart(gradeCode);
+  const track = trackLabel(gradeCode);
   const descriptive = isDescriptiveLevel(gradeCode, year);
   const conduct = conductForSy(student, year);
   const att = conduct.attendance;
@@ -178,8 +196,8 @@ export function ReportCard138({ student, subjects, sy }: Props) {
 
           <div className="mt-1">
             <div><b>Name:</b> {fullName} &nbsp; <b>Age:</b> {age ?? ''} &nbsp; <b>Gender:</b> {student.gender}</div>
-            <div><b>LRN:</b> {student.lrn} &nbsp; <b>Grade:</b> {gradeCode ?? ''} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
-            <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> ____________</div>
+            <div><b>LRN:</b> {student.lrn} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
+            <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> {isSHS ? track : '____________'}</div>
           </div>
 
           <p className="mt-1 text-justify">
@@ -192,7 +210,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={`${hcell} text-left`} rowSpan={2}>LEARNING AREAS</th>
+                <th className={`${hcell} text-left`} rowSpan={2}>{isSHS ? 'SUBJECTS' : 'LEARNING AREAS'}</th>
                 <th className={hcell} colSpan={periods.length}>TERM</th>
                 <th className={hcell} rowSpan={2}>Final Grade</th>
                 <th className={hcell} rowSpan={2}>Remarks</th>
@@ -264,7 +282,8 @@ export function ReportCard138({ student, subjects, sy }: Props) {
 
         {/* RIGHT */}
         <div className="flex flex-col gap-1.5">
-          {/* SPECIAL PROGRAMS */}
+          {/* SPECIAL PROGRAMS — not shown for Senior High (Grade 11-12) */}
+          {!isSHS && (
           <div>
             <div className="text-center font-bold">SPECIAL PROGRAMS</div>
             <table className="w-full border-collapse">
@@ -290,6 +309,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
             </table>
             <div className="text-[6.5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
           </div>
+          )}
 
           {/* DEPORTMENT */}
           <div>
@@ -359,7 +379,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
               This is to certify that the above-named learner has satisfactorily completed the
               requirements for the grade level indicated.
             </p>
-            <div className="mt-0.5">Admitted to Grade: {gradeCode ?? ''}</div>
+            <div className="mt-0.5">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
             <div>Eligible for Admission to Grade: {nextRoman(gradeCode)}</div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center">
               <div className="text-left pt-3"><i>Approved:</i></div>

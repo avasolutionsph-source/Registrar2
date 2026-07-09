@@ -52,5 +52,18 @@ Tiny "School Form 9" at the very top-left.
   - **Special Programs (JHS) = Homeroom Guidance · SAP** only (no Computer/Scouting/
     Foreign Language). Elementary Gr1-3 = Computer/Homeroom/SAP; Gr4-6 = Homeroom/SAP/Scouting.
   - Deportment, Attendance, Certificate of Transfer, Cancellation, Descriptors: identical.
+- **Grades 11–12 (SHS)** — numeric, same two-column SF9 but with SHS differences
+  (official Grade XI PDFs: adviser MR. MATTHEW MARK D. MABESA):
+  - Left table header is **"SUBJECTS"** (not "LEARNING AREAS"). Subjects are per-strand,
+    fully data-driven; some are one-semester so they carry only Term 1 or Term 2 grades.
+  - **No SPECIAL PROGRAMS section** — the right column starts directly with DEPORTMENT.
+  - **TRACK (SHS only)** is filled with the strand; **Grade** shows the roman only (XI/XII).
+    Strand is derived from the grade code suffix: `XI-STEM-ENG`→STEM - ENGINEERING,
+    `XI-STEM-HA`→STEM - HEALTH ALLIED, `XI-ASSH`→ASSH (also HUMSS/ABM).
+  - Strand samples: STEM-Engineering (adds Finite Math 1/2, General Physics 1), STEM-Health
+    Allied (General Biology 1/2, General Physics 1), ASSH (Contemporary Lit 1/2, Intro to
+    Philosophy). Common core across strands: Effective Communication/Mabisang Komunikasyon,
+    General Mathematics, General Science, Pag-aaral ng Kasaysayan at Lipunang Filipino,
+    Life and Career Skills, Bicol Church History.
 
 Signatory: Class Adviser (per section) + **MRS. ROSARIO B. OLALIA**, School Principal.
