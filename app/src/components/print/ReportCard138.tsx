@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import npsLogo from '@/assets/nps-logo.png';
 import type { Student, Subject } from '@/types';
 import {
   buildSubjectRows,
@@ -131,9 +132,17 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const hcell = 'border border-zinc-500 px-1 py-[2px] text-center font-semibold';
 
   return (
-    <div
-      className="font-sans text-[10px] leading-tight text-black bg-[#f3e9cf] [-webkit-print-color-adjust:exact] [print-color-adjust:exact] p-4"
-    >
+    <div className="relative mx-auto w-[8.3in] max-w-full font-sans text-[9px] leading-tight text-black bg-[#f3e9cf] [-webkit-print-color-adjust:exact] [print-color-adjust:exact] p-3">
+      {/* Print on half a short bond, crosswise (8.5 × 5.5 in, landscape). */}
+      <style>{`@media print { @page { size: 8.5in 5.5in; margin: 0.18in; } }`}</style>
+      {/* faint school-logo watermark, printed */}
+      <img
+        src={npsLogo}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none absolute inset-0 m-auto w-[52%] opacity-[0.07] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      />
+      <div className="relative z-10">
       {/* control bar — never printed */}
       <label className="no-print mb-3 flex items-center gap-2 text-[12px] font-sans">
         <input
@@ -418,6 +427,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
             <div className="mt-1 text-[10px] font-bold italic text-red-600">Not valid for transfer.</div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
