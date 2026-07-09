@@ -65,5 +65,10 @@ Tiny "School Form 9" at the very top-left.
     Philosophy). Common core across strands: Effective Communication/Mabisang Komunikasyon,
     General Mathematics, General Science, Pag-aaral ng Kasaysayan at Lipunang Filipino,
     Life and Career Skills, Bicol Church History.
+  - **Grade XII** has ~16 subjects (semester-spread across Term 1/2/3) and
+    **Eligible for Admission to Grade: College** (not a next roman). Tracks seen:
+    HUMSS, GAS (+ STEM/ABM). Adviser MR. MARVIN A. ALMARIO. Because of the 16-row
+    subject list, Grade XII fits a full long-bond portrait page (8.5×13), NOT ½
+    crosswise short — the ½-crosswise size only suits the shorter elementary card.
 
 Signatory: Class Adviser (per section) + **MRS. ROSARIO B. OLALIA**, School Principal.

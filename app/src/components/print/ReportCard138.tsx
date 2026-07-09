@@ -27,6 +27,7 @@ const ordOf = (code?: string) => {
 };
 const nextRoman = (code?: string) => {
   const o = ordOf(code);
+  if (o === 12) return 'College'; // Grade XII completers move on to College
   return o > 0 && o < 12 ? ROMAN[o] : '';
 };
 // roman portion only (SHS codes look like "XI-STEM-ENG" → "XI")
@@ -41,6 +42,7 @@ function trackLabel(code?: string): string {
     'STEM-HA': 'STEM - HEALTH ALLIED',
     HUMSS: 'HUMSS',
     ABM: 'ABM',
+    GAS: 'GAS',
   };
   return map[rest] ?? rest.replace(/-/g, ' - ');
 }
