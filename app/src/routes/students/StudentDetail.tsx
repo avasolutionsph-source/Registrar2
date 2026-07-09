@@ -232,14 +232,14 @@ export default function StudentDetail() {
                 className="justify-start gap-2 w-full"
                 onClick={() => setDoc('card138')}
               >
-                <Printer className="w-3.5 h-3.5" /> Report Card (Form 138)
+                <Printer className="w-3.5 h-3.5" /> Report Card (SF 9)
               </Button>
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
                 onClick={() => setDoc('sf9')}
               >
-                <Printer className="w-3.5 h-3.5" /> Report Card (SF 9)
+                <Printer className="w-3.5 h-3.5" /> Report Card (SF 9 · plain)
               </Button>
               <Button
                 variant="outline"
@@ -486,7 +486,7 @@ export default function StudentDetail() {
         open={doc !== null}
         docTitle={
           doc === 'card138'
-            ? `Report Card (Form 138) · ${student.lastName}, ${student.firstName}`
+            ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
             : doc === 'sf9'
             ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
             : doc === 'sf10'
