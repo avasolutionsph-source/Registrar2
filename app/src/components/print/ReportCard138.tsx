@@ -76,7 +76,6 @@ const CORE_VALUES: { key: string; label: string }[] = [
 ];
 function programRowsFor(ord: number): { key: string; label: string }[] {
   if (ord >= 7) return [
-    { key: 'foreign', label: 'Foreign Language' },
     { key: 'homeroom', label: 'Homeroom Guidance' },
     { key: 'sap', label: 'SAP' },
   ];

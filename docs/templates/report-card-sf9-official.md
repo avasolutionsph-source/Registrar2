@@ -45,5 +45,12 @@ Tiny "School Form 9" at the very top-left.
 - **Grade 4** — numeric. Areas: GMRC-CLE · Filipino · English · Mathematics · Science ·
   Araling Panlipunan · EPP-ICT · MAPEH (+ Music & Arts, Physical Edu. & Health).
 - **Grades 5–6** — same layout as Grade 4.
+- **Grades 7–10 (JHS)** — numeric, same two-column SF9 layout. From the official
+  Grade 7 PDF (DELA CRUZ, JUAN · San Pedro Calungsod · adviser MS. MARIA VILUZLYN YEPES):
+  - Learning areas: **Values Educ-CLE · Filipino · English · Mathematics · Science ·
+    Araling Panlipunan · TLE-ICT · MAPEH** (+ Music & Arts, Physical Edu. & Health).
+  - **Special Programs (JHS) = Homeroom Guidance · SAP** only (no Computer/Scouting/
+    Foreign Language). Elementary Gr1-3 = Computer/Homeroom/SAP; Gr4-6 = Homeroom/SAP/Scouting.
+  - Deportment, Attendance, Certificate of Transfer, Cancellation, Descriptors: identical.
 
 Signatory: Class Adviser (per section) + **MRS. ROSARIO B. OLALIA**, School Principal.
