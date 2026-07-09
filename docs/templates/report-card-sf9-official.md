@@ -4,6 +4,11 @@ Source: the actual NPS SF9 PDFs (Grades 1–4) from Registrar Marites C. Ramos. 
 the definitive report-card layout** — supersedes the earlier parchment on-screen mock.
 Implemented in `components/print/ReportCard138.tsx`.
 
+## Print size
+Sized to fit **½ crosswise short bond (8.5 × 5.5in)** for EVERY level — one half-sheet
+per learner — per registrar's choice. `@page { size: 8.5in 5.5in }`, ~6px base font,
+tight cell padding. The 16-subject Grade XII is the tightest case but still fits.
+
 ## Header (full width)
 DepEd seal (left) · centered text · NPS seal (right):
 REPUBLIC OF THE PHILIPPINES · DEPARTMENT OF EDUCATION · REGION V · SCHOOLS DIVISIONS

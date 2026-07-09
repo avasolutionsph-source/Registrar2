@@ -158,7 +158,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const promoted = descriptive ? (gaLetter && gaLetter !== 'E' && gaLetter !== 'D') : gaNum != null && gaNum >= 75;
 
   const bd = 'border border-black';
-  const cell = `${bd} px-1 py-[1px] text-center align-middle`;
+  const cell = `${bd} px-0.5 py-0 text-center align-middle`;
   const hcell = `${cell} font-bold`;
 
   // one FINAL letter for a deportment/program row from its 3 term marks
@@ -166,31 +166,31 @@ export function ReportCard138({ student, subjects, sy }: Props) {
     modal(pcols.map((q) => toLetter(get(q))));
 
   return (
-    <div className="mx-auto w-[8in] font-serif text-[8.5px] leading-[1.15] text-black bg-white p-3 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">
-      <style>{`@media print { @page { size: 8.5in 13in; margin: 0.3in; } }`}</style>
+    <div className="mx-auto w-full font-serif text-[6px] leading-[1.06] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">
+      {/* Compact SF9 sized to fit HALF crosswise short bond (8.5 x 5.5in) for every level,
+          including the 16-subject Grade XII. */}
+      <style>{`@media print { @page { size: 8.5in 5.5in; margin: 0.15in; } }`}</style>
 
-      <div className="text-[7px]">School Form 9</div>
+      <div className="text-[5px]">School Form 9</div>
 
       {/* header */}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-        <div className="w-14 h-14 rounded-full border border-zinc-300 grid place-items-center text-[6px] text-zinc-400">
+        <div className="w-9 h-9 rounded-full border border-zinc-300 grid place-items-center text-[5px] text-zinc-400">
           DepEd
         </div>
-        <div className="text-center leading-tight">
+        <div className="text-center leading-[1.05]">
           <div>REPUBLIC OF THE PHILIPPINES</div>
           <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
-          <div>REGION V</div>
-          <div>SCHOOLS DIVISIONS OFFICE OF NAGA CITY</div>
-          <div>Naga North District</div>
-          <div className="text-[12px] font-bold text-red-700 mt-0.5">NAGA PAROCHIAL SCHOOL</div>
+          <div>REGION V &middot; SCHOOLS DIVISIONS OFFICE OF NAGA CITY &middot; Naga North District</div>
+          <div className="text-[9px] font-bold text-red-700">NAGA PAROCHIAL SCHOOL</div>
           <div>Corner Bagumbayan Sur and Ateneo Avenue, Naga City</div>
-          <div className="text-[7.5px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
+          <div className="text-[5.5px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
         </div>
-        <img src={npsLogo} alt="" className="w-14 h-14 object-contain" />
+        <img src={npsLogo} alt="" className="w-9 h-9 object-contain" />
       </div>
 
       {/* two columns */}
-      <div className="mt-1 grid grid-cols-2 gap-3 items-start">
+      <div className="mt-0.5 grid grid-cols-2 gap-2 items-start">
         {/* LEFT */}
         <div>
           <div className="text-center font-bold">LEARNER&rsquo;S PERFORMANCE REPORT</div>
@@ -222,7 +222,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.subjectCode}>
-                  <td className={`${bd} px-1 py-[1px] ${r.isMapehComponent ? 'pl-3 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
+                  <td className={`${bd} px-0.5 py-0 ${r.isMapehComponent ? 'pl-3 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
                     {r.name}
                   </td>
                   {pcols.map((q) => (
@@ -240,19 +240,19 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                 </tr>
               ))}
               <tr>
-                <td className={`${bd} px-1 py-[1px] font-semibold`}>Average</td>
+                <td className={`${bd} px-0.5 py-0 font-semibold`}>Average</td>
                 {pcols.map((q) => (
                   <td key={q} className={cell}>{descriptive ? periodAvgLetter(q) : periodAvgNum(q)}</td>
                 ))}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1 py-[1px] font-semibold`}>Conduct</td>
+                <td className={`${bd} px-0.5 py-0 font-semibold`}>Conduct</td>
                 {pcols.map((q) => <td key={q} className={cell} />)}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1 py-[1px] text-right font-bold`} colSpan={periods.length + 1}>
+                <td className={`${bd} px-0.5 py-0 text-right font-bold`} colSpan={periods.length + 1}>
                   General Average
                 </td>
                 <td className={`${cell} font-bold`}>{descriptive ? gaLetter : (gaNum ?? '')}</td>
@@ -262,7 +262,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
           </table>
 
           <div className="mt-2 font-bold">PERFORMANCE DESCRIPTORS</div>
-          <table className="border-collapse text-[7.5px]">
+          <table className="border-collapse text-[5.5px]">
             <thead>
               <tr>
                 <th className="pr-3 text-left font-bold">Grading Scale</th>
@@ -300,7 +300,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
               <tbody>
                 {programRows.map((pr) => (
                   <tr key={pr.key}>
-                    <td className={`${bd} px-1 py-[1px]`}>{pr.label}</td>
+                    <td className={`${bd} px-0.5 py-0`}>{pr.label}</td>
                     {pcols.map((q) => (
                       <td key={q} className={cell}>{programLetter(programs?.[q]?.[pr.key])}</td>
                     ))}
@@ -309,7 +309,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                 ))}
               </tbody>
             </table>
-            <div className="text-[6.5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
+            <div className="text-[5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
           </div>
           )}
 
@@ -328,7 +328,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
               <tbody>
                 {CORE_VALUES.map((cv) => (
                   <tr key={cv.key}>
-                    <td className={`${bd} px-1 py-[1px]`}>{cv.label}</td>
+                    <td className={`${bd} px-0.5 py-0`}>{cv.label}</td>
                     {pcols.map((q) => (
                       <td key={q} className={cell}>{deportmentLetter(values?.[q]?.[cv.key])}</td>
                     ))}
@@ -337,13 +337,13 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                 ))}
               </tbody>
             </table>
-            <div className="text-[6.5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
+            <div className="text-[5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
           </div>
 
           {/* ATTENDANCE */}
           <div>
             <div className="text-center font-bold">ATTENDANCE REPORT</div>
-            <table className="w-full border-collapse text-[7px]">
+            <table className="w-full border-collapse text-[5.5px]">
               <thead>
                 <tr>
                   <th className={`${bd} px-0.5`}> </th>
