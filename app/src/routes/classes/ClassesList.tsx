@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { listClasses, listStudentsLite } from '@/lib/db';
+import { gradeRank, gradeCardLabel } from '@/lib/forms';
 import { isAllTime } from '@/types';
 import type { ClassRecord, GradeLevel, SchoolYear } from '@/types';
 
@@ -101,7 +102,9 @@ export default function ClassesList() {
       ) : (
         <div className="flex flex-col gap-5">
           {GRADE_GROUPS.map((group) => {
-            const groupClasses = visibleClasses.filter((c) => group.levels.includes(c.gradeLevel));
+            const groupClasses = visibleClasses
+              .filter((c) => group.levels.includes(c.gradeLevel))
+              .sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName));
             if (groupClasses.length === 0) return null;
             return (
               <section key={group.label}>
@@ -118,7 +121,7 @@ export default function ClassesList() {
                         className="text-left bg-panel border border-border rounded-md p-3.5 hover:bg-panel-alt transition-colors"
                       >
                         <div className="text-[11px] uppercase tracking-[0.04em] text-ink-muted">
-                          Grade {c.gradeLevel}
+                          {gradeCardLabel(c.gradeLevel)}
                         </div>
                         <div className="text-[14px] font-semibold text-ink-primary mt-0.5">
                           {c.sectionName}

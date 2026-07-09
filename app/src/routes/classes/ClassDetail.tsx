@@ -31,6 +31,7 @@ import {
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
 import { schoolIdFromLrn } from '@/lib/lrn';
+import { periodsForSy } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
@@ -169,6 +170,9 @@ export default function ClassDetail() {
   const males = roster.filter((s) => s.gender === 'Male');
   const females = roster.filter((s) => s.gender === 'Female');
   const adviserName = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`;
+  const periods = periodsForSy(klass.sy);
+  const periodWord = periods.length === 3 ? 'Term' : 'Quarter';
+  const firstPeriodLabel = periods[0]?.label ?? 'Term 1';
 
   async function submitTransfer() {
     if (!klass || !tForm.name.trim()) return;
@@ -786,7 +790,7 @@ export default function ClassDetail() {
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3 w-[18%]">LRN</th>
                       <th className="py-1.5 pr-3">Learner's Name</th>
-                      <th className="py-1.5 pr-3 w-[14%]">Quarter status</th>
+                      <th className="py-1.5 pr-3 w-[14%]">{periodWord} status</th>
                       <th className="py-1.5 w-[12%] text-right"></th>
                     </tr>
                   </thead>
@@ -796,7 +800,7 @@ export default function ClassDetail() {
                         <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
                         <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
                         <td className="py-1.5 pr-3">
-                          <StatusBadge tone="pending">awaiting Q1</StatusBadge>
+                          <StatusBadge tone="pending">awaiting {firstPeriodLabel}</StatusBadge>
                         </td>
                         <td className="py-1.5 text-right">
                           <Button

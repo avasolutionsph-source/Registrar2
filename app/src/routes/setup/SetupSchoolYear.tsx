@@ -248,11 +248,12 @@ export default function SetupSchoolYear() {
               <p className="text-[11.5px] text-ink-muted mb-2 px-1">
                 Open or close grade encoding per term. When a term is closed, teachers can still
                 view but cannot save grades — use this to finalize honors, then reopen for the next
-                term. Terms are open by default.
+                term. Terms are CLOSED by default; setting a deadline above opens that term, or
+                open it here manually.
               </p>
               <div className="grid grid-cols-3 gap-3 px-1">
                 {TERM_DEFS.map((t) => {
-                  const open = termStatus[t.key] ?? true;
+                  const open = termStatus[t.key] ?? false;
                   return (
                     <div
                       key={t.key}

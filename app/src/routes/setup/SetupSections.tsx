@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { listClasses, listStudentsLite } from '@/lib/db';
-import type { GradeLevel, ClassRecord } from '@/types';
+import { gradeRank } from '@/lib/forms';
+import { isAllTime, type GradeLevel, type ClassRecord, type SchoolYear } from '@/types';
 
 const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'Pre-Elementary', levels: ['N1', 'N2', 'K'] },
@@ -23,6 +24,7 @@ const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
 
 export default function SetupSections() {
   const navigate = useNavigate();
+  const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [countByClass, setCountByClass] = useState<Map<string, number>>(new Map());
 
@@ -54,7 +56,8 @@ export default function SetupSections() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Sections</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Saint-named section master list. Sections persist across SYs; assign per-SY which grade level uses which.
+            Sections for {isAllTime(currentSY) ? 'all school years' : currentSY!.label}. Switch the
+            Current / Old System tabs to see another year.
           </p>
         </div>
         <Button onClick={() => navigate('/classes/new')}>
@@ -64,7 +67,12 @@ export default function SetupSections() {
 
       <div className="flex flex-col gap-4">
         {GRADE_GROUPS.map((group) => {
-          const groupClasses = classes.filter((c) => group.levels.includes(c.gradeLevel));
+          const syClasses = isAllTime(currentSY)
+            ? classes
+            : classes.filter((c) => c.sy === currentSY!.code);
+          const groupClasses = syClasses
+            .filter((c) => group.levels.includes(c.gradeLevel))
+            .sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName));
           if (groupClasses.length === 0) return null;
           return (
             <SectionCard key={group.label} heading={`${group.label} · ${groupClasses.length} sections`}>
@@ -85,7 +93,9 @@ export default function SetupSections() {
                       onClick={() => navigate(`/classes/${c.id}`)}
                       className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
                     >
-                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">{c.gradeLevel}</td>
+                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">
+                        {c.gradeLevel === 'S' ? 'SNED' : c.gradeLevel}
+                      </td>
                       <td className="py-1.5 pr-3 font-medium">{c.sectionName}</td>
                       <td className="py-1.5 pr-3">
                         {c.adviser.title} {c.adviser.familyName}

@@ -4,11 +4,11 @@ export function isValidLrn(lrn: string): boolean {
   return LRN_REGEX.test(lrn);
 }
 
+// Best-effort school-ID prefix. Preschool learners (Nursery/Kinder) have no LRN yet
+// (assigned only once enrolled in the DepEd LIS), so return '' instead of throwing —
+// a missing/short LRN must never crash a page that lists such learners.
 export function schoolIdFromLrn(lrn: string): string {
-  if (!isValidLrn(lrn)) {
-    throw new Error(`Invalid LRN: ${lrn}`);
-  }
-  return lrn.slice(0, 6);
+  return isValidLrn(lrn) ? lrn.slice(0, 6) : '';
 }
 
 export interface ParsedLrn {

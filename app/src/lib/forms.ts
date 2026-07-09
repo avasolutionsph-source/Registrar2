@@ -64,6 +64,24 @@ export function gradeLabel(code?: string): string {
   return GRADE_LABELS[code] ?? code;
 }
 
+// Canonical low→high ordering of every grade-level code, so sections/classes sort as
+// Nursery → Kinder → Grade 1 … 12 (and JHS as VII, VIII, IX, X — not alphabetically).
+export const GRADE_LEVEL_ORDER: string[] = [
+  'N1', 'N2', 'K', 'S', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',
+  'XI-GAS', 'XI-HUMSS', 'XI-ASSH', 'XI-STEM', 'XI-STEM-ENG', 'XI-STEM-HA', 'XI-ABM',
+  'XII-GAS', 'XII-HUMSS', 'XII-ASSH', 'XII-STEM', 'XII-STEM-ENG', 'XII-STEM-HA', 'XII-ABM',
+];
+export function gradeRank(code?: string): number {
+  const i = GRADE_LEVEL_ORDER.indexOf(code ?? '');
+  return i < 0 ? 999 : i;
+}
+
+// Short heading used on section/class cards: "SNED" (not "Grade S"), else "Grade <code>".
+export function gradeCardLabel(code?: string): string {
+  if (code === 'S') return 'SNED';
+  return `Grade ${code ?? ''}`;
+}
+
 // ── F137 → SF 10 effectivity (DepEd Order #58, s. 2017) ────────────────────
 // SF-10 replaced Form 137 on a staggered, per-grade basis. This maps a grade
 // code to the FIRST school-year start (e.g. 2022 = "SY 2022-2023") it used
