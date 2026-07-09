@@ -18,8 +18,10 @@ export interface ParsedLrn {
 }
 
 export function parseLrn(lrn: string): ParsedLrn {
+  // Never throw — many learners (Nursery/Kinder, some transferees/SNED) have no LRN
+  // yet. Return a best-effort parse with empty parts so no page can crash.
   if (!isValidLrn(lrn)) {
-    throw new Error(`Invalid LRN: ${lrn}`);
+    return { schoolId: '', yearSegment: '', sequence: '' };
   }
   return {
     schoolId: lrn.slice(0, 6),

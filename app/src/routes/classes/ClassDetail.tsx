@@ -27,6 +27,7 @@ import {
   listStudentsLite,
   bulkEnrollForSy,
   listAttitudeScale,
+  unenrollFromClass,
   type Transfer,
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
@@ -296,6 +297,28 @@ export default function ClassDetail() {
       else next.add(lrn);
       return next;
     });
+  const [removingLrn, setRemovingLrn] = useState<string | null>(null);
+  async function unenroll(s: Student) {
+    if (!klass) return;
+    if (
+      !window.confirm(
+        `Remove ${formatLastFirstMiddle(s)} from ${klass.gradeLevel} · ${klass.sectionName}?\n\n` +
+          'They stay a learner (record and grades are kept) but drop off this class list. ' +
+          'You can re-add or reassign them anytime.',
+      )
+    )
+      return;
+    setRemovingLrn(s.lrn);
+    try {
+      await unenrollFromClass(s.lrn, klass.id);
+      setRoster((r) => r.filter((x) => x.lrn !== s.lrn));
+    } catch {
+      window.alert('Could not remove the learner. Check your connection and try again.');
+    } finally {
+      setRemovingLrn(null);
+    }
+  }
+
   async function enrollSelected() {
     if (!klass || addSel.size === 0) return;
     setAddBusy(true);
@@ -463,10 +486,22 @@ export default function ClassDetail() {
                       <div
                         key={s.lrn}
                         onClick={() => navigate(`/students/${s.lrn}`)}
-                        className="flex gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
+                        className="group flex items-center gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
                       >
                         <span className="text-ink-muted w-5 tabular-nums">{i + 1}</span>
-                        <span>{formatLastFirstMiddle(s)}</span>
+                        <span className="flex-1">{formatLastFirstMiddle(s)}</span>
+                        <button
+                          type="button"
+                          disabled={removingLrn === s.lrn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void unenroll(s);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-nps-red hover:underline text-[11px] font-medium shrink-0"
+                          title="Remove from this class"
+                        >
+                          {removingLrn === s.lrn ? '…' : 'Remove'}
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -478,10 +513,22 @@ export default function ClassDetail() {
                       <div
                         key={s.lrn}
                         onClick={() => navigate(`/students/${s.lrn}`)}
-                        className="flex gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
+                        className="group flex items-center gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
                       >
                         <span className="text-ink-muted w-5 tabular-nums">{i + 1}</span>
-                        <span>{formatLastFirstMiddle(s)}</span>
+                        <span className="flex-1">{formatLastFirstMiddle(s)}</span>
+                        <button
+                          type="button"
+                          disabled={removingLrn === s.lrn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void unenroll(s);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-nps-red hover:underline text-[11px] font-medium shrink-0"
+                          title="Remove from this class"
+                        >
+                          {removingLrn === s.lrn ? '…' : 'Remove'}
+                        </button>
                       </div>
                     ))}
                   </div>

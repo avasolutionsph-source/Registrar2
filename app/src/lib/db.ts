@@ -461,6 +461,19 @@ export async function bulkEnrollForSy(lrns: string[], input: EnrollInput): Promi
   }
 }
 
+// Unenroll a learner from a class roster: clears their current class assignment so
+// they drop off that section's list. Keeps the learner record and their enrolment
+// history intact (they can be re-enrolled later or assigned to another section).
+// Only clears if they are actually in the given class, to avoid races.
+export async function unenrollFromClass(lrn: string, classId: string): Promise<void> {
+  const { error } = await client()
+    .from('reg_students')
+    .update({ current_class_id: null })
+    .eq('lrn', lrn)
+    .eq('current_class_id', classId);
+  if (error) throw error;
+}
+
 // ── ID photos (private `student-photos` bucket) ──
 const PHOTO_BUCKET = 'student-photos';
 

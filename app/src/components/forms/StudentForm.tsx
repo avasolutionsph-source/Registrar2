@@ -48,6 +48,7 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       : {},
   );
   const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [activeSyCode, setActiveSyCode] = useState<string>('');
   const [classId, setClassId] = useState<string>(student?.currentClassId ?? '');
   const [syCode, setSyCode] = useState<string>(student?.currentSY ?? '');
   const [syLabel, setSyLabel] = useState<string>('Active school year');
@@ -64,6 +65,7 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
         setClasses(cls);
         if (sy) {
           setSyLabel(sy.label);
+          setActiveSyCode(sy.code);
           if (!student) setSyCode(sy.code);
         }
       } catch {
@@ -114,8 +116,15 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       credentials: creds,
     };
 
-    if (!/^\d{12}$/.test(input.lrn)) {
-      setError('LRN must be exactly 12 digits.');
+    // LRN is optional — Nursery/Kinder learners have none until enrolled in the DepEd
+    // LIS, and some transferees/SNED arrive without one. If provided, it must be valid;
+    // if blank, confirm the registrar really means to save without an LRN.
+    if (input.lrn) {
+      if (!/^\d{12}$/.test(input.lrn)) {
+        setError('LRN must be exactly 12 digits (or leave it blank if none yet).');
+        return;
+      }
+    } else if (!window.confirm('This learner has no LRN. Save without one?\n\nYou can add it later (e.g. once Kinder is enrolled in the DepEd LIS).')) {
       return;
     }
     if (!input.firstName || !input.lastName) {
@@ -141,8 +150,8 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
     <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 max-w-3xl">
       <SectionCard heading="Identity">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
-          <Field label="LRN" hint="12 digits. First 6 = origin school ID." required>
-            <Input name="lrn" maxLength={12} placeholder="403875240042" defaultValue={student?.lrn} required />
+          <Field label="LRN" hint="12 digits. Leave blank if none yet (Nursery/Kinder).">
+            <Input name="lrn" maxLength={12} placeholder="403875240042 (or blank)" defaultValue={student?.lrn} />
           </Field>
           <Field label="Student No.">
             <Input
@@ -238,11 +247,13 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
           <Field label="Class (Grade & Section)" span={2}>
             <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
               <option value="">— None / unassigned —</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  Grade {c.gradeLevel} · {c.sectionName} · {c.adviser.title} {c.adviser.familyName}
-                </option>
-              ))}
+              {classes
+                .filter((c) => !activeSyCode || c.sy === activeSyCode || c.id === classId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Grade {c.gradeLevel} · {c.sectionName} · {c.adviser.title} {c.adviser.familyName}
+                  </option>
+                ))}
             </Select>
           </Field>
         </div>

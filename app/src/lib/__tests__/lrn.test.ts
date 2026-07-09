@@ -18,8 +18,10 @@ describe('LRN parsing', () => {
     expect(schoolIdFromLrn('436534240018')).toBe('436534');
   });
 
-  it('throws on invalid LRN when extracting school ID', () => {
-    expect(() => schoolIdFromLrn('invalid')).toThrow();
+  it('returns empty string (never throws) for an invalid LRN', () => {
+    expect(schoolIdFromLrn('invalid')).toBe('');
+    expect(schoolIdFromLrn('')).toBe('');
+    expect(parseLrn('05-10208')).toEqual({ schoolId: '', yearSegment: '', sequence: '' });
   });
 
   it('parseLrn returns school ID, year segment, and sequence', () => {
