@@ -76,6 +76,26 @@ export function gradeRank(code?: string): number {
   return i < 0 ? 999 : i;
 }
 
+// Which subject education-level applies to a section's grade code.
+export function levelOfGrade(g: string): 'preschool' | 'elem' | 'jhs' | 'shs' {
+  const base = (g ?? '').split('-')[0]; // "XII-STEM" → "XII"
+  if (base === 'XI' || base === 'XII') return 'shs';
+  if (['VII', 'VIII', 'IX', 'X'].includes(base)) return 'jhs';
+  if (['I', 'II', 'III', 'IV', 'V', 'VI'].includes(base)) return 'elem';
+  return 'preschool'; // N1, N2, K, S
+}
+
+// Should a subject be offered in a section of this grade?
+//  • SHS sections show ONLY subjects tagged 'shs' (they have their own catalog).
+//  • Other levels show subjects tagged for that level, PLUS untagged shared
+//    core subjects (English, Filipino, Math, Science… used across elem & JHS).
+export function subjectFitsSection(subjectLevel: string | undefined | null, gradeLevel: string): boolean {
+  const lvl = levelOfGrade(gradeLevel);
+  if (lvl === 'shs') return subjectLevel === 'shs';
+  if (!subjectLevel) return true; // shared core, no explicit level
+  return subjectLevel === lvl;
+}
+
 // Short heading used on section/class cards: "SNED" (not "Grade S"), else "Grade <code>".
 export function gradeCardLabel(code?: string): string {
   if (code === 'S') return 'SNED';

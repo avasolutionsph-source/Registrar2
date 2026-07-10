@@ -16,16 +16,8 @@ import {
   listClassSubjects,
   assignTeacherSubject,
 } from '@/lib/db';
+import { subjectFitsSection } from '@/lib/forms';
 import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
-
-// Which subject education-level applies to a section's grade.
-function levelOfGrade(g: string): 'preschool' | 'elem' | 'jhs' | 'shs' {
-  const base = g.split('-')[0]; // "XII-STEM" → "XII"
-  if (base === 'XI' || base === 'XII') return 'shs';
-  if (['VII', 'VIII', 'IX', 'X'].includes(base)) return 'jhs';
-  if (['I', 'II', 'III', 'IV', 'V', 'VI'].includes(base)) return 'elem';
-  return 'preschool'; // N1, N2, K, S
-}
 
 export default function TeacherDetail() {
   const { id } = useParams<{ id: string }>();
@@ -318,8 +310,7 @@ export default function TeacherDetail() {
             ) : (
               <div className="flex flex-col gap-4">
                 {advisedClasses.map((cls) => {
-                  const level = levelOfGrade(cls.gradeLevel);
-                  const applicable = subjects.filter((s) => !s.level || s.level === level);
+                  const applicable = subjects.filter((s) => subjectFitsSection(s.level, cls.gradeLevel));
                   const load = classLoads[cls.id] ?? {};
                   return (
                     <div key={cls.id}>

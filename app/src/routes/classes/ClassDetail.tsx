@@ -32,7 +32,7 @@ import {
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
 import { schoolIdFromLrn } from '@/lib/lrn';
-import { periodsForSy } from '@/lib/forms';
+import { periodsForSy, subjectFitsSection } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
@@ -895,14 +895,16 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {subjects.length === 0 ? (
+                    {subjects.filter((s) => subjectFitsSection(s.level, klass.gradeLevel)).length === 0 ? (
                       <tr>
                         <td colSpan={3} className="py-6 text-center text-ink-secondary">
-                          No subjects in the catalog yet. Add them in Setup ▸ Subjects.
+                          No subjects for this level yet. Add or tag them in Setup ▸ Subjects.
                         </td>
                       </tr>
                     ) : (
-                      subjects.map((s) => {
+                      subjects
+                        .filter((s) => subjectFitsSection(s.level, klass.gradeLevel))
+                        .map((s) => {
                         const offered = isOffered(s.code);
                         return (
                           <tr key={s.code} className="border-b border-border-soft last:border-0">
