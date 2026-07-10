@@ -105,7 +105,7 @@ export function TeacherForm({ teacher, onSubmit, onCancel, submitLabel }: Props)
             <Input
               name="yearStarted"
               type="number"
-              min={2000}
+              min={1970}
               max={2100}
               defaultValue={teacher?.yearStarted ?? 2026}
               required
