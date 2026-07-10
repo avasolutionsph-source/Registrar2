@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { RotateCcw, Save, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import {
   AREA_GROUP_LABEL,
   DEPED_DEFAULT_WEIGHTS,
   DEFAULT_ATTITUDE_SCALE,
+  classifyArea,
   type AreaGroup,
   type Weights,
   type AttitudeBand,
@@ -18,8 +20,10 @@ import {
   saveWeightConfig,
   listAttitudeScale,
   saveAttitudeScale,
+  listSubjects,
   type WeightConfig,
 } from '@/lib/db';
+import type { Subject } from '@/types';
 
 type Component = keyof Weights; // 'ww' | 'pt' | 'st'
 const COMPONENTS: { key: Component; label: string }[] = [
@@ -40,15 +44,34 @@ export default function SetupWeights() {
   const [attitude, setAttitude] = useState<AttitudeBand[]>([]);
   const [attSaving, setAttSaving] = useState(false);
   const [attSaved, setAttSaved] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  // Group the real subject catalog under each weight group (detailed, read-only
+  // breakdown — the WW/PT/Exam split is still shared per group).
+  const subjectsByGroup = useMemo(() => {
+    const map = {} as Record<AreaGroup, string[]>;
+    for (const g of AREA_GROUPS) map[g] = [];
+    for (const s of subjects) {
+      const g = classifyArea({ code: s.code, fullName: s.fullName, category: s.category });
+      const name = s.fullName || s.code;
+      if (!map[g].includes(name)) map[g].push(name);
+    }
+    return map;
+  }, [subjects]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [c, att] = await Promise.all([listWeightConfig(), listAttitudeScale()]);
+        const [c, att, subs] = await Promise.all([
+          listWeightConfig(),
+          listAttitudeScale(),
+          listSubjects(),
+        ]);
         if (cancelled) return;
         setConfig(c);
         setAttitude(att);
+        setSubjects(subs);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the configuration.');
       } finally {
@@ -125,10 +148,16 @@ export default function SetupWeights() {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Grade Weights</h1>
-          <p className="text-[13px] text-ink-secondary mt-1 max-w-[620px]">
+          <p className="text-[13px] text-ink-secondary mt-1 max-w-[640px]">
             The WW / PT / Exam split used to compute every grade. Pre-filled with the DepEd
             defaults — change a group only if your school uses a different split. Each group must
-            total <span className="font-semibold">100%</span>.
+            total <span className="font-semibold">100%</span>. The subjects under each group are
+            listed for reference; the split is shared by every subject in the group. To add a
+            subject, use{' '}
+            <Link to="/setup/subjects" className="text-accent underline">
+              Setup → Subjects
+            </Link>{' '}
+            — it appears here under its group automatically.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -168,9 +197,28 @@ export default function SetupWeights() {
               {AREA_GROUPS.map((g) => {
                 const total = sumOf(config[g]);
                 const ok = total === 100;
+                const members = subjectsByGroup[g] ?? [];
                 return (
-                  <tr key={g} className="border-b border-border-soft last:border-0">
-                    <td className="py-2 pr-3 text-ink-primary">{AREA_GROUP_LABEL[g]}</td>
+                  <tr key={g} className="border-b border-border-soft last:border-0 align-top">
+                    <td className="py-2 pr-3 text-ink-primary">
+                      <div className="font-medium">{AREA_GROUP_LABEL[g]}</div>
+                      {members.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {members.map((name) => (
+                            <span
+                              key={name}
+                              className="inline-block rounded bg-app border border-border-soft px-1.5 py-0.5 text-[11px] text-ink-secondary"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px] text-ink-muted italic">
+                          No subjects in this group yet.
+                        </div>
+                      )}
+                    </td>
                     {COMPONENTS.map((c) => (
                       <td key={c.key} className="py-2 px-2">
                         <Input
