@@ -108,6 +108,7 @@ export default function ClassDetail() {
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadSaved, setLoadSaved] = useState(false);
+  const [removingLrn, setRemovingLrn] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,7 +298,6 @@ export default function ClassDetail() {
       else next.add(lrn);
       return next;
     });
-  const [removingLrn, setRemovingLrn] = useState<string | null>(null);
   async function unenroll(s: Student) {
     if (!klass) return;
     if (

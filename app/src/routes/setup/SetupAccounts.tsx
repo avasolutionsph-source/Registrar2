@@ -18,6 +18,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: 'guidance_elementary', label: 'Guidance (Elementary)' },
   { value: 'acad_gs', label: 'Academic Coordinator — Grade School' },
   { value: 'acad_jhs', label: 'Academic Coordinator — Junior High' },
+  { value: 'acad_shs', label: 'Academic Coordinator — Senior High' },
   { value: 'property', label: 'Property / CMDO' },
   { value: 'marketing', label: 'Marketing' },
   { value: 'admissions', label: 'Admissions' },
