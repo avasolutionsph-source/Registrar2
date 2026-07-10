@@ -326,6 +326,9 @@ export default function TeacherDetail() {
                       <div className="text-[12.5px] font-semibold text-ink-primary mb-1.5 px-1">
                         Grade {cls.gradeLevel} · {cls.sectionName}{' '}
                         <span className="text-ink-muted font-normal">· {cls.sy}</span>
+                        <span className="ml-1.5 inline-block rounded bg-app border border-border-soft px-1.5 py-0.5 text-[10px] font-normal text-ink-muted align-middle">
+                          Advisor
+                        </span>
                       </div>
                       {applicable.length === 0 ? (
                         <p className="px-1 text-[11.5px] text-ink-muted italic">
