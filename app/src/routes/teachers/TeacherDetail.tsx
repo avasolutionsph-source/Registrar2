@@ -7,8 +7,25 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
-import { getTeacher, listClasses, listStudentsLite, setClassAdviser } from '@/lib/db';
-import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student } from '@/types';
+import {
+  getTeacher,
+  listClasses,
+  listStudentsLite,
+  setClassAdviser,
+  listSubjects,
+  listClassSubjects,
+  assignTeacherSubject,
+} from '@/lib/db';
+import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
+
+// Which subject education-level applies to a section's grade.
+function levelOfGrade(g: string): 'preschool' | 'elem' | 'jhs' | 'shs' {
+  const base = g.split('-')[0]; // "XII-STEM" → "XII"
+  if (base === 'XI' || base === 'XII') return 'shs';
+  if (['VII', 'VIII', 'IX', 'X'].includes(base)) return 'jhs';
+  if (['I', 'II', 'III', 'IV', 'V', 'VI'].includes(base)) return 'elem';
+  return 'preschool'; // N1, N2, K, S
+}
 
 export default function TeacherDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +38,12 @@ export default function TeacherDetail() {
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignErr, setAssignErr] = useState<string | null>(null);
 
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  // classId → (subjectCode → teacherId|null): who teaches each offered subject.
+  const [classLoads, setClassLoads] = useState<Record<string, Record<string, number | null>>>({});
+  const [subjBusy, setSubjBusy] = useState<string | null>(null); // "classId:subjectCode"
+  const [subjErr, setSubjErr] = useState<string | null>(null);
+
   const numId = Number(id);
 
   useEffect(() => {
@@ -31,15 +54,17 @@ export default function TeacherDetail() {
         return;
       }
       try {
-        const [t, classes, studs] = await Promise.all([
+        const [t, classes, studs, subs] = await Promise.all([
           getTeacher(numId),
           listClasses(),
           listStudentsLite(),
+          listSubjects(),
         ]);
         if (cancelled) return;
         setTeacher(t);
         setAllClasses(classes);
         setStudents(studs);
+        setSubjects(subs);
       } catch {
         if (!cancelled) setTeacher(null);
       }
@@ -62,6 +87,53 @@ export default function TeacherDetail() {
     for (const c of advisedClasses) m.set(c.id, students.filter((s) => s.currentClassId === c.id).length);
     return m;
   }, [advisedClasses, students]);
+
+  // Load each advised section's teaching load (which teacher teaches each subject)
+  // so the checkboxes reflect the current state and we can toggle non-destructively.
+  const advisedIds = advisedClasses.map((c) => c.id).join(',');
+  useEffect(() => {
+    let cancelled = false;
+    const ids = advisedIds ? advisedIds.split(',') : [];
+    if (ids.length === 0) {
+      setClassLoads({});
+      return;
+    }
+    (async () => {
+      try {
+        const entries = await Promise.all(
+          ids.map(async (cid) => {
+            const rows = await listClassSubjects(cid);
+            const map: Record<string, number | null> = {};
+            for (const r of rows) map[r.subjectCode] = r.teacherId;
+            return [cid, map] as const;
+          }),
+        );
+        if (!cancelled) setClassLoads(Object.fromEntries(entries));
+      } catch {
+        /* leave loads empty; toggles will still create rows */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [advisedIds]);
+
+  async function toggleSubject(cls: ClassRecord, subjectCode: string, teach: boolean) {
+    const key = `${cls.id}:${subjectCode}`;
+    setSubjBusy(key);
+    setSubjErr(null);
+    try {
+      await assignTeacherSubject(cls.id, subjectCode, teach ? numId : null);
+      setClassLoads((prev) => ({
+        ...prev,
+        [cls.id]: { ...(prev[cls.id] ?? {}), [subjectCode]: teach ? numId : null },
+      }));
+    } catch (e) {
+      setSubjErr(e instanceof Error ? e.message : 'Could not save the subject.');
+    } finally {
+      setSubjBusy(null);
+    }
+  }
 
   // Sections available to assign: the current SY's sections this teacher doesn't already advise.
   const targetSy =
@@ -151,6 +223,7 @@ export default function TeacherDetail() {
           anchors={[
             { id: 'profile', label: 'Profile' },
             { id: 'advisory', label: 'Advisory' },
+            { id: 'subjects', label: 'Subjects' },
             { id: 'gradesheet', label: 'Grade-Sheet' },
           ]}
           activeAnchor="profile"
@@ -224,6 +297,69 @@ export default function TeacherDetail() {
                       </div>
                       <span className="text-[11.5px] text-ink-secondary">{count} learners →</span>
                     </button>
+                  );
+                })}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard id="subjects" heading="Subjects Taught">
+            <p className="text-[12px] text-ink-secondary px-1 mb-3">
+              Tick the subjects this teacher handles in each advised section. What you tick here is
+              exactly what shows up in the teacher's Gradebook. (For subjects in sections this teacher
+              does <span className="font-medium">not</span> advise, use the section's own{' '}
+              <span className="font-medium">Load</span> tab.)
+            </p>
+            {subjErr && <p className="mb-2 px-1 text-[12px] text-nps-red">{subjErr}</p>}
+            {advisedClasses.length === 0 ? (
+              <p className="text-[12.5px] text-ink-secondary px-1">
+                Assign an advisory section above first, then tick the subjects here.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {advisedClasses.map((cls) => {
+                  const level = levelOfGrade(cls.gradeLevel);
+                  const applicable = subjects.filter((s) => !s.level || s.level === level);
+                  const load = classLoads[cls.id] ?? {};
+                  return (
+                    <div key={cls.id}>
+                      <div className="text-[12.5px] font-semibold text-ink-primary mb-1.5 px-1">
+                        Grade {cls.gradeLevel} · {cls.sectionName}{' '}
+                        <span className="text-ink-muted font-normal">· {cls.sy}</span>
+                      </div>
+                      {applicable.length === 0 ? (
+                        <p className="px-1 text-[11.5px] text-ink-muted italic">
+                          No subjects set up for this level yet (Setup → Subjects).
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                          {applicable.map((s) => {
+                            const holder = load[s.code];
+                            const mine = holder === numId;
+                            const takenByOther = holder != null && holder !== numId;
+                            const key = `${cls.id}:${s.code}`;
+                            return (
+                              <label
+                                key={s.code}
+                                className="flex items-center gap-2 text-[12.5px] text-ink-primary px-1 py-0.5 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={mine}
+                                  disabled={subjBusy === key}
+                                  onChange={(e) => toggleSubject(cls, s.code, e.target.checked)}
+                                  className="accent-nps-red"
+                                />
+                                <span className="truncate">{s.fullName}</span>
+                                {takenByOther && (
+                                  <span className="text-[10.5px] text-ink-muted shrink-0">· taken</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

@@ -980,6 +980,37 @@ export async function saveClassSubjects(
   if (error) throw error;
 }
 
+// Every (class, subject) this teacher teaches — across ALL sections. Backs the
+// teacher-centric "Subjects Taught" assignment on the teacher page.
+export async function listTeacherLoad(
+  teacherId: number,
+): Promise<{ classId: string; subjectCode: string }[]> {
+  const { data, error } = await client()
+    .from('reg_class_subjects')
+    .select('class_id, subject_code')
+    .eq('teacher_id', teacherId);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ classId: str(r.class_id), subjectCode: str(r.subject_code) }));
+}
+
+// Assign (or clear) ONE subject in ONE section to a teacher without touching the
+// section's other subjects. Upserts the single (class, subject) row — teacherId
+// null keeps the subject offered but unassigned. PK (class_id, subject_code)
+// backs the on-conflict merge.
+export async function assignTeacherSubject(
+  classId: string,
+  subjectCode: string,
+  teacherId: number | null,
+): Promise<void> {
+  const { error } = await client()
+    .from('reg_class_subjects')
+    .upsert(
+      { class_id: classId, subject_code: subjectCode, teacher_id: teacherId },
+      { onConflict: 'class_id,subject_code' },
+    );
+  if (error) throw error;
+}
+
 // ── account roles (portal user_roles; registrar/admin may manage) ──
 export interface UserRoleRow {
   email: string;
