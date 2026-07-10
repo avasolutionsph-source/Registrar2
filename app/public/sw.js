@@ -1,6 +1,6 @@
 // NPS Registrar — service worker (manual PWA, no build plugin).
 // Bump VERSION to force every client to refetch the app shell after a deploy.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `nps-registrar-${VERSION}`;
 
 // App shell precached on install so the app opens offline after the first visit.
@@ -50,6 +50,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Hashed static assets / icons: cache-first, then network (and cache it).
+  // Always resolve to a real Response — returning undefined to respondWith throws
+  // "Failed to convert value to 'Response'" and shows as a network error.
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
@@ -61,7 +63,11 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        .catch(
+          () =>
+            cached ??
+            new Response('', { status: 504, statusText: 'Offline' }),
+        );
     }),
   );
 });

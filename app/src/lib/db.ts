@@ -996,10 +996,20 @@ export async function listUserRoles(): Promise<UserRoleRow[]> {
 }
 
 export async function setUserRole(email: string, role: string): Promise<void> {
-  const { error } = await client()
+  const em = email.trim().toLowerCase();
+  const c = client();
+  // Update-then-insert instead of upsert(onConflict): an upsert needs a UNIQUE
+  // constraint on user_email, which some deployments don't have (→ PostgREST 400).
+  // This path works regardless and surfaces the real DB message on failure.
+  const { data: updated, error: upErr } = await c
     .from('user_roles')
-    .upsert({ user_email: email.trim().toLowerCase(), role }, { onConflict: 'user_email' });
-  if (error) throw error;
+    .update({ role })
+    .eq('user_email', em)
+    .select('user_email');
+  if (upErr) throw new Error(upErr.message || 'Could not update the role.');
+  if (updated && updated.length > 0) return;
+  const { error: insErr } = await c.from('user_roles').insert({ user_email: em, role });
+  if (insErr) throw new Error(insErr.message || 'Could not create the role.');
 }
 
 export async function deleteUserRole(email: string): Promise<void> {
