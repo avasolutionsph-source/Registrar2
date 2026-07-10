@@ -127,7 +127,8 @@ export default function ClassesList() {
                           {c.sectionName}
                         </div>
                         <div className="text-[12px] text-ink-secondary mt-2">
-                          {c.adviser.title} {c.adviser.familyName}
+                          <span className="text-ink-muted">Advisor:</span> {c.adviser.title}{' '}
+                          {c.adviser.familyName}
                         </div>
                         <div className="text-[11.5px] text-ink-muted mt-1">
                           {count} {count === 1 ? 'learner' : 'learners'}
