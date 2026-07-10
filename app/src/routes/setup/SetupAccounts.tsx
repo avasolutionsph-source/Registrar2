@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listUserRoles, setUserRole, deleteUserRole, type UserRoleRow } from '@/lib/db';
+import { listUserRoles, addUserRole, deleteUserRole, type UserRoleRow } from '@/lib/db';
 
 // Every office role the portal recognises (portalAuth.jsx ROLE_HOME).
 const ROLES: { value: string; label: string }[] = [
@@ -56,8 +56,8 @@ export default function SetupAccounts() {
     setError(null);
     setNotice(null);
     try {
-      await setUserRole(em, role);
-      setNotice(`${em} is now ${roleLabel(role)}.`);
+      await addUserRole(em, role);
+      setNotice(`${em} now has the ${roleLabel(role)} role.`);
       setEmail('');
       await load();
     } catch (e) {
@@ -67,20 +67,10 @@ export default function SetupAccounts() {
     }
   }
 
-  async function changeRole(em: string, newRole: string) {
+  async function remove(em: string, r: string) {
     setError(null);
     try {
-      await setUserRole(em, newRole);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update the role.');
-    }
-  }
-
-  async function remove(em: string) {
-    setError(null);
-    try {
-      await deleteUserRole(em);
+      await deleteUserRole(em, r);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to remove the role.');
@@ -97,8 +87,9 @@ export default function SetupAccounts() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-ink-primary">Accounts &amp; Roles</h1>
         <p className="text-[13px] text-ink-secondary mt-1 max-w-[620px]">
-          Assign any office role to an account by email (one role per email). The account must
-          already exist in Supabase Auth — this only sets which office it can access.
+          Grant any office role to an account by email. An account may hold several roles — assigning
+          another one adds it, it doesn't replace the existing role. The account must already exist in
+          Supabase Auth — this only sets which offices it can access.
         </p>
       </div>
 
@@ -159,19 +150,13 @@ export default function SetupAccounts() {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.email} className="border-b border-border-soft last:border-0">
+                <tr key={`${r.email}|${r.role}`} className="border-b border-border-soft last:border-0">
                   <td className="py-1.5 pr-3 text-ink-primary">{r.email}</td>
-                  <td className="py-1.5 pr-3">
-                    <Select value={r.role} onChange={(e) => changeRole(r.email, e.target.value)}>
-                      {ROLES.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </Select>
-                  </td>
+                  <td className="py-1.5 pr-3 text-ink-primary">{roleLabel(r.role)}</td>
                   <td className="py-1.5 text-right">
                     <button
                       type="button"
-                      onClick={() => remove(r.email)}
+                      onClick={() => remove(r.email, r.role)}
                       className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
                       aria-label="Remove role"
                     >

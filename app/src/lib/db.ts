@@ -990,30 +990,36 @@ export async function listUserRoles(): Promise<UserRoleRow[]> {
   const { data, error } = await client()
     .from('user_roles')
     .select('user_email, role')
+    .order('user_email', { ascending: true })
     .order('role', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => ({ email: str(r.user_email), role: str(r.role) }));
 }
 
-export async function setUserRole(email: string, role: string): Promise<void> {
+// Grant a role to an account. An account may hold SEVERAL roles — this ADDS the
+// role rather than overwriting existing ones. A duplicate (same email+role) is a
+// no-op, not an error (the DB has UNIQUE (user_email, role)).
+export async function addUserRole(email: string, role: string): Promise<void> {
   const em = email.trim().toLowerCase();
-  const c = client();
-  // Update-then-insert instead of upsert(onConflict): an upsert needs a UNIQUE
-  // constraint on user_email, which some deployments don't have (→ PostgREST 400).
-  // This path works regardless and surfaces the real DB message on failure.
-  const { data: updated, error: upErr } = await c
+  const { data: existing, error: selErr } = await client()
     .from('user_roles')
-    .update({ role })
+    .select('role')
     .eq('user_email', em)
-    .select('user_email');
-  if (upErr) throw new Error(upErr.message || 'Could not update the role.');
-  if (updated && updated.length > 0) return;
-  const { error: insErr } = await c.from('user_roles').insert({ user_email: em, role });
-  if (insErr) throw new Error(insErr.message || 'Could not create the role.');
+    .eq('role', role)
+    .limit(1);
+  if (selErr) throw new Error(selErr.message || 'Could not check existing roles.');
+  if (existing && existing.length > 0) return; // already has it
+  const { error: insErr } = await client().from('user_roles').insert({ user_email: em, role });
+  if (insErr) throw new Error(insErr.message || 'Could not grant the role.');
 }
 
-export async function deleteUserRole(email: string): Promise<void> {
-  const { error } = await client().from('user_roles').delete().eq('user_email', email);
+// Remove ONE specific role from an account (leaves the account's other roles).
+export async function deleteUserRole(email: string, role: string): Promise<void> {
+  const { error } = await client()
+    .from('user_roles')
+    .delete()
+    .eq('user_email', email)
+    .eq('role', role);
   if (error) throw error;
 }
 
