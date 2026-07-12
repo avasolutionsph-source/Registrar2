@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
+import { listGradeSubjects } from '@/lib/db';
 import type { Student, Subject } from '@/types';
 import {
   buildSubjectRows,
@@ -127,9 +129,24 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const periods = periodsForSy(year);
   const pcols = periods.map((p) => p.key); // 'q1'..
   const short = periods.map((p) => p.short); // '1'..
-  const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects));
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
   const gradeCode = entry?.gradeLevel;
+
+  // Registrar-curated subject order for this grade/strand (Setup ▸ Subjects).
+  const [orderCodes, setOrderCodes] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (gradeCode) {
+      listGradeSubjects(gradeCode)
+        .then((o) => { if (!cancelled) setOrderCodes(o); })
+        .catch(() => { if (!cancelled) setOrderCodes([]); });
+    } else {
+      setOrderCodes([]);
+    }
+    return () => { cancelled = true; };
+  }, [gradeCode]);
+
+  const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects), orderCodes);
   const ord = ordOf(gradeCode);
   const isSHS = ord >= 11;
   const gradeRoman = romanPart(gradeCode);

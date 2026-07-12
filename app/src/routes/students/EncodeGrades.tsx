@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
@@ -181,6 +181,40 @@ export default function EncodeGrades() {
   const ks1 = isDescriptiveLevel(gradeLevel, sy);
   const scale = descriptiveScaleFor(gradeLevel);
 
+  // The registrar-curated subject order for this grade/strand (Setup ▸ Subjects).
+  // Drives both the display order here and the "Fill from curriculum" action.
+  const [gradeOrder, setGradeOrder] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!gradeLevel) {
+      setGradeOrder([]);
+      return;
+    }
+    listGradeSubjects(gradeLevel)
+      .then((cs) => { if (!cancelled) setGradeOrder(cs); })
+      .catch(() => { if (!cancelled) setGradeOrder([]); });
+    return () => { cancelled = true; };
+  }, [gradeLevel]);
+
+  // Rank a subject by the curriculum order; unknown subjects keep their existing
+  // relative position after the curriculum ones.
+  const orderRank = useMemo(() => {
+    const m = new Map<string, number>();
+    gradeOrder.forEach((c, i) => m.set(c.toUpperCase(), i));
+    return m;
+  }, [gradeOrder]);
+  const orderedRows = useMemo(() => {
+    if (!orderRank.size) return rows;
+    return rows
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => {
+        const ra = orderRank.get(a.r.subjectCode.toUpperCase()) ?? 1000 + a.i;
+        const rb = orderRank.get(b.r.subjectCode.toUpperCase()) ?? 1000 + b.i;
+        return ra - rb;
+      })
+      .map((x) => x.r);
+  }, [rows, orderRank]);
+
   const used = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
   const available = subjects.filter((s) => !used.has(s.code.toUpperCase()));
 
@@ -214,7 +248,7 @@ export default function EncodeGrades() {
     const vals = QKEYS.map((q) => mapehPeriod(q)).filter((v): v is number => typeof v === 'number');
     return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : undefined;
   };
-  const firstMapehIndex = rows.findIndex((r) => MAPEH_CODE_SET.has(r.subjectCode.toUpperCase()));
+  const firstMapehIndex = orderedRows.findIndex((r) => MAPEH_CODE_SET.has(r.subjectCode.toUpperCase()));
   // A directly-typed MAPEH row means the school gave a single MAPEH grade — then we DON'T
   // inject the read-only derived parent; the typed row is the editable MAPEH instead.
   const hasMapehRow = rows.some((r) => r.subjectCode.toUpperCase() === 'MAPEH');
@@ -247,6 +281,23 @@ export default function EncodeGrades() {
     const n = toNum(value);
     setRows((rs) => rs.map((r) => (r.subjectCode === code ? { ...r, legacyFinal: n } : r)));
     dirty();
+  };
+
+  // Fill from the registrar-curated curriculum for this grade/strand (Setup ▸
+  // Subjects), adding any missing subjects in that exact order.
+  const fillFromCurriculum = () => {
+    if (!gradeOrder.length) return;
+    const existing = new Set(rows.map((r) => r.subjectCode.toUpperCase()));
+    const additions: Row[] = [];
+    for (const code of gradeOrder) {
+      if (existing.has(code.toUpperCase())) continue;
+      existing.add(code.toUpperCase());
+      additions.push({ subjectCode: code, legacy: {}, raw: {}, letters: {} });
+    }
+    if (additions.length) {
+      setRows((rs) => [...rs, ...additions]);
+      dirty();
+    }
   };
 
   // Prefill the standard learning areas (in report-card order) for this grade level,
@@ -321,7 +372,7 @@ export default function EncodeGrades() {
     setError(null);
     setSaved(false);
     try {
-      const cleaned: QuarterGrade[] = rows
+      const cleaned: QuarterGrade[] = orderedRows
         .filter((r) => r.subjectCode)
         .map((r) => {
           const entry: QuarterGrade = { subjectCode: r.subjectCode.toUpperCase() };
@@ -452,14 +503,14 @@ export default function EncodeGrades() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {orderedRows.length === 0 ? (
               <tr>
                 <td colSpan={ks1 ? periods.length + 2 : periods.length + 4} className="py-3 text-center text-ink-secondary">
-                  No subjects yet for {formatSy(sy)}. Use “Fill standard subjects” below, or add one.
+                  No subjects yet for {formatSy(sy)}. Use “Fill from curriculum” below, or add one.
                 </td>
               </tr>
             ) : (
-              rows.map((r, idx) => {
+              orderedRows.map((r, idx) => {
                 const subj = index.get(r.subjectCode.toUpperCase());
                 const fin = finalOf(r);
                 const isComp = MAPEH_CODE_SET.has(r.subjectCode.toUpperCase());
@@ -714,6 +765,11 @@ export default function EncodeGrades() {
             <Plus className="w-3.5 h-3.5" /> Add
           </Button>
           <span className="mx-1 text-ink-muted">·</span>
+          {gradeOrder.length > 0 && (
+            <Button variant="outline" size="sm" onClick={fillFromCurriculum} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Fill from curriculum ({gradeOrder.length})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={fillTemplate} className="gap-1.5">
             <Plus className="w-3.5 h-3.5" /> Fill standard subjects
             {gradeLevel ? ` (${gradeBand(gradeLevel) === 'lower' ? 'w/ Mother Tongue' : 'w/ EPP-TLE'})` : ''}

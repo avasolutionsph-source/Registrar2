@@ -1,77 +1,86 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Save, Plus, GripVertical } from 'lucide-react';
+import { Save, Plus, GripVertical, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listSubjects, saveSubjects, addSubject } from '@/lib/db';
+import { listSubjects, addSubject, listGradeSubjects, saveGradeSubjects } from '@/lib/db';
 import type { SubjectCategory, SubjectLevel, Subject } from '@/types';
 
 const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
-
-// Education-level groups, in display order. 'uncategorized' catches anything untagged.
 const LEVELS: { key: SubjectLevel; label: string }[] = [
   { key: 'preschool', label: 'Pre-School' },
   { key: 'elem', label: 'Elementary' },
   { key: 'jhs', label: 'Junior High School' },
   { key: 'shs', label: 'Senior High School' },
 ];
-const GROUP_ORDER: (SubjectLevel | 'uncategorized')[] = ['preschool', 'elem', 'jhs', 'shs', 'uncategorized'];
-const GROUP_LABEL: Record<string, string> = {
-  preschool: 'Pre-School',
-  elem: 'Elementary',
-  jhs: 'Junior High School',
-  shs: 'Senior High School',
-  uncategorized: 'Uncategorized',
-};
 
-// Best-effort starting level from the subject name (SHS is the most distinctive);
-// the registrar can re-assign with the dropdown. Only used when a subject is untagged.
-function inferLevel(s: Subject): SubjectLevel | 'uncategorized' {
-  const t = `${s.code} ${s.fullName}`.toLowerCase();
-  const has = (...k: string[]) => k.some((x) => t.includes(x));
-  if (
-    has(
-      '21st century', 'contemporary phil', 'disaster', 'earth and life', 'philosophy of the human',
-      'media and information', 'oral communication', 'personal development', 'pagbasa at pagsuri',
-      'komunikasyon at pananaliksik', 'general math', 'statistics and prob', 'pre-calculus',
-      'basic calculus', 'general physics', 'general chemistry', 'general biology', 'physical science',
-      'understanding culture', 'politics and governance', 'trends, networks', 'entrepreneur',
-      'practical research', 'inquiries', 'piling larangan', 'work immersion', 'empowerment technolog',
-      'introduction to the philosophy',
-    )
-  )
-    return 'shs';
-  if (has('tle', 'technology and livelihood')) return 'jhs';
-  return 'uncategorized';
-}
-
-const effectiveLevel = (s: Subject): SubjectLevel | 'uncategorized' => s.level ?? inferLevel(s);
+// Every grade level / SHS strand the registrar can order subjects for, grouped
+// for the picker. SHS strands are separate because each has its own subject set
+// and order (per the SF9 report cards).
+const GRADE_GROUPS: { label: string; items: { v: string; l: string }[] }[] = [
+  { label: 'Pre-School', items: [
+    { v: 'N1', l: 'Nursery 1' }, { v: 'N2', l: 'Nursery 2' }, { v: 'K', l: 'Kinder' },
+  ] },
+  { label: 'Elementary', items: [
+    { v: 'I', l: 'Grade 1' }, { v: 'II', l: 'Grade 2' }, { v: 'III', l: 'Grade 3' },
+    { v: 'IV', l: 'Grade 4' }, { v: 'V', l: 'Grade 5' }, { v: 'VI', l: 'Grade 6' },
+    { v: 'S', l: 'SNED' },
+  ] },
+  { label: 'Junior High School', items: [
+    { v: 'VII', l: 'Grade 7' }, { v: 'VIII', l: 'Grade 8' }, { v: 'IX', l: 'Grade 9' }, { v: 'X', l: 'Grade 10' },
+  ] },
+  { label: 'Senior High — Grade 11', items: [
+    { v: 'XI-STEM', l: 'Grade 11 — STEM' },
+    { v: 'XI-STEM-ENG', l: 'Grade 11 — STEM (Engineering)' },
+    { v: 'XI-STEM-HA', l: 'Grade 11 — STEM (Health Allied)' },
+    { v: 'XI-ABM', l: 'Grade 11 — ABM' },
+    { v: 'XI-HUMSS', l: 'Grade 11 — HUMSS' },
+    { v: 'XI-ASSH', l: 'Grade 11 — ASSH' },
+    { v: 'XI-GAS', l: 'Grade 11 — GAS' },
+  ] },
+  { label: 'Senior High — Grade 12', items: [
+    { v: 'XII-STEM', l: 'Grade 12 — STEM' },
+    { v: 'XII-STEM-ENG', l: 'Grade 12 — STEM (Engineering)' },
+    { v: 'XII-STEM-HA', l: 'Grade 12 — STEM (Health Allied)' },
+    { v: 'XII-ABM', l: 'Grade 12 — ABM' },
+    { v: 'XII-HUMSS', l: 'Grade 12 — HUMSS' },
+    { v: 'XII-ASSH', l: 'Grade 12 — ASSH' },
+    { v: 'XII-GAS', l: 'Grade 12 — GAS' },
+  ] },
+];
 
 export default function SetupSubjects() {
-  const [list, setList] = useState<Subject[]>([]);
+  const [catalog, setCatalog] = useState<Subject[]>([]);
+  const [gradeLevel, setGradeLevel] = useState<string>('VII');
+  const [codes, setCodes] = useState<string[]>([]); // ordered subject codes for the grade
   const [loading, setLoading] = useState(true);
+  const [loadingGrade, setLoadingGrade] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addCode, setAddCode] = useState('');
+
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overCode, setOverCode] = useState<string | null>(null);
 
-  async function reload() {
-    setList(await listSubjects());
-  }
+  const byCode = useMemo(() => {
+    const m = new Map<string, Subject>();
+    for (const s of catalog) m.set(s.code.toUpperCase(), s);
+    return m;
+  }, [catalog]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await listSubjects();
-        if (!cancelled) setList(rows);
+        const subs = await listSubjects();
+        if (!cancelled) setCatalog(subs);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load subjects.');
       } finally {
@@ -83,18 +92,85 @@ export default function SetupSubjects() {
     };
   }, []);
 
-  // Group subjects (preserving the global order within each group).
-  const groups = useMemo(() => {
-    const by: Record<string, Subject[]> = {};
-    for (const g of GROUP_ORDER) by[g] = [];
-    for (const s of list) by[effectiveLevel(s)].push(s);
-    return by;
-  }, [list]);
+  // Load the selected grade's ordered subjects.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingGrade(true);
+    setDirty(false);
+    setSaved(false);
+    (async () => {
+      try {
+        const c = await listGradeSubjects(gradeLevel);
+        if (!cancelled) setCodes(c);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the grade subjects.');
+      } finally {
+        if (!cancelled) setLoadingGrade(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gradeLevel]);
+
+  const gradeLabel = useMemo(() => {
+    for (const g of GRADE_GROUPS) {
+      const hit = g.items.find((i) => i.v === gradeLevel);
+      if (hit) return hit.l;
+    }
+    return gradeLevel;
+  }, [gradeLevel]);
+
+  const inGrade = new Set(codes.map((c) => c.toUpperCase()));
+  const available = catalog.filter((s) => !inGrade.has(s.code.toUpperCase()));
+
+  const reorder = (fromCode: string, toCode: string) => {
+    if (fromCode === toCode) return;
+    setCodes((cur) => {
+      const from = cur.indexOf(fromCode);
+      const to = cur.indexOf(toCode);
+      if (from < 0 || to < 0) return cur;
+      const next = [...cur];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDirty(true);
+    setSaved(false);
+  };
+
+  const addToGrade = () => {
+    if (!addCode || inGrade.has(addCode.toUpperCase())) return;
+    setCodes((cur) => [...cur, addCode]);
+    setAddCode('');
+    setDirty(true);
+    setSaved(false);
+  };
+  const removeFromGrade = (code: string) => {
+    setCodes((cur) => cur.filter((c) => c !== code));
+    setDirty(true);
+    setSaved(false);
+  };
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveGradeSubjects(gradeLevel, codes);
+      setDirty(false);
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save the order.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setAddError(null);
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const get = (k: string) => String(fd.get(k) ?? '').trim();
     const code = get('code');
     const fullName = get('fullName');
@@ -102,7 +178,7 @@ export default function SetupSubjects() {
       setAddError('Code and full name are required.');
       return;
     }
-    if (list.some((s) => s.code.toLowerCase() === code.toLowerCase())) {
+    if (catalog.some((s) => s.code.toLowerCase() === code.toLowerCase())) {
       setAddError(`A subject with code "${code}" already exists.`);
       return;
     }
@@ -115,8 +191,8 @@ export default function SetupSubjects() {
         category: (get('category') as SubjectCategory) || undefined,
         level: (get('level') as SubjectLevel) || null,
       });
-      await reload();
-      e.currentTarget.reset();
+      setCatalog(await listSubjects());
+      form.reset();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to add the subject.');
     } finally {
@@ -124,66 +200,16 @@ export default function SetupSubjects() {
     }
   }
 
-  const setLevel = (code: string, level: SubjectLevel | '') => {
-    setList((cur) => cur.map((s) => (s.code === code ? { ...s, level: level || undefined } : s)));
-    setDirty(true);
-    setSaved(false);
-  };
-
-  // Drag to reorder — only within the same group (drop onto a row of another level
-  // is ignored; use the level dropdown to move a subject between levels).
-  const reorder = (fromCode: string, toCode: string) => {
-    if (fromCode === toCode) return;
-    setList((cur) => {
-      const from = cur.findIndex((s) => s.code === fromCode);
-      const to = cur.findIndex((s) => s.code === toCode);
-      if (from < 0 || to < 0) return cur;
-      if (effectiveLevel(cur[from]) !== effectiveLevel(cur[to])) return cur; // different group
-      const next = [...cur];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
-    setDirty(true);
-    setSaved(false);
-  };
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    try {
-      // Flatten in group order so the saved sort_order matches the grouped view.
-      const ordered = GROUP_ORDER.flatMap((g) =>
-        groups[g].map((s) => ({ code: s.code, level: g === 'uncategorized' ? null : g })),
-      );
-      await saveSubjects(ordered);
-      setDirty(false);
-      setSaved(true);
-    } catch (e) {
-      setError(
-        e instanceof Error && /column .*level|level.*does not exist/i.test(e.message)
-          ? 'Run setup-subject-level.sql in Supabase first, then try again.'
-          : e instanceof Error
-            ? e.message
-            : 'Failed to save.',
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  let counter = 0; // running row number across groups
-
   return (
     <>
       <Breadcrumb items={[{ label: 'Setup', to: '/setup' }, { label: 'Subjects' }]} />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink-primary">Subjects — Order</h1>
-          <p className="text-[13px] text-ink-secondary mt-1 max-w-[560px]">
-            Grouped by level (Pre-School / Elementary / JHS / SHS). Drag a row by its handle to
-            reorder within a group, or use the level dropdown to move it. This order is followed on
-            the grade sheet, Report Card, and Form 137.
+          <h1 className="text-xl font-bold text-ink-primary">Subjects — Order per Grade</h1>
+          <p className="text-[13px] text-ink-secondary mt-1 max-w-[620px]">
+            Pick a grade level (for Senior High, pick the strand — each has its own subjects and
+            order). The subjects appear in order; drag a row by its handle to reorder, or add / remove
+            subjects. This exact order is followed on the Report Card (SF9) and grade encoding.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -200,129 +226,167 @@ export default function SetupSubjects() {
         </p>
       )}
 
-      <SectionCard heading="Add a subject">
-        <form onSubmit={handleAdd} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
-          <div className="col-span-2">
-            <Field label="Code">
-              <Input name="code" placeholder="e.g. SCI7" required />
-            </Field>
-          </div>
-          <div className="col-span-3">
-            <Field label="Full name">
-              <Input name="fullName" placeholder="e.g. Science 7" required />
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field label="Abbrev.">
-              <Input name="abbreviation" placeholder="e.g. Sci" />
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field label="Level">
-              <Select name="level" defaultValue="">
-                <option value="">— Uncategorized</option>
-                {LEVELS.map((l) => (
-                  <option key={l.key} value={l.key}>
-                    {l.label}
+      <SectionCard heading="Grade level / strand">
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <Select
+            value={gradeLevel}
+            onChange={(e) => setGradeLevel(e.target.value)}
+            className="w-[320px] text-[13px]"
+          >
+            {GRADE_GROUPS.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((i) => (
+                  <option key={i.v} value={i.v}>
+                    {i.l}
                   </option>
                 ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field label="Category" hint="SHS only">
-              <Select name="category" defaultValue="">
-                <option value="">— None</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="col-span-1">
-            <Button type="submit" disabled={adding} className="gap-1 w-full px-2">
-              <Plus className="w-3.5 h-3.5" /> {adding ? '…' : 'Add'}
-            </Button>
-          </div>
-        </form>
-        {addError && <p className="mt-2 px-1 text-[12.5px] text-nps-red">{addError}</p>}
+              </optgroup>
+            ))}
+          </Select>
+          <span className="text-[12px] text-ink-muted">
+            {loadingGrade ? 'Loading…' : `${codes.length} subject${codes.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
       </SectionCard>
 
-      {loading ? (
-        <SectionCard heading="Loading…">
-          <p className="text-[12.5px] text-ink-secondary px-1">Loading…</p>
+      <div className="mt-3.5">
+        <SectionCard heading={`${gradeLabel} — subjects in order`}>
+          {loading || loadingGrade ? (
+            <p className="text-[12.5px] text-ink-secondary px-1">Loading…</p>
+          ) : codes.length === 0 ? (
+            <p className="text-[12.5px] text-ink-secondary px-1">
+              No subjects yet for {gradeLabel}. Add them below.
+            </p>
+          ) : (
+            <ul className="flex flex-col">
+              {codes.map((code, i) => {
+                const s = byCode.get(code.toUpperCase());
+                return (
+                  <li
+                    key={code}
+                    onDragOver={(e) => {
+                      if (dragCode === null) return;
+                      e.preventDefault();
+                      setOverCode(code);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragCode) reorder(dragCode, code);
+                      setDragCode(null);
+                      setOverCode(null);
+                    }}
+                    className={[
+                      'flex items-center gap-3 border-b border-border-soft last:border-0 py-1.5 px-1',
+                      dragCode === code ? 'opacity-40' : '',
+                      overCode === code && dragCode && dragCode !== code ? 'bg-app' : '',
+                    ].join(' ')}
+                  >
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={() => setDragCode(code)}
+                      onDragEnd={() => {
+                        setDragCode(null);
+                        setOverCode(null);
+                      }}
+                      aria-label="Drag to reorder"
+                      className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-ink-muted hover:text-ink-primary"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </button>
+                    <span className="w-7 text-right text-[11.5px] tabular-nums text-ink-muted">{i + 1}</span>
+                    <span className="font-mono text-[12px] text-ink-secondary w-16">{code}</span>
+                    <span className="flex-1 text-[13px] text-ink-primary truncate">
+                      {s?.fullName ?? <span className="text-nps-red">{code} — not in catalog</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeFromGrade(code)}
+                      className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
+                      aria-label="Remove from this grade"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <div className="mt-3 flex items-center gap-2 px-1">
+            <Select
+              value={addCode}
+              onChange={(e) => setAddCode(e.target.value)}
+              className="max-w-[320px] text-[12.5px]"
+            >
+              <option value="">Add subject to {gradeLabel}…</option>
+              {available.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.fullName} ({s.code})
+                </option>
+              ))}
+            </Select>
+            <Button variant="outline" size="sm" onClick={addToGrade} disabled={!addCode} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Add
+            </Button>
+          </div>
         </SectionCard>
-      ) : (
-        <div className="flex flex-col gap-3.5">
-          {GROUP_ORDER.map((g) => {
-            const items = groups[g];
-            if (items.length === 0) return null;
-            return (
-              <SectionCard key={g} heading={`${GROUP_LABEL[g]} · ${items.length}`}>
-                <ul className="flex flex-col">
-                  {items.map((s) => {
-                    counter += 1;
-                    return (
-                      <li
-                        key={s.code}
-                        onDragOver={(e) => {
-                          if (dragCode === null) return;
-                          e.preventDefault();
-                          setOverCode(s.code);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (dragCode) reorder(dragCode, s.code);
-                          setDragCode(null);
-                          setOverCode(null);
-                        }}
-                        className={[
-                          'flex items-center gap-3 border-b border-border-soft last:border-0 py-1.5 px-1',
-                          dragCode === s.code ? 'opacity-40' : '',
-                          overCode === s.code && dragCode && dragCode !== s.code ? 'bg-app' : '',
-                        ].join(' ')}
-                      >
-                        <button
-                          type="button"
-                          draggable
-                          onDragStart={() => setDragCode(s.code)}
-                          onDragEnd={() => {
-                            setDragCode(null);
-                            setOverCode(null);
-                          }}
-                          aria-label="Drag to reorder"
-                          className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-ink-muted hover:text-ink-primary"
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </button>
-                        <span className="w-7 text-right text-[11.5px] tabular-nums text-ink-muted">
-                          {counter}
-                        </span>
-                        <span className="font-mono text-[12px] text-ink-secondary w-16">{s.code}</span>
-                        <span className="flex-1 text-[13px] text-ink-primary truncate">{s.fullName}</span>
-                        <Select
-                          value={s.level ?? ''}
-                          onChange={(e) => setLevel(s.code, e.target.value as SubjectLevel | '')}
-                          className="w-[150px] text-[12px]"
-                        >
-                          <option value="">— Uncategorized</option>
-                          {LEVELS.map((l) => (
-                            <option key={l.key} value={l.key}>
-                              {l.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </SectionCard>
-            );
-          })}
-        </div>
-      )}
+      </div>
+
+      <div className="mt-3.5">
+        <SectionCard heading="Add a new subject to the catalog">
+          <form onSubmit={handleAdd} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
+            <div className="col-span-2">
+              <Field label="Code">
+                <Input name="code" placeholder="e.g. SCI7" required />
+              </Field>
+            </div>
+            <div className="col-span-3">
+              <Field label="Full name">
+                <Input name="fullName" placeholder="e.g. Science 7" required />
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Abbrev.">
+                <Input name="abbreviation" placeholder="e.g. Sci" />
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Level">
+                <Select name="level" defaultValue="">
+                  <option value="">— Uncategorized</option>
+                  {LEVELS.map((l) => (
+                    <option key={l.key} value={l.key}>
+                      {l.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Category" hint="SHS only">
+                <Select name="category" defaultValue="">
+                  <option value="">— None</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="col-span-1">
+              <Button type="submit" disabled={adding} className="gap-1 w-full px-2">
+                <Plus className="w-3.5 h-3.5" /> {adding ? '…' : 'Add'}
+              </Button>
+            </div>
+          </form>
+          {addError && <p className="mt-2 px-1 text-[12.5px] text-nps-red">{addError}</p>}
+          <p className="mt-2 px-1 text-[11.5px] text-ink-muted">
+            New subjects join the catalog; add them to a grade above to place them in its order.
+          </p>
+        </SectionCard>
+      </div>
     </>
   );
 }

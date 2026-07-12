@@ -939,6 +939,31 @@ export async function addSubject(input: SubjectInput): Promise<void> {
   if (error) throw error;
 }
 
+// ── per-grade / per-strand ordered subject list (reg_grade_subjects) ──
+// Drives the report card + grade-encoding subject order. Curated in Setup ▸
+// Subjects by picking a grade/strand and dragging to reorder / add / remove.
+export async function listGradeSubjects(gradeLevel: string): Promise<string[]> {
+  const { data, error } = await client()
+    .from('reg_grade_subjects')
+    .select('subject_code, sort_order')
+    .eq('grade_level', gradeLevel)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => str(r.subject_code));
+}
+
+// Replace a grade/strand's whole ordered subject list (reorder + add + remove).
+export async function saveGradeSubjects(gradeLevel: string, orderedCodes: string[]): Promise<void> {
+  const c = client();
+  const del = await c.from('reg_grade_subjects').delete().eq('grade_level', gradeLevel);
+  if (del.error) throw del.error;
+  if (!orderedCodes.length) return;
+  const { error } = await c.from('reg_grade_subjects').insert(
+    orderedCodes.map((code, i) => ({ grade_level: gradeLevel, subject_code: code, sort_order: i + 1 })),
+  );
+  if (error) throw error;
+}
+
 // ── teaching load (which teacher teaches which subject in a section) ──
 // One row per (class, subject). teacherId may be null while a subject is
 // offered in the section but not yet assigned to a teacher. Backs the acad

@@ -172,15 +172,21 @@ export interface SubjectRow extends QuarterGrade {
 export function buildSubjectRows(
   list: QuarterGrade[],
   index: Map<string, Subject>,
+  orderCodes?: string[], // registrar-curated per-grade/strand order (Setup ▸ Subjects)
 ): SubjectRow[] {
+  // When a per-grade order is supplied, it wins; unknown subjects keep their
+  // relative position after the ordered ones.
+  const rank = new Map<string, number>();
+  (orderCodes ?? []).forEach((c, i) => rank.set(c.toUpperCase(), i));
   const rows = list
-    .map((g) => {
+    .map((g, i) => {
       const subj = index.get(g.subjectCode.toUpperCase());
+      const curr = rank.get(g.subjectCode.toUpperCase());
       return {
         ...g,
         name: g.customName?.trim() || subj?.fullName || FALLBACK_SUBJECT_NAMES[g.subjectCode.toUpperCase()] || g.subjectCode,
         category: subj?.category || 'Core',
-        order: subj?.order ?? 9999,
+        order: curr != null ? curr : rank.size ? 1000 + i : (subj?.order ?? 9999),
         remark: remark(g.final),
       } as SubjectRow;
     })
