@@ -166,9 +166,13 @@ export function ReportCard138({ student, subjects, sy }: Props) {
     modal(pcols.map((q) => toLetter(get(q))));
 
   return (
-    <div className="mx-auto w-full font-serif text-[6px] leading-[1.06] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">
+    <div
+      className="mx-auto w-full text-[6.6px] leading-[1.12] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
+    >
       {/* Compact SF9 sized to fit HALF crosswise short bond (8.5 x 5.5in) for every level,
-          including the 16-subject Grade XII. */}
+          including the 16-subject Grade XII. Canva Sans (a rounded, highly legible sans) is
+          used for readability; falls back to a similar sans when it isn't installed. */}
       <style>{`@media print { @page { size: 8.5in 5.5in; margin: 0.15in; } }`}</style>
 
       <div className="text-[5px]">School Form 9</div>
