@@ -91,6 +91,7 @@ export default function EncodeGrades() {
   const [weights, setWeights] = useState(AREA_WEIGHTS); // registrar-configured WW/PT/ST, DepEd defaults until loaded
   const [years, setYears] = useState<string[]>([]);
   const [sy, setSy] = useState('');
+  const [activeSy, setActiveSy] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
   const [addCode, setAddCode] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // subjectCode being raw-edited
@@ -127,6 +128,7 @@ export default function EncodeGrades() {
         ).sort();
         setYears(all);
         const active = sys.find((y) => y.isActive)?.code as string | undefined;
+        setActiveSy(active ?? '');
         setSy(
           (wanted && all.includes(wanted) ? wanted : undefined) ??
             active ??
@@ -309,8 +311,12 @@ export default function EncodeGrades() {
     dirty();
   };
 
+  // Once a new school year is active, prior years are view-only (SY codes like
+  // "2025-2026" sort chronologically as strings). Registrar edits the current SY.
+  const locked = !!sy && !!activeSy && sy < activeSy;
+
   async function save() {
-    if (!student || !sy) return;
+    if (!student || !sy || locked) return;
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -396,7 +402,7 @@ export default function EncodeGrades() {
           <Button variant="outline" onClick={() => navigate(`/students/${student.lrn}`)} className="gap-2">
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </Button>
-          <Button onClick={save} disabled={saving} className="gap-2">
+          <Button onClick={save} disabled={saving || locked} className="gap-2">
             <Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save grades'}
           </Button>
         </div>
@@ -423,6 +429,14 @@ export default function EncodeGrades() {
           {error && <span className="text-[12px] text-destructive ml-auto">{error}</span>}
         </div>
 
+        {locked && (
+          <div className="mb-3 mx-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+            <span className="font-semibold">View only.</span> {formatSy(sy)} is a past school year — grades
+            can no longer be edited now that {formatSy(activeSy)} is active. Switch to {formatSy(activeSy)} to encode.
+          </div>
+        )}
+
+        <fieldset disabled={locked} className="min-w-0 border-0 p-0 m-0 disabled:opacity-70">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="text-ink-muted text-[11px] uppercase border-b border-border">
@@ -711,6 +725,7 @@ export default function EncodeGrades() {
             ? 'Kinder–Grade 3 use descriptive letters per DepEd guidelines; pick a letter per period.'
             : `Type each period grade directly (for transferees / prior-school records), or open the sliders icon to encode raw WW/PT/EX scores (teacher workflow — a computed period grade then can't be typed over). The Final defaults to the average of the ${periods.length} ${periods.length === 3 ? 'terms' : 'quarters'} — type a value to override it (e.g. a transferee's SF10 Final Rating). MAPEH is graded through Music & Arts and Physical Education & Health; its line is computed automatically.`}
         </p>
+        </fieldset>
       </SectionCard>
     </div>
   );
