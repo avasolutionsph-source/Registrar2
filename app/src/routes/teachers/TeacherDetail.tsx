@@ -13,7 +13,7 @@ import {
   listStudentsLite,
   setClassAdviser,
   listSubjects,
-  listClassSubjects,
+  listTeacherLoad,
   assignTeacherSubject,
 } from '@/lib/db';
 import { subjectFitsSection } from '@/lib/forms';
@@ -31,10 +31,14 @@ export default function TeacherDetail() {
   const [assignErr, setAssignErr] = useState<string | null>(null);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  // classId → (subjectCode → teacherId|null): who teaches each offered subject.
-  const [classLoads, setClassLoads] = useState<Record<string, Record<string, number | null>>>({});
-  const [subjBusy, setSubjBusy] = useState<string | null>(null); // "classId:subjectCode"
-  const [subjErr, setSubjErr] = useState<string | null>(null);
+  // This teacher's teaching assignments (which subject in which section).
+  const [myLoad, setMyLoad] = useState<{ classId: string; subjectCode: string }[]>([]);
+  const [sectionText, setSectionText] = useState('');
+  const [selSection, setSelSection] = useState(''); // classId
+  const [subjectText, setSubjectText] = useState('');
+  const [selSubject, setSelSubject] = useState(''); // subject code
+  const [taBusy, setTaBusy] = useState(false);
+  const [taErr, setTaErr] = useState<string | null>(null);
 
   const numId = Number(id);
 
@@ -46,17 +50,19 @@ export default function TeacherDetail() {
         return;
       }
       try {
-        const [t, classes, studs, subs] = await Promise.all([
+        const [t, classes, studs, subs, load] = await Promise.all([
           getTeacher(numId),
           listClasses(),
           listStudentsLite(),
           listSubjects(),
+          listTeacherLoad(numId),
         ]);
         if (cancelled) return;
         setTeacher(t);
         setAllClasses(classes);
         setStudents(studs);
         setSubjects(subs);
+        setMyLoad(load);
       } catch {
         if (!cancelled) setTeacher(null);
       }
@@ -80,52 +86,64 @@ export default function TeacherDetail() {
     return m;
   }, [advisedClasses, students]);
 
-  // Load each advised section's teaching load (which teacher teaches each subject)
-  // so the checkboxes reflect the current state and we can toggle non-destructively.
-  const advisedIds = advisedClasses.map((c) => c.id).join(',');
-  useEffect(() => {
-    let cancelled = false;
-    const ids = advisedIds ? advisedIds.split(',') : [];
-    if (ids.length === 0) {
-      setClassLoads({});
-      return;
-    }
-    (async () => {
-      try {
-        const entries = await Promise.all(
-          ids.map(async (cid) => {
-            const rows = await listClassSubjects(cid);
-            const map: Record<string, number | null> = {};
-            for (const r of rows) map[r.subjectCode] = r.teacherId;
-            return [cid, map] as const;
-          }),
-        );
-        if (!cancelled) setClassLoads(Object.fromEntries(entries));
-      } catch {
-        /* leave loads empty; toggles will still create rows */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [advisedIds]);
+  // ── Teaching Assignments: choose a section → a subject → Assign ──
+  const sectionLabel = (c: ClassRecord) => `Grade ${c.gradeLevel} · ${c.sectionName}`;
+  const classById = useMemo(() => {
+    const m = new Map<string, ClassRecord>();
+    for (const c of allClasses) m.set(c.id, c);
+    return m;
+  }, [allClasses]);
+  const subjectByCode = useMemo(() => {
+    const m = new Map<string, Subject>();
+    for (const s of subjects) m.set(s.code.toUpperCase(), s);
+    return m;
+  }, [subjects]);
+  const selSectionObj = selSection ? classById.get(selSection) : undefined;
+  const subjOptions = useMemo(
+    () => (selSectionObj ? subjects.filter((s) => subjectFitsSection(s.level, selSectionObj.gradeLevel)) : []),
+    [subjects, selSectionObj],
+  );
+  const subjLabel = (s: Subject) => `${s.fullName} (${s.code})`;
 
-  async function toggleSubject(cls: ClassRecord, subjectCode: string, teach: boolean) {
-    const key = `${cls.id}:${subjectCode}`;
-    setSubjBusy(key);
-    setSubjErr(null);
+  async function addAssignment() {
+    if (!selSection || !selSubject) return;
+    setTaBusy(true);
+    setTaErr(null);
     try {
-      await assignTeacherSubject(cls.id, subjectCode, teach ? numId : null);
-      setClassLoads((prev) => ({
-        ...prev,
-        [cls.id]: { ...(prev[cls.id] ?? {}), [subjectCode]: teach ? numId : null },
-      }));
+      await assignTeacherSubject(selSection, selSubject, numId);
+      setMyLoad((prev) =>
+        prev.some((x) => x.classId === selSection && x.subjectCode === selSubject)
+          ? prev
+          : [...prev, { classId: selSection, subjectCode: selSubject }],
+      );
+      setSelSubject('');
+      setSubjectText('');
     } catch (e) {
-      setSubjErr(e instanceof Error ? e.message : 'Could not save the subject.');
+      setTaErr(e instanceof Error ? e.message : 'Could not assign the subject.');
     } finally {
-      setSubjBusy(null);
+      setTaBusy(false);
     }
   }
+
+  async function removeAssignment(classId: string, subjectCode: string) {
+    setTaErr(null);
+    try {
+      await assignTeacherSubject(classId, subjectCode, null);
+      setMyLoad((prev) => prev.filter((x) => !(x.classId === classId && x.subjectCode === subjectCode)));
+    } catch (e) {
+      setTaErr(e instanceof Error ? e.message : 'Could not remove the assignment.');
+    }
+  }
+
+  // Assignments grouped by section for display.
+  const loadBySection = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const a of myLoad) {
+      if (!m.has(a.classId)) m.set(a.classId, []);
+      m.get(a.classId)!.push(a.subjectCode);
+    }
+    return m;
+  }, [myLoad]);
 
   // Sections available to assign: the current SY's sections this teacher doesn't already advise.
   const targetSy =
@@ -295,67 +313,115 @@ export default function TeacherDetail() {
             )}
           </SectionCard>
 
-          <SectionCard id="subjects" heading="Subjects Taught">
+          <SectionCard id="subjects" heading="Teaching Assignments">
             <p className="text-[12px] text-ink-secondary px-1 mb-3">
-              Tick the subjects this teacher handles in each advised section. What you tick here is
-              exactly what shows up in the teacher's Gradebook. (For subjects in sections this teacher
-              does <span className="font-medium">not</span> advise, use the section's own{' '}
-              <span className="font-medium">Load</span> tab.)
+              Choose a section, then a subject, then <span className="font-medium">Assign</span>. What
+              you assign here is exactly what shows up in the teacher's Gradebook (subjects + the
+              section's class list).
             </p>
-            {subjErr && <p className="mb-2 px-1 text-[12px] text-nps-red">{subjErr}</p>}
-            {advisedClasses.length === 0 ? (
-              <p className="text-[12.5px] text-ink-secondary px-1">
-                Assign an advisory section above first, then tick the subjects here.
-              </p>
+
+            {/* Choose a section → a subject → Assign */}
+            <div className="flex flex-wrap items-end gap-2 mb-2 px-1">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-ink-muted">Section</label>
+                <input
+                  list="ta-sections"
+                  value={sectionText}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSectionText(v);
+                    const hit = allClasses.find((c) => c.sy === targetSy && sectionLabel(c) === v);
+                    setSelSection(hit ? hit.id : '');
+                    setSelSubject('');
+                    setSubjectText('');
+                  }}
+                  placeholder="Search a section…"
+                  className="w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                />
+                <datalist id="ta-sections">
+                  {allClasses
+                    .filter((c) => c.sy === targetSy)
+                    .sort((a, b) => a.gradeLevel.localeCompare(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName))
+                    .map((c) => (
+                      <option key={c.id} value={sectionLabel(c)} />
+                    ))}
+                </datalist>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-ink-muted">Subject</label>
+                <input
+                  list="ta-subjects"
+                  value={subjectText}
+                  disabled={!selSection}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSubjectText(v);
+                    const hit = subjOptions.find((s) => subjLabel(s) === v);
+                    setSelSubject(hit ? hit.code : '');
+                  }}
+                  placeholder={selSection ? 'Search a subject…' : 'Choose a section first'}
+                  className="w-[260px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                />
+                <datalist id="ta-subjects">
+                  {subjOptions.map((s) => (
+                    <option key={s.code} value={subjLabel(s)} />
+                  ))}
+                </datalist>
+              </div>
+              <Button size="sm" disabled={!selSection || !selSubject || taBusy} onClick={addAssignment} className="gap-1.5">
+                <FileText className="w-3.5 h-3.5" /> {taBusy ? 'Assigning…' : 'Assign'}
+              </Button>
+            </div>
+            {taErr && <p className="mb-2 px-1 text-[12px] text-nps-red">{taErr}</p>}
+
+            {/* Current assignments, grouped by section */}
+            {myLoad.length === 0 ? (
+              <p className="text-[12.5px] text-ink-secondary px-1">No teaching assignments yet.</p>
             ) : (
-              <div className="flex flex-col gap-4">
-                {advisedClasses.map((cls) => {
-                  const applicable = subjects.filter((s) => subjectFitsSection(s.level, cls.gradeLevel));
-                  const load = classLoads[cls.id] ?? {};
-                  return (
-                    <div key={cls.id}>
-                      <div className="text-[12.5px] font-semibold text-ink-primary mb-1.5 px-1">
-                        Grade {cls.gradeLevel} · {cls.sectionName}{' '}
-                        <span className="text-ink-muted font-normal">· {cls.sy}</span>
-                        <span className="ml-1.5 inline-block rounded bg-app border border-border-soft px-1.5 py-0.5 text-[10px] font-normal text-ink-muted align-middle">
-                          Advisor
-                        </span>
-                      </div>
-                      {applicable.length === 0 ? (
-                        <p className="px-1 text-[11.5px] text-ink-muted italic">
-                          No subjects set up for this level yet (Setup → Subjects).
-                        </p>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          {applicable.map((s) => {
-                            const holder = load[s.code];
-                            const mine = holder === numId;
-                            const takenByOther = holder != null && holder !== numId;
-                            const key = `${cls.id}:${s.code}`;
+              <div className="flex flex-col gap-3 mt-1">
+                {[...loadBySection.entries()]
+                  .sort((a, b) => {
+                    const ca = classById.get(a[0]);
+                    const cb = classById.get(b[0]);
+                    return (ca && cb ? ca.gradeLevel.localeCompare(cb.gradeLevel) || ca.sectionName.localeCompare(cb.sectionName) : 0);
+                  })
+                  .map(([cid, codes]) => {
+                    const cls = classById.get(cid);
+                    return (
+                      <div key={cid}>
+                        <div className="text-[12.5px] font-semibold text-ink-primary mb-1 px-1">
+                          {cls ? `Grade ${cls.gradeLevel} · ${cls.sectionName}` : cid}
+                          {cls && <span className="text-ink-muted font-normal"> · {cls.sy}</span>}
+                          {cls && cls.adviser.id === numId && (
+                            <span className="ml-1.5 inline-block rounded bg-app border border-border-soft px-1.5 py-0.5 text-[10px] font-normal text-ink-muted align-middle">
+                              Advisor
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 px-1">
+                          {codes.map((code) => {
+                            const s = subjectByCode.get(code.toUpperCase());
                             return (
-                              <label
-                                key={s.code}
-                                className="flex items-center gap-2 text-[12.5px] text-ink-primary px-1 py-0.5 cursor-pointer"
+                              <span
+                                key={code}
+                                className="group inline-flex items-center gap-1.5 rounded bg-app border border-border-soft px-2 py-1 text-[12px] text-ink-primary"
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={mine}
-                                  disabled={subjBusy === key}
-                                  onChange={(e) => toggleSubject(cls, s.code, e.target.checked)}
-                                  className="accent-nps-red"
-                                />
-                                <span className="truncate">{s.fullName}</span>
-                                {takenByOther && (
-                                  <span className="text-[10.5px] text-ink-muted shrink-0">· taken</span>
-                                )}
-                              </label>
+                                {s?.fullName ?? code}
+                                <button
+                                  onClick={() => removeAssignment(cid, code)}
+                                  className="text-ink-muted hover:text-nps-red"
+                                  aria-label="Remove assignment"
+                                  title="Remove"
+                                >
+                                  ×
+                                </button>
+                              </span>
                             );
                           })}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </SectionCard>
