@@ -5,6 +5,7 @@ import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { listClasses, getActiveSchoolYear, type StudentInput } from '@/lib/db';
+import { displayLrn } from '@/lib/lrn';
 import type { Student, ClassRecord, Gender, CredentialStatus } from '@/types';
 
 const RELIGIONS = [
@@ -151,7 +152,7 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       <SectionCard heading="Identity">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="LRN" hint="12 digits. Leave blank if none yet (Nursery/Kinder).">
-            <Input name="lrn" maxLength={12} placeholder="403875240042 (or blank)" defaultValue={student?.lrn} />
+            <Input name="lrn" maxLength={12} placeholder="403875240042 (or blank)" defaultValue={displayLrn(student?.lrn)} />
           </Field>
           <Field label="Student No.">
             <Input

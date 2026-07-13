@@ -14,6 +14,7 @@ import {
   MONTHS,
 } from '@/lib/forms';
 import { isDescriptiveLevel } from '@/lib/grading';
+import { displayLrn } from '@/lib/lrn';
 import { ageOnDate } from '@/lib/format';
 
 // NPS Report Card — School Form 9 "Learner's Performance Report" (SY 2026-2027).
@@ -219,7 +220,7 @@ export function ReportCard138({ student, subjects, sy }: Props) {
 
           <div className="mt-1">
             <div><b>Name:</b> {fullName} &nbsp; <b>Age:</b> {age ?? ''} &nbsp; <b>Gender:</b> {student.gender}</div>
-            <div><b>LRN:</b> {student.lrn} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
+            <div><b>LRN:</b> {displayLrn(student.lrn)} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
             <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> {isSHS ? track : '____________'}</div>
           </div>
 

@@ -4,6 +4,7 @@
 
 import { supabase } from './supabase';
 import { idbGet, idbSet, SNAP } from './offlineCache';
+import { isPlaceholderLrn } from './lrn';
 import {
   AREA_GROUPS,
   isAreaGroup,
@@ -374,6 +375,15 @@ export async function importStudents(students: Student[]): Promise<number> {
 // other JSONB columns intact only because the form carries them through.
 export async function saveStudent(input: StudentInput, originalLrn?: string): Promise<void> {
   const row = studentToRow(input);
+  // LRN is the primary key, so a learner with no LRN yet (Nursery/Kinder before
+  // LIS enrolment) can't be stored as '' — a second one would collide (409).
+  // Give them a unique placeholder key instead; keep a stable one across edits.
+  const clean = (input.lrn ?? '').trim();
+  row.lrn = clean
+    ? clean
+    : originalLrn && isPlaceholderLrn(originalLrn)
+      ? originalLrn
+      : `NOLRN-${crypto.randomUUID()}`;
   const c = client();
   const { error } = originalLrn
     ? await c.from('reg_students').update(row).eq('lrn', originalLrn)

@@ -36,6 +36,7 @@ import {
   recommendedFormVariant,
 } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
+import { displayLrn } from '@/lib/lrn';
 import type { CredentialState, ClassRecord, Student, Subject } from '@/types';
 
 const REF_DATE = '2026-05-04'; // reference "today" for age display
@@ -192,7 +193,7 @@ export default function StudentDetail() {
           name={`${student.firstName} ${student.lastName}`}
           subtitle={klass ? `Grade ${klass.gradeLevel} · ${klass.sectionName}` : '—'}
           ids={[
-            { label: 'LRN', value: <span className="font-mono">{student.lrn}</span> },
+            { label: 'LRN', value: <span className="font-mono">{displayLrn(student.lrn) || '—'}</span> },
             { label: 'Student No.', value: <span className="font-mono">{student.studentNo || '—'}</span> },
             { label: 'Status', value: <StatusBadge tone="ok">{student.status}</StatusBadge> },
           ]}

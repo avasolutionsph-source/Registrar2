@@ -4,6 +4,16 @@ export function isValidLrn(lrn: string): boolean {
   return LRN_REGEX.test(lrn);
 }
 
+// A learner with no LRN yet is stored under a unique "NOLRN-…" placeholder key
+// (LRN is the primary key, so '' can't be reused). These helpers hide that
+// placeholder from the UI — it must read as "no LRN", not as a real value.
+export function isPlaceholderLrn(lrn?: string | null): boolean {
+  return !!lrn && lrn.startsWith('NOLRN-');
+}
+export function displayLrn(lrn?: string | null): string {
+  return !lrn || isPlaceholderLrn(lrn) ? '' : lrn;
+}
+
 // Best-effort school-ID prefix. Preschool learners (Nursery/Kinder) have no LRN yet
 // (assigned only once enrolled in the DepEd LIS), so return '' instead of throwing —
 // a missing/short LRN must never crash a page that lists such learners.

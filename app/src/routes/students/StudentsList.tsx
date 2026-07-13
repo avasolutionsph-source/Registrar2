@@ -10,6 +10,7 @@ import { listStudentsLite, listClasses, listStudentsBySy, type StudentYear } fro
 import { isAllTime } from '@/types';
 import type { ClassRecord, SchoolYear } from '@/types';
 import { formatLastFirstMiddle } from '@/lib/format';
+import { displayLrn } from '@/lib/lrn';
 import { gradeLabel } from '@/lib/forms';
 
 type RegMode = 'current' | 'old';
@@ -67,7 +68,7 @@ export default function StudentsList() {
       key: 'lrn',
       header: 'LRN',
       width: '15%',
-      render: (s) => <span className="font-mono">{s.lrn}</span>,
+      render: (s) => <span className="font-mono">{displayLrn(s.lrn) || '—'}</span>,
     },
     {
       key: 'class',
@@ -107,7 +108,7 @@ export default function StudentsList() {
   };
   const csvColumns = [
     { header: 'Name', value: (s: StudentYear) => formatLastFirstMiddle(s) },
-    { header: 'LRN', value: (s: StudentYear) => s.lrn },
+    { header: 'LRN', value: (s: StudentYear) => displayLrn(s.lrn) },
     { header: 'Student No.', value: (s: StudentYear) => s.studentNo },
     { header: isOld ? 'Grade that year' : 'Class', value: classLabel },
     { header: 'Sex', value: (s: StudentYear) => s.gender },
@@ -136,7 +137,7 @@ export default function StudentsList() {
         <DataTable<StudentYear>
           data={visible}
           columns={cols}
-          searchableText={(s) => `${formatLastFirstMiddle(s)} ${s.lrn} ${s.studentNo}`}
+          searchableText={(s) => `${formatLastFirstMiddle(s)} ${displayLrn(s.lrn)} ${s.studentNo}`}
           onRowClick={(s) => navigate(`/students/${s.lrn}`)}
           searchPlaceholder="Search by name, LRN, or Student No.…"
           emptyText={
