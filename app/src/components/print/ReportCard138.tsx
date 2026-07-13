@@ -95,20 +95,15 @@ const CORE_VALUES: { key: string; label: string }[] = [
   { key: 'socialResponsibility', label: 'Social Responsibility' },
 ];
 function programRowsFor(ord: number): { key: string; label: string }[] {
-  if (ord >= 7) return [
-    { key: 'homeroom', label: 'Homeroom Guidance' },
-    { key: 'sap', label: 'SAP' },
-  ];
-  if (ord >= 4) return [
-    { key: 'homeroom', label: 'Homeroom Guidance' },
-    { key: 'sap', label: 'SAP' },
-    { key: 'scouting', label: 'Scouting' },
-  ];
-  return [
-    { key: 'computer', label: 'Computer' },
-    { key: 'homeroom', label: 'Homeroom Guidance' },
-    { key: 'sap', label: 'SAP' },
-  ];
+  // Grade 1-3: Computer; Grade 4-6: Scouting; Grade 7-10: neither. All keep
+  // Homeroom Guidance + SAP. Senior High (>=11) & pre-school: none.
+  if (ord >= 11 || ord < 1) return [];
+  const rows: { key: string; label: string }[] = [];
+  if (ord <= 3) rows.push({ key: 'computer', label: 'Computer' });
+  else if (ord <= 6) rows.push({ key: 'scouting', label: 'Scouting' });
+  rows.push({ key: 'homeroom', label: 'Homeroom Guidance' });
+  rows.push({ key: 'sap', label: 'SAP' });
+  return rows;
 }
 
 const DESCRIPTORS: [string, string, string][] = [
