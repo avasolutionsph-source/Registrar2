@@ -396,6 +396,28 @@ export async function deleteStudent(lrn: string): Promise<void> {
   if (error) throw error;
 }
 
+// Targeted update of just the enrolment status ('Active' | 'Transferred' |
+// 'Dropped' | 'Graduated'). Purely a status change — no records are removed, the
+// learner stays on the master list and in their class list.
+export async function setStudentStatus(lrn: string, status: Student['status']): Promise<void> {
+  const { error } = await client().from('reg_students').update({ status }).eq('lrn', lrn);
+  if (error) throw error;
+}
+
+// Whether a learner has academic records (encoded grades or enrolment history).
+// Used to guard a permanent delete so real records are never silently destroyed.
+export async function studentHasRecords(lrn: string): Promise<boolean> {
+  const { data, error } = await client()
+    .from('reg_students')
+    .select('grades,enrolment_history')
+    .eq('lrn', lrn)
+    .maybeSingle();
+  if (error) throw error;
+  const grades = (data?.grades ?? []) as unknown[];
+  const history = (data?.enrolment_history ?? []) as unknown[];
+  return (Array.isArray(grades) && grades.length > 0) || (Array.isArray(history) && history.length > 0);
+}
+
 // Targeted update of just the grades JSONB (used by the grade encoder) so other
 // columns can never be clobbered.
 export async function saveStudentGrades(lrn: string, grades: Student['grades']): Promise<void> {
