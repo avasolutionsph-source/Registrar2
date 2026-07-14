@@ -378,7 +378,7 @@ export default function TeacherDetail() {
             {myLoad.length === 0 ? (
               <p className="text-[12.5px] text-ink-secondary px-1">No teaching assignments yet.</p>
             ) : (
-              <div className="flex flex-col gap-3 mt-1">
+              <div className="flex flex-col gap-2.5 mt-1">
                 {[...loadBySection.entries()]
                   .sort((a, b) => {
                     const ca = classById.get(a[0]);
@@ -388,28 +388,28 @@ export default function TeacherDetail() {
                   .map(([cid, codes]) => {
                     const cls = classById.get(cid);
                     return (
-                      <div key={cid}>
-                        <div className="text-[12.5px] font-semibold text-ink-primary mb-1 px-1">
+                      <div key={cid} className="rounded-lg border border-border-soft bg-app/40 px-3 py-2.5">
+                        <div className="text-[12.5px] font-semibold text-ink-primary mb-2">
                           {cls ? `Grade ${cls.gradeLevel} · ${cls.sectionName}` : cid}
                           {cls && <span className="text-ink-muted font-normal"> · {cls.sy}</span>}
                           {cls && cls.adviser.id === numId && (
-                            <span className="ml-1.5 inline-block rounded bg-app border border-border-soft px-1.5 py-0.5 text-[10px] font-normal text-ink-muted align-middle">
+                            <span className="ml-1.5 inline-block rounded bg-panel border border-border-soft px-1.5 py-0.5 text-[10px] font-normal text-ink-muted align-middle">
                               Advisor
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5 px-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {codes.map((code) => {
                             const s = subjectByCode.get(code.toUpperCase());
                             return (
                               <span
                                 key={code}
-                                className="group inline-flex items-center gap-1.5 rounded bg-app border border-border-soft px-2 py-1 text-[12px] text-ink-primary"
+                                className="inline-flex items-center rounded-full border border-border-soft bg-panel text-[12px] text-ink-primary overflow-hidden"
                               >
-                                {s?.fullName ?? code}
+                                <span className="pl-3 pr-2 py-1">{s?.fullName ?? code}</span>
                                 <button
                                   onClick={() => removeAssignment(cid, code)}
-                                  className="text-ink-muted hover:text-nps-red"
+                                  className="px-2 py-1 text-ink-muted hover:text-nps-red border-l border-border-soft"
                                   aria-label="Remove assignment"
                                   title="Remove"
                                 >
