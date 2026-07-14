@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -68,10 +68,12 @@ export default function StudentsList() {
 
   // Per-row actions (registrar-only): change status or permanently delete.
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  // The row menu is positioned as a FIXED overlay so the table's overflow-hidden
+  // wrapper can't clip it. We capture the Edit button's screen position on open.
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const [confirm, setConfirm] = useState<StudentYear | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [busyLrn, setBusyLrn] = useState<string | null>(null);
-  const menuAnchor = useRef<HTMLDivElement | null>(null);
 
   // Close the row menu when clicking anywhere else.
   useEffect(() => {
@@ -176,12 +178,18 @@ export default function StudentsList() {
             header: '',
             width: '6%',
             render: (s: StudentYear) => (
-              <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMenuFor(menuFor === s.lrn ? null : s.lrn);
+                    if (menuFor === s.lrn) {
+                      setMenuFor(null);
+                      return;
+                    }
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                    setMenuFor(s.lrn);
                   }}
                   disabled={busyLrn === s.lrn}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-ink-secondary hover:bg-app hover:text-ink-primary disabled:opacity-50"
@@ -191,9 +199,9 @@ export default function StudentsList() {
                 </button>
                 {menuFor === s.lrn && (
                   <div
-                    ref={menuAnchor}
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-8 z-20 w-44 rounded-md border border-border bg-panel shadow-lg py-1 text-[12.5px]"
+                    style={{ position: 'fixed', top: menuPos.top, right: menuPos.right }}
+                    className="z-50 w-44 rounded-md border border-border bg-panel shadow-lg py-1 text-[12.5px]"
                   >
                     {s.status !== 'Transferred' && (
                       <button onClick={() => changeStatus(s, 'Transferred')} className="block w-full text-left px-3 py-1.5 text-ink-primary hover:bg-app">
