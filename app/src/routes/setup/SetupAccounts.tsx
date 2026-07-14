@@ -24,8 +24,37 @@ const ROLES: { value: string; label: string }[] = [
   { value: 'admissions', label: 'Admissions' },
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'teacher', label: 'Teacher' },
+  { value: 'sas_clve', label: 'Subject Area Supervisor — Christian Living and Values Education' },
+  { value: 'sas_english', label: 'Subject Area Supervisor — Communication Arts / English' },
+  { value: 'sas_math', label: 'Subject Area Supervisor — Mathematics' },
+  { value: 'sas_science', label: 'Subject Area Supervisor — Science' },
+  { value: 'sas_ap', label: 'Subject Area Supervisor — Araling Panlipunan' },
+  { value: 'sas_filipino', label: 'Subject Area Supervisor — Filipino' },
+  { value: 'sas_mapeh', label: 'Subject Area Supervisor — MAPEH' },
+  { value: 'sas_ict', label: 'Subject Area Supervisor — Information and Communication Technology (ICT)' },
+  { value: 'sas_epp_tle', label: 'Subject Area Supervisor — EPP / TLE' },
 ];
 const roleLabel = (v: string) => ROLES.find((r) => r.value === v)?.label ?? v;
+
+// What each role actually opens for the account — shown so that whoever sets a
+// teacher's roles can immediately see the access those roles grant.
+const ROLE_ACCESS: Record<string, string> = {
+  admin: 'Full admin — every office',
+  registrar: 'Registrar system',
+  hr: 'HR / Payroll',
+  finance: 'Finance',
+  guidance: 'Guidance dashboards',
+  guidance_elementary: 'Guidance (Preschool & Elementary)',
+  acad_gs: 'Academic Coordinator office — Grade School (teaching loads)',
+  acad_jhs: 'Academic Coordinator office — Junior High (teaching loads)',
+  acad_shs: 'Academic Coordinator office — Senior High (teaching loads)',
+  property: 'Property / CMDO inventory',
+  marketing: 'Marketing office',
+  admissions: 'Admissions office',
+  maintenance: 'Facilities / Equipment',
+  teacher: 'Teacher portal — Gradebook & advisory class record',
+};
+const roleAccess = (v: string) => ROLE_ACCESS[v] ?? 'Portal access';
 
 export default function SetupAccounts() {
   const [rows, setRows] = useState<UserRoleRow[] | null>(null);
@@ -81,6 +110,19 @@ export default function SetupAccounts() {
     (r) => !search.trim() || `${r.email} ${r.role}`.toLowerCase().includes(search.trim().toLowerCase()),
   );
 
+  // Group the flat (email, role) rows into one entry per account so that the
+  // full set of roles — and the access each one grants — is visible together.
+  const accounts = Array.from(
+    filtered.reduce((map, r) => {
+      const list = map.get(r.email) ?? [];
+      list.push(r.role);
+      map.set(r.email, list);
+      return map;
+    }, new Map<string, string[]>()),
+  )
+    .map(([email, roleList]) => ({ email, roles: roleList.slice().sort() }))
+    .sort((a, b) => a.email.localeCompare(b.email));
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Setup', to: '/setup' }, { label: 'Accounts & Roles' }]} />
@@ -130,7 +172,7 @@ export default function SetupAccounts() {
 
       <div className="mt-3.5">
         <SectionCard
-          heading={rows === null ? 'Loading…' : `${filtered.length} account${filtered.length === 1 ? '' : 's'}`}
+          heading={rows === null ? 'Loading…' : `${accounts.length} account${accounts.length === 1 ? '' : 's'}`}
         >
           <div className="flex justify-end mb-2 px-1">
             <Input
@@ -140,40 +182,34 @@ export default function SetupAccounts() {
               className="max-w-[260px]"
             />
           </div>
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th className="py-1.5 pr-3">Email</th>
-                <th className="py-1.5 pr-3 w-[42%]">Role</th>
-                <th className="py-1.5 w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={`${r.email}|${r.role}`} className="border-b border-border-soft last:border-0">
-                  <td className="py-1.5 pr-3 text-ink-primary">{r.email}</td>
-                  <td className="py-1.5 pr-3 text-ink-primary">{roleLabel(r.role)}</td>
-                  <td className="py-1.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => remove(r.email, r.role)}
-                      className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
-                      aria-label="Remove role"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {rows !== null && filtered.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="py-6 text-center text-ink-secondary">
-                    No accounts.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div className="divide-y divide-border-soft">
+            {accounts.map((acc) => (
+              <div key={acc.email} className="py-2.5">
+                <div className="text-[13px] font-medium text-ink-primary">{acc.email}</div>
+                <ul className="mt-1.5 space-y-1">
+                  {acc.roles.map((r) => (
+                    <li key={r} className="flex items-start gap-2">
+                      <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-app px-2 py-0.5 text-[11px] font-medium text-ink-primary border border-border">
+                        {roleLabel(r)}
+                      </span>
+                      <span className="text-[12px] text-ink-secondary flex-1">Access: {roleAccess(r)}</span>
+                      <button
+                        type="button"
+                        onClick={() => remove(acc.email, r)}
+                        className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
+                        aria-label={`Remove ${roleLabel(r)} role`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {rows !== null && accounts.length === 0 && (
+              <div className="py-6 text-center text-ink-secondary">No accounts.</div>
+            )}
+          </div>
         </SectionCard>
       </div>
     </>
