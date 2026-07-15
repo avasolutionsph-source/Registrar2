@@ -18,6 +18,10 @@ interface Props<T> {
   searchPlaceholder?: string;
   emptyText?: string;
   rightActions?: ReactNode;
+  /** Stable unique key per row (e.g. the LRN). Falls back to the array index,
+   *  which is unstable across search/filter changes — pass this when rows carry
+   *  per-row UI state. */
+  rowKey?: (row: T) => string;
 }
 
 export function DataTable<T>({
@@ -28,6 +32,7 @@ export function DataTable<T>({
   searchPlaceholder = 'Search…',
   emptyText = 'No results.',
   rightActions,
+  rowKey,
 }: Props<T>) {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -78,7 +83,7 @@ export function DataTable<T>({
             ) : (
               filtered.map((row, i) => (
                 <tr
-                  key={i}
+                  key={rowKey ? rowKey(row) : i}
                   onClick={() => onRowClick?.(row)}
                   className={[
                     'border-b border-border-soft last:border-0',

@@ -187,8 +187,13 @@ export default function StudentsList() {
                       setMenuFor(null);
                       return;
                     }
+                    // Open below the button, but flip above when there isn't room
+                    // so the menu is never rendered off-screen.
                     const r = e.currentTarget.getBoundingClientRect();
-                    setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                    const estH = 160;
+                    const below = r.bottom + 4;
+                    const top = below + estH > window.innerHeight ? Math.max(8, r.top - estH - 4) : below;
+                    setMenuPos({ top, right: window.innerWidth - r.right });
                     setMenuFor(s.lrn);
                   }}
                   disabled={busyLrn === s.lrn}
@@ -292,6 +297,7 @@ export default function StudentsList() {
         <DataTable<StudentYear>
           data={visible}
           columns={cols}
+          rowKey={(s) => s.lrn}
           searchableText={(s) => `${formatLastFirstMiddle(s)} ${displayLrn(s.lrn)} ${s.studentNo}`}
           onRowClick={(s) => navigate(`/students/${s.lrn}`)}
           searchPlaceholder="Search by name, LRN, or Student No.…"
