@@ -404,18 +404,52 @@ export async function setStudentStatus(lrn: string, status: Student['status']): 
   if (error) throw error;
 }
 
-// Whether a learner has academic records (encoded grades or enrolment history).
-// Used to guard a permanent delete so real records are never silently destroyed.
-export async function studentHasRecords(lrn: string): Promise<boolean> {
+// Does ONE subject entry carry an actually-encoded score/grade? A QuarterGrade
+// row is auto-created for every enrolled subject, so its mere existence means
+// nothing — only real values count (transmuted grades, raw item scores, or an
+// attitude rating).
+function entryHasGradeValue(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const entry = e as Record<string, unknown>;
+  const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+
+  for (const k of ['q1', 'q2', 'q3', 'q4', 'final']) {
+    if (isNum(entry[k])) return true;
+  }
+  // raw item scores, e.g. items.q1[] = [{ earned, total }]
+  const items = entry.items;
+  if (items && typeof items === 'object') {
+    for (const arr of Object.values(items as Record<string, unknown>)) {
+      if (Array.isArray(arr) && arr.some((it) => isNum((it as Record<string, unknown>)?.earned))) return true;
+    }
+  }
+  const attitude = entry.attitude;
+  if (attitude && typeof attitude === 'object') {
+    if (Object.values(attitude as Record<string, unknown>).some(isNum)) return true;
+  }
+  return false;
+}
+
+// Facts needed before a permanent delete:
+//  • hasGrades — an encoded score/grade in ANY school year (never scoped to the
+//    active SY). `grades` is Record<SY, QuarterGrade[]>, so every year is scanned.
+//  • enrolmentCount — how many enrolment entries go away with the learner.
+// Enrolment history alone never blocks a delete (enrolled but never studied).
+export async function getStudentDeleteInfo(
+  lrn: string,
+): Promise<{ hasGrades: boolean; enrolmentCount: number }> {
   const { data, error } = await client()
     .from('reg_students')
     .select('grades,enrolment_history')
     .eq('lrn', lrn)
     .maybeSingle();
   if (error) throw error;
-  const grades = (data?.grades ?? []) as unknown[];
-  const history = (data?.enrolment_history ?? []) as unknown[];
-  return (Array.isArray(grades) && grades.length > 0) || (Array.isArray(history) && history.length > 0);
+  const grades = (data?.grades ?? {}) as Record<string, unknown>;
+  const hasGrades = Object.values(grades).some(
+    (perSy) => Array.isArray(perSy) && perSy.some(entryHasGradeValue),
+  );
+  const history = data?.enrolment_history;
+  return { hasGrades, enrolmentCount: Array.isArray(history) ? history.length : 0 };
 }
 
 // Targeted update of just the grades JSONB (used by the grade encoder) so other

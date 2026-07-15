@@ -11,7 +11,7 @@ import {
   listClasses,
   listStudentsBySy,
   setStudentStatus,
-  studentHasRecords,
+  getStudentDeleteInfo,
   deleteStudent,
   type StudentYear,
 } from '@/lib/db';
@@ -71,7 +71,11 @@ export default function StudentsList() {
   // The row menu is positioned as a FIXED overlay so the table's overflow-hidden
   // wrapper can't clip it. We capture the Edit button's screen position on open.
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
-  const [confirm, setConfirm] = useState<StudentYear | null>(null);
+  // Delete flow: `confirm` = about to delete (with what will go), `blocked` = has
+  // grades so it can't be deleted. Both are modals so they're seen wherever the
+  // registrar is scrolled.
+  const [confirm, setConfirm] = useState<{ s: StudentYear; enrolmentCount: number } | null>(null);
+  const [blocked, setBlocked] = useState<StudentYear | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [busyLrn, setBusyLrn] = useState<string | null>(null);
 
@@ -101,20 +105,20 @@ export default function StudentsList() {
     }
   }
 
-  // Delete flow: block when the learner has academic records; otherwise confirm.
+  // Delete flow: block ONLY when the learner has an encoded grade in ANY school
+  // year. Enrolment history alone is fine (enrolled but never studied) — those
+  // entries live on the learner's row and go with it.
   async function askDelete(s: StudentYear) {
     setMenuFor(null);
     setActionMsg(null);
     setBusyLrn(s.lrn);
     try {
-      const has = await studentHasRecords(s.lrn);
-      if (has) {
-        setActionMsg(
-          `Cannot delete ${formatLastFirstMiddle(s)} — this learner has existing records (grades or enrolment history). Set them to Transferred Out or Dropped instead.`,
-        );
+      const { hasGrades, enrolmentCount } = await getStudentDeleteInfo(s.lrn);
+      if (hasGrades) {
+        setBlocked(s);
         return;
       }
-      setConfirm(s);
+      setConfirm({ s, enrolmentCount });
     } catch (e) {
       setActionMsg(e instanceof Error ? e.message : 'Failed to check the learner.');
     } finally {
@@ -124,9 +128,17 @@ export default function StudentsList() {
 
   async function doDelete() {
     if (!confirm) return;
-    const s = confirm;
+    const s = confirm.s;
     setBusyLrn(s.lrn);
     try {
+      // Re-check right before deleting so a grade encoded since the confirmation
+      // opened can still stop it (the DB guard is the final word).
+      const { hasGrades } = await getStudentDeleteInfo(s.lrn);
+      if (hasGrades) {
+        setConfirm(null);
+        setBlocked(s);
+        return;
+      }
       await deleteStudent(s.lrn);
       setStudents((cur) => cur.filter((x) => x.lrn !== s.lrn));
       setConfirm(null);
@@ -327,23 +339,52 @@ export default function StudentsList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setConfirm(null)}>
           <div className="w-full max-w-sm rounded-lg bg-panel border border-border p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-[15px] font-bold text-ink-primary mb-1.5">Delete learner?</h2>
-            <p className="text-[13px] text-ink-secondary mb-1">
-              {formatLastFirstMiddle(confirm)}
+            <p className="text-[13px] text-ink-primary font-medium mb-2">
+              {formatLastFirstMiddle(confirm.s)}
             </p>
+            <p className="text-[13px] text-ink-secondary mb-1.5">This will permanently delete:</p>
+            <ul className="text-[13px] text-ink-secondary mb-3 list-disc pl-5 space-y-0.5">
+              <li>the learner's student record</li>
+              <li>
+                {confirm.enrolmentCount} enrolment record{confirm.enrolmentCount === 1 ? '' : 's'}
+              </li>
+            </ul>
             <p className="text-[13px] text-ink-secondary mb-4">
-              Are you sure you want to delete? This cannot be undone.
+              This learner has no encoded grades. <span className="font-medium text-ink-primary">This cannot be undone.</span>
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirm(null)} disabled={busyLrn === confirm.lrn}>
+              <Button variant="outline" onClick={() => setConfirm(null)} disabled={busyLrn === confirm.s.lrn}>
                 Cancel
               </Button>
               <Button
                 onClick={doDelete}
-                disabled={busyLrn === confirm.lrn}
+                disabled={busyLrn === confirm.s.lrn}
                 className="bg-nps-red hover:bg-nps-red/90 text-white"
               >
-                {busyLrn === confirm.lrn ? 'Deleting…' : 'Confirm'}
+                {busyLrn === confirm.s.lrn ? 'Deleting…' : 'Confirm'}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setBlocked(null)}>
+          <div className="w-full max-w-sm rounded-lg bg-panel border border-border p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-[15px] font-bold text-nps-red mb-1.5">Cannot delete</h2>
+            <p className="text-[13px] text-ink-primary font-medium mb-2">
+              {formatLastFirstMiddle(blocked)}
+            </p>
+            <p className="text-[13px] text-ink-secondary mb-2">
+              This learner has existing grade records, so their academic records can't be destroyed.
+            </p>
+            <p className="text-[13px] text-ink-secondary mb-4">
+              Set them to <span className="font-medium text-ink-primary">Transferred Out</span> or{' '}
+              <span className="font-medium text-ink-primary">Dropped</span> instead — they stay listed
+              with their records intact.
+            </p>
+            <div className="flex justify-end">
+              <Button onClick={() => setBlocked(null)}>OK</Button>
             </div>
           </div>
         </div>
