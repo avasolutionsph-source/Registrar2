@@ -161,7 +161,7 @@ returns text language sql immutable as $$
       when p_subject_code in ('REP','ENT')                                    then 'g12-applied'
       when p_subject_code in ('PRA','PRE','WIM')                              then 'g12-wir'
       when p_subject_code in ('GEB','BIO','CHE','GPH','PHY','DAS','CWR',
-                              'IWB','CNF','TNC','CSC','DRR')                  then 'g12-specialized'
+                              'IWB','CNF','TNC','CSC','DRR','APE','ORM')      then 'g12-specialized'
       when p_subject_code in ('RCT')                                          then 'g12-elective'
     end
     -- ── Grade 11 (DO 15, s. 2026) ──
