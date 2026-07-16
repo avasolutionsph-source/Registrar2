@@ -18,6 +18,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: 'finance', label: 'Finance' },
   { value: 'guidance', label: 'Guidance' },
   { value: 'guidance_elementary', label: 'Guidance (Elementary)' },
+  { value: 'acad_pre', label: 'Academic Coordinator — Preschool' },
   { value: 'acad_gs', label: 'Academic Coordinator — Grade School' },
   { value: 'acad_jhs', label: 'Academic Coordinator — Junior High' },
   { value: 'acad_shs', label: 'Academic Coordinator — Senior High' },
@@ -54,6 +55,10 @@ const ROLE_ACCESS: Record<string, string> = {
   finance: 'Finance',
   guidance: 'Guidance dashboards',
   guidance_elementary: 'Guidance (Preschool & Elementary)',
+  // Preschool has no coordinator office in the portal yet (unlike GS/JHS/SHS),
+  // so the role can be granted but opens nothing. Say so rather than imply an
+  // office that does not exist.
+  acad_pre: 'Portal access only — Preschool coordinator office not built yet',
   acad_gs: 'Academic Coordinator office — Grade School (teaching loads)',
   acad_jhs: 'Academic Coordinator office — Junior High (teaching loads)',
   acad_shs: 'Academic Coordinator office — Senior High (teaching loads)',
