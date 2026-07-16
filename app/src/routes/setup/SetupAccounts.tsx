@@ -52,7 +52,9 @@ const ROLE_ACCESS: Record<string, string> = {
   marketing: 'Marketing office',
   admissions: 'Admissions office',
   maintenance: 'Facilities / Equipment',
-  teacher: 'Teacher portal — Gradebook & advisory class record',
+  // Static: what the ROLE grants, not what this account happens to hold today.
+  // Not every teacher advises a section, so the advisory record is conditional.
+  teacher: 'Teacher portal — Gradebook; advisory class record kung naka-assign bilang adviser',
 };
 const roleAccess = (v: string) => ROLE_ACCESS[v] ?? 'Portal access';
 
