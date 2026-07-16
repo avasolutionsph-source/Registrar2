@@ -12,6 +12,8 @@ import { listUserRoles, addUserRole, deleteUserRole, type UserRoleRow } from '@/
 const ROLES: { value: string; label: string }[] = [
   { value: 'admin', label: 'Administrator' },
   { value: 'registrar', label: 'Registrar' },
+  { value: 'principal', label: 'Principal' },
+  { value: 'director', label: 'Director' },
   { value: 'hr', label: 'HR' },
   { value: 'finance', label: 'Finance' },
   { value: 'guidance', label: 'Guidance' },
@@ -41,6 +43,13 @@ const roleLabel = (v: string) => ROLES.find((r) => r.value === v)?.label ?? v;
 const ROLE_ACCESS: Record<string, string> = {
   admin: 'Full admin — every office',
   registrar: 'Registrar system',
+  // The Principal signs off Completion / Change of Grade forms. That workflow is
+  // not built yet, so today the role grants nothing beyond portal access — say
+  // so plainly rather than imply an office that does not exist. This role is the
+  // LOGIN identity; the Principal's printed NAME on Form 137/138 is a separate
+  // thing set in Setup → Admin.
+  principal: 'Portal access only — grade-approval office not built yet',
+  director: 'Office of the Director — payroll final approval',
   hr: 'HR / Payroll',
   finance: 'Finance',
   guidance: 'Guidance dashboards',

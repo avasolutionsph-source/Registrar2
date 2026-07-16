@@ -204,12 +204,15 @@ export interface AttitudeBand {
   label: string; // e.g. 'Outstanding'
 }
 
+// Official scale: 75–99. There is no 100 and nothing below 75, so NI's lower
+// bound is 75 — NOT 0. A score under 75 must match NO band; attitudeLetter then
+// returns null and the caller flags it, rather than it silently reading as NI.
 export const DEFAULT_ATTITUDE_SCALE: AttitudeBand[] = [
+  { min: 95, letter: 'MO', label: 'Most Outstanding' },
   { min: 90, letter: 'O', label: 'Outstanding' },
-  { min: 85, letter: 'VS', label: 'Very Satisfactory' },
-  { min: 80, letter: 'S', label: 'Satisfactory' },
-  { min: 75, letter: 'FS', label: 'Fairly Satisfactory' },
-  { min: 0, letter: 'NI', label: 'Needs Improvement' },
+  { min: 85, letter: 'S', label: 'Satisfactory' },
+  { min: 80, letter: 'F', label: 'Fair' },
+  { min: 75, letter: 'NI', label: 'Needs Improvement' },
 ];
 
 // Convert a numerical attitude score to its letter using the given scale
