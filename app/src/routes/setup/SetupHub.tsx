@@ -48,10 +48,16 @@ const TILES: Tile[] = [
     desc: 'Master catalog (Core / Specialized / Applied / Elective) + SETS + Order',
   },
   {
+    to: '/setup/weight-components',
+    icon: Percent,
+    label: 'Weight Components',
+    desc: 'WWs / PTs / EXs-QA split per subject type, per school year + change history',
+  },
+  {
     to: '/setup/weights',
     icon: Percent,
-    label: 'Grade Weights',
-    desc: 'WW / PT / Exam split per learning-area group + attitude → letter scale (editable)',
+    label: 'Attitude Scale',
+    desc: 'Attitude score → letter bands used by the grade sheet (editable)',
   },
   {
     to: '/setup/schools',

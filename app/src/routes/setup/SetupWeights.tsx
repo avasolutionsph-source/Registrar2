@@ -177,10 +177,20 @@ export default function SetupWeights() {
         </p>
       )}
 
+      <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12.5px] text-amber-900">
+        <span className="font-semibold">The grade split has moved.</span> Grades are now computed
+        from the WWs / PTs / EXs-QA split per SUBJECT TYPE, per school year — edit it in{' '}
+        <Link to="/setup/weight-components" className="underline font-semibold">
+          Setup → Weight Components
+        </Link>
+        . The learning-area groups below no longer drive any computation and are kept only for
+        reference; the attitude scale further down is still live.
+      </div>
+
       {loading || !config ? (
         <p className="text-[13px] text-ink-secondary">Loading…</p>
       ) : (
-        <SectionCard heading={`${AREA_GROUPS.length} learning-area groups`}>
+        <SectionCard heading={`${AREA_GROUPS.length} learning-area groups (reference only)`}>
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">

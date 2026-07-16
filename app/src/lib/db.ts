@@ -1239,6 +1239,134 @@ export async function saveWeightConfig(config: WeightConfig): Promise<void> {
   if (error) throw error;
 }
 
+// ── weight components per learning area (WWs / PTs / EXs-QA) ──
+// The official split, keyed by SCHOOL YEAR × SUBJECT TYPE (reg_weight_components).
+// This supersedes reg_grade_weights, whose "area group" was guessed from the
+// subject's name and so could not express the real rules — General Biology 1 is
+// a Grade 11 Academic Elective (20/50/30) AND a Grade 12 Specialized subject
+// (25/45/30), and Grade 11 Core (20/50/30) differs from Grade 12 Core (25/50/25).
+//
+// Each school year holds its OWN copy, so editing next year's split never moves
+// a grade already computed in a past year.
+
+export interface WeightComponent {
+  sy: string;
+  typeKey: string;
+  label: string;
+  ww: number;
+  pt: number;
+  ex: number;
+  sortOrder: number;
+}
+
+export async function listWeightComponents(sy: string): Promise<WeightComponent[]> {
+  const { data, error } = await client()
+    .from('reg_weight_components')
+    .select('*')
+    .eq('sy', sy)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    sy: str(r.sy),
+    typeKey: str(r.type_key),
+    label: str(r.label),
+    ww: Number(r.ww),
+    pt: Number(r.pt),
+    ex: Number(r.ex),
+    sortOrder: Number(r.sort_order),
+  }));
+}
+
+// The DB CHECK constraint enforces ww+pt+ex=100, but validate here too so the
+// user gets a clear message instead of a raw Postgres error.
+export async function saveWeightComponents(rows: WeightComponent[]): Promise<void> {
+  const bad = rows.find((r) => r.ww + r.pt + r.ex !== 100);
+  if (bad) throw new Error(`"${bad.label}" totals ${bad.ww + bad.pt + bad.ex}%. Each type must total exactly 100%.`);
+  const { error } = await client().from('reg_weight_components').upsert(
+    rows.map((r) => ({
+      sy: r.sy, type_key: r.typeKey, label: r.label,
+      ww: r.ww, pt: r.pt, ex: r.ex, sort_order: r.sortOrder,
+    })),
+    { onConflict: 'sy,type_key' },
+  );
+  if (error) throw error;
+}
+
+// Copy a year's weights forward so the registrar can edit NEXT year's split
+// without touching the year in progress. Returns the number of types copied (0
+// when the target year already has its own rows).
+export async function copyWeightsToSy(fromSy: string, toSy: string): Promise<number> {
+  const { data, error } = await client().rpc('reg_copy_weights_to_sy', { p_from_sy: fromSy, p_to_sy: toSy });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export interface UntypedClassSubject {
+  classId: string;
+  sy: string;
+  gradeLevel: string;
+  sectionName: string;
+  subjectCode: string;
+  subjectName: string;
+}
+
+// Every section × subject whose grades CANNOT be computed because no subject
+// type is set (or its type has no weights for that year). The registrar fixes
+// these; nothing is guessed on their behalf.
+export async function listUntypedClassSubjects(): Promise<UntypedClassSubject[]> {
+  const { data, error } = await client().rpc('reg_untyped_class_subjects');
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    classId: str(r.class_id),
+    sy: str(r.sy),
+    gradeLevel: str(r.grade_level),
+    sectionName: str(r.section_name),
+    subjectCode: str(r.subject_code),
+    subjectName: str(r.subject_name),
+  }));
+}
+
+export async function setClassSubjectType(
+  classId: string,
+  subjectCode: string,
+  typeKey: string,
+): Promise<void> {
+  const { error } = await client()
+    .from('reg_class_subjects')
+    .update({ subject_type: typeKey })
+    .eq('class_id', classId)
+    .eq('subject_code', subjectCode);
+  if (error) throw error;
+}
+
+export interface WeightAuditRow {
+  id: number;
+  sy: string;
+  typeKey: string;
+  oldSplit: string | null;
+  newSplit: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+export async function listWeightAudit(limit = 50): Promise<WeightAuditRow[]> {
+  const { data, error } = await client()
+    .from('reg_weight_audit')
+    .select('*')
+    .order('changed_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    sy: str(r.sy),
+    typeKey: str(r.type_key),
+    oldSplit: r.old_ww == null ? null : `${r.old_ww}/${r.old_pt}/${r.old_ex}`,
+    newSplit: `${r.new_ww}/${r.new_pt}/${r.new_ex}`,
+    changedBy: str(r.changed_by) || '—',
+    changedAt: str(r.changed_at),
+  }));
+}
+
 // ── attitude scale (numerical → letter, registrar-configurable) ──
 // The subject grade sheet's attitude column converts a numerical score to a
 // letter using these bands. Stored in reg_attitude_scale; falls back to the

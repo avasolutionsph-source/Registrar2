@@ -182,6 +182,17 @@ export function computeGrade(
   return ig == null ? null : transmute(Math.round(ig));
 }
 
+// Same computation, but taking the {ww,pt,st} split DIRECTLY instead of looking
+// it up by area group. The official weights depend on the subject's TYPE in a
+// given section (reg_class_subjects.subject_type → reg_weight_components), which
+// no name-based group can express: General Biology 1 is a Grade 11 Academic
+// Elective (20/50/30) AND a Grade 12 Specialized subject (25/45/30). Callers
+// resolve the split server-side (reg_weights_for) and pass it here.
+export function computeGradeWith(raw: RawComponents, w: Weights): number | null {
+  const ig = initialGrade(raw, w);
+  return ig == null ? null : transmute(Math.round(ig));
+}
+
 // ── Attitude / behaviour rating (numerical → letter) ────────────────────────
 // The subject grade sheet has a final column where the teacher encodes a
 // NUMERICAL attitude score; it is converted to a letter using this scale. The
