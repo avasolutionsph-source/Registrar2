@@ -1367,6 +1367,81 @@ export async function listWeightAudit(limit = 50): Promise<WeightAuditRow[]> {
   }));
 }
 
+// ── grade approval routing (whose grades each role checks) ──
+// One setting, not per school year: the history of an approval lives in that
+// approval's own record, not in this table.
+
+export interface RoutingRule {
+  id: number;
+  sourceRole: string;
+  sourceScope: string | null; // null = every department
+  approverKind: 'fixed' | 'derived' | 'unset';
+  approverRole: string | null;
+  approverDerive: string | null;
+}
+
+export async function listRoutingRules(): Promise<RoutingRule[]> {
+  const { data, error } = await client()
+    .from('reg_approval_routing')
+    .select('*')
+    .order('source_role', { ascending: true })
+    .order('source_scope', { ascending: true, nullsFirst: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    sourceRole: str(r.source_role),
+    sourceScope: r.source_scope ? str(r.source_scope) : null,
+    approverKind: str(r.approver_kind) as RoutingRule['approverKind'],
+    approverRole: r.approver_role ? str(r.approver_role) : null,
+    approverDerive: r.approver_derive ? str(r.approver_derive) : null,
+  }));
+}
+
+// Saves every changed rule or none: one upsert, so a partial write cannot leave
+// the chain half-changed.
+export async function saveRoutingRules(rules: RoutingRule[]): Promise<void> {
+  const { error } = await client().from('reg_approval_routing').upsert(
+    rules.map((r) => ({
+      id: r.id,
+      source_role: r.sourceRole,
+      source_scope: r.sourceScope,
+      approver_kind: r.approverKind,
+      approver_role: r.approverKind === 'fixed' ? r.approverRole : null,
+      approver_derive: r.approverKind === 'derived' ? r.approverDerive : null,
+    })),
+    { onConflict: 'id' },
+  );
+  if (error) throw error;
+}
+
+export interface RoutingAuditRow {
+  id: number;
+  sourceRole: string;
+  sourceScope: string | null;
+  oldRule: string | null;
+  newRule: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+export async function listRoutingAudit(limit = 50): Promise<RoutingAuditRow[]> {
+  const { data, error } = await client()
+    .from('reg_approval_routing_audit')
+    .select('*')
+    .order('changed_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    sourceRole: str(r.source_role),
+    sourceScope: r.source_scope ? str(r.source_scope) : null,
+    oldRule: r.old_rule ? str(r.old_rule) : null,
+    newRule: str(r.new_rule),
+    changedBy: str(r.changed_by) || '—',
+    changedAt: str(r.changed_at),
+  }));
+}
+
 // ── attitude scale (numerical → letter, registrar-configurable) ──
 // The subject grade sheet's attitude column converts a numerical score to a
 // letter using these bands. Stored in reg_attitude_scale; falls back to the

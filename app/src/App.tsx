@@ -25,6 +25,7 @@ import SetupSchools from '@/routes/setup/SetupSchools';
 import SetupAdmin from '@/routes/setup/SetupAdmin';
 import SetupGradeLevels from '@/routes/setup/SetupGradeLevels';
 import SetupWeightComponents from '@/routes/setup/SetupWeightComponents';
+import SetupApprovalRouting from '@/routes/setup/SetupApprovalRouting';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
@@ -77,6 +78,7 @@ export default function App() {
               configuration lives behind one door. Old links keep working. */}
           <Route path="setup/weights" element={<Navigate to="/setup/weight-components" replace />} />
           <Route path="setup/weight-components" element={<SetupWeightComponents />} />
+          <Route path="setup/approval-routing" element={<SetupApprovalRouting />} />
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />

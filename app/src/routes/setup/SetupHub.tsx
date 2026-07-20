@@ -60,6 +60,12 @@ const TILES: Tile[] = [
     desc: 'Master list of schools (referenced by transferee origin)',
   },
   {
+    to: '/setup/approval-routing',
+    icon: UserCog,
+    label: 'Grade Approval Routing',
+    desc: 'Kung kaninong grades ang chine-check ng bawat role',
+  },
+  {
     to: '/setup/accounts',
     icon: UserCog,
     label: 'Accounts & Roles',
