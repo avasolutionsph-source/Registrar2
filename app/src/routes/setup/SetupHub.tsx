@@ -51,13 +51,7 @@ const TILES: Tile[] = [
     to: '/setup/weight-components',
     icon: Percent,
     label: 'Weight Components',
-    desc: 'WWs / PTs / EXs-QA split per subject type, per school year + change history',
-  },
-  {
-    to: '/setup/weights',
-    icon: Percent,
-    label: 'Attitude Scale',
-    desc: 'Attitude score → letter bands used by the grade sheet (editable)',
+    desc: 'WWs / PTs / EXs-QA split per subject type, per school year + Attitude Scale bands',
   },
   {
     to: '/setup/schools',

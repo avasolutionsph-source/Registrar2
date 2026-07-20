@@ -24,7 +24,6 @@ import SetupSubjects from '@/routes/setup/SetupSubjects';
 import SetupSchools from '@/routes/setup/SetupSchools';
 import SetupAdmin from '@/routes/setup/SetupAdmin';
 import SetupGradeLevels from '@/routes/setup/SetupGradeLevels';
-import SetupWeights from '@/routes/setup/SetupWeights';
 import SetupWeightComponents from '@/routes/setup/SetupWeightComponents';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
@@ -74,7 +73,9 @@ export default function App() {
           <Route path="setup/schools" element={<SetupSchools />} />
           <Route path="setup/admin" element={<SetupAdmin />} />
           <Route path="setup/grade-levels" element={<SetupGradeLevels />} />
-          <Route path="setup/weights" element={<SetupWeights />} />
+          {/* The attitude scale moved into Weight Components, so the whole grading
+              configuration lives behind one door. Old links keep working. */}
+          <Route path="setup/weights" element={<Navigate to="/setup/weight-components" replace />} />
           <Route path="setup/weight-components" element={<SetupWeightComponents />} />
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
