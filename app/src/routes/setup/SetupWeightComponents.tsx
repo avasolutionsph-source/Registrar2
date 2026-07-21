@@ -39,6 +39,21 @@ const COMPONENTS = [
   { key: 'ex' as const, label: 'EXs / QA' },
 ];
 
+// One heading per per-level table. Grade 12 labels its third component "QA";
+// every other level uses "EXs" — same computation, label only.
+const GROUP_LABEL: Record<string, string> = {
+  nursery: 'Nursery 1-2',
+  kinder: 'Kindergarten',
+  'g1-3': 'Grades 1-3',
+  'g4-10': 'Grades 4-10',
+  g11: 'Grade 11',
+  g12: 'Grade 12',
+};
+const componentsFor = (group: string | null) =>
+  group === 'g12'
+    ? [COMPONENTS[0], COMPONENTS[1], { key: 'ex' as const, label: 'QA' }]
+    : [COMPONENTS[0], COMPONENTS[1], { key: 'ex' as const, label: 'EXs' }];
+
 export default function SetupWeightComponents() {
   const [years, setYears] = useState<SchoolYear[]>([]);
   const [sy, setSy] = useState('');
@@ -310,12 +325,13 @@ export default function SetupWeightComponents() {
         </div>
       )}
 
-      {/* ── Section 1 ─────────────────────────────────────────────────── */}
+      {/* ── Section 1: one table per level ────────────────────────────── */}
       <div className="mb-2">
         <h2 className="text-[15px] font-bold text-ink-primary">Weight Components</h2>
         <p className="text-[12.5px] text-ink-secondary mt-0.5 max-w-[660px]">
-          How much each component counts toward a grade, per subject type. A learner's grade is the
-          sum of each component's percentage score times its weight.
+          How much each component counts toward a grade, per subject type, grouped by level. A
+          learner's grade is the sum of each component's percentage score times its weight. Grade 12
+          labels the third component QA; the computation is the same.
         </p>
       </div>
 
@@ -329,52 +345,73 @@ export default function SetupWeightComponents() {
           </p>
         </SectionCard>
       ) : (
-        <SectionCard heading={`${rows.length} subject types · SY ${sy}`}>
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th className="py-2 pr-3">Subject type</th>
-                {COMPONENTS.map((c) => (
-                  <th key={c.key} className="py-2 px-2 w-[15%] text-center">{c.label}</th>
-                ))}
-                <th className="py-2 pl-2 w-[10%] text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const total = sumOf(r);
+        (() => {
+          // Group the types into their per-level tables, preserving order.
+          const groups: { key: string; rows: WeightComponent[] }[] = [];
+          for (const r of rows) {
+            const key = r.levelGroup ?? 'other';
+            let g = groups.find((x) => x.key === key);
+            if (!g) { g = { key, rows: [] }; groups.push(g); }
+            g.rows.push(r);
+          }
+          return (
+            <div className="space-y-5">
+              {groups.map((g) => {
+                const cols = componentsFor(g.key === 'other' ? null : g.key);
                 return (
-                  <tr key={r.typeKey} className="border-b border-border-soft last:border-0">
-                    <td className="py-2 pr-3 text-ink-primary font-medium">{r.label}</td>
-                    {COMPONENTS.map((c) => (
-                      <td key={c.key} className="py-2 px-2">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          disabled={locked}
-                          value={r[c.key]}
-                          onChange={(e) => setValue(r.typeKey, c.key, Number(e.target.value) || 0)}
-                          className="text-center tabular-nums disabled:opacity-60"
-                        />
-                      </td>
-                    ))}
-                    <td className={`py-2 pl-2 text-center font-semibold tabular-nums ${
-                      total === 100 ? 'text-ok-fg' : 'text-nps-red'
-                    }`}>
-                      {total}%
-                    </td>
-                  </tr>
+                  <div key={g.key}>
+                    <h3 className="text-[13.5px] font-bold text-ink-primary mb-1.5">
+                      {GROUP_LABEL[g.key] ?? 'Other'}
+                    </h3>
+                    <SectionCard heading={`${g.rows.length} subject type${g.rows.length === 1 ? '' : 's'}`}>
+                      <table className="w-full text-[13px]">
+                        <thead>
+                          <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                            <th className="py-2 pr-3">Subject type</th>
+                            {cols.map((c) => (
+                              <th key={c.key} className="py-2 px-2 w-[15%] text-center">{c.label}</th>
+                            ))}
+                            <th className="py-2 pl-2 w-[10%] text-center">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.rows.map((r) => {
+                            const total = sumOf(r);
+                            return (
+                              <tr key={r.typeKey} className="border-b border-border-soft last:border-0">
+                                <td className="py-2 pr-3 text-ink-primary font-medium">{r.label}</td>
+                                {cols.map((c) => (
+                                  <td key={c.key} className="py-2 px-2">
+                                    <Input
+                                      type="number" min={0} max={100} disabled={locked}
+                                      value={r[c.key]}
+                                      onChange={(e) => setValue(r.typeKey, c.key, Number(e.target.value) || 0)}
+                                      className="text-center tabular-nums disabled:opacity-60"
+                                    />
+                                  </td>
+                                ))}
+                                <td className={`py-2 pl-2 text-center font-semibold tabular-nums ${
+                                  total === 100 ? 'text-ok-fg' : 'text-nps-red'
+                                }`}>
+                                  {total}%
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </SectionCard>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-          {!allValid && (
-            <p className="mt-3 px-1 text-[12.5px] text-nps-red">
-              Every subject type must total exactly 100% before you can save.
-            </p>
-          )}
-        </SectionCard>
+              {!allValid && (
+                <p className="px-1 text-[12.5px] text-nps-red">
+                  Every subject type must total exactly 100% before you can save.
+                </p>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {/* Subject type per section — the split follows the TYPE, and the type can

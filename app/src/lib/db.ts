@@ -1260,6 +1260,8 @@ export interface WeightComponent {
   pt: number;
   ex: number;
   sortOrder: number;
+  levelGroup: string | null; // which per-level table this type belongs to
+  groupOrder: number; // ordering of the tables
 }
 
 export async function listWeightComponents(sy: string): Promise<WeightComponent[]> {
@@ -1267,6 +1269,7 @@ export async function listWeightComponents(sy: string): Promise<WeightComponent[
     .from('reg_weight_components')
     .select('*')
     .eq('sy', sy)
+    .order('group_order', { ascending: true })
     .order('sort_order', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => ({
@@ -1277,6 +1280,8 @@ export async function listWeightComponents(sy: string): Promise<WeightComponent[
     pt: Number(r.pt),
     ex: Number(r.ex),
     sortOrder: Number(r.sort_order),
+    levelGroup: r.level_group ? str(r.level_group) : null,
+    groupOrder: Number(r.group_order ?? 99),
   }));
 }
 
@@ -1289,6 +1294,7 @@ export async function saveWeightComponents(rows: WeightComponent[]): Promise<voi
     rows.map((r) => ({
       sy: r.sy, type_key: r.typeKey, label: r.label,
       ww: r.ww, pt: r.pt, ex: r.ex, sort_order: r.sortOrder,
+      level_group: r.levelGroup, group_order: r.groupOrder,
     })),
     { onConflict: 'sy,type_key' },
   );
