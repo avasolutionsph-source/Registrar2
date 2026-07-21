@@ -78,6 +78,12 @@ const TILES: Tile[] = [
     desc: 'Passing grade, remedial limit, GA rounding, grade-level coverage, honor tiers — per school year',
   },
   {
+    to: '/setup/school-profile',
+    icon: Building2,
+    label: 'School Profile',
+    desc: 'School name, ID, address, division & region printed on official forms',
+  },
+  {
     to: '/setup/schools',
     icon: School,
     label: 'Schools',

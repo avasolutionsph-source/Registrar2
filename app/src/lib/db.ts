@@ -1574,6 +1574,44 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
   if (error) throw error;
 }
 
+// ── school profile (identity shown on printed forms; single row) ──
+export interface SchoolProfile {
+  name: string; schoolId: string; address: string;
+  district: string; division: string; region: string; type: string;
+}
+
+export async function getSchoolProfile(): Promise<SchoolProfile | null> {
+  try {
+    const { data, error } = await client()
+      .from('reg_school_profile')
+      .select('*')
+      .eq('id', 'main')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      name: str(data.name), schoolId: str(data.school_id), address: str(data.address),
+      district: str(data.district), division: str(data.division),
+      region: str(data.region), type: str(data.type),
+    };
+  } catch {
+    return null; // offline / table missing → caller keeps code defaults
+  }
+}
+
+export async function saveSchoolProfile(p: SchoolProfile): Promise<void> {
+  if (!p.name.trim() || !p.schoolId.trim())
+    throw new Error('School name and School ID are required.');
+  const { error } = await client()
+    .from('reg_school_profile')
+    .upsert({
+      id: 'main', name: p.name, school_id: p.schoolId, address: p.address,
+      district: p.district, division: p.division, region: p.region, type: p.type,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+  if (error) throw error;
+}
+
 // ── grading policy (promotion, averaging, phase-in, tiers — per SY) ──
 // The last grading constants that used to live only in code. Every field has a
 // code default equal to its old hardcoded value, so an unseeded year behaves

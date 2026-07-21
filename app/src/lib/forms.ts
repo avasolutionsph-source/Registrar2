@@ -16,6 +16,10 @@ import type {
 // Name + DepEd School ID are real (ID 403875 encodes the LRN prefix). Verify
 // the address / division / region against the school's DepEd registration
 // before relying on a printout for an official transmittal.
+// Registrar-editable in Setup ▸ School Profile (reg_school_profile). The app
+// populates this once at startup via setSchoolProfile(); print components read
+// SCHOOL.* directly, so mutating (not reassigning) this object updates them all.
+// Defaults to the NPS values until loaded.
 export const SCHOOL = {
   name: 'Naga Parochial School',
   id: '403875',
@@ -24,7 +28,13 @@ export const SCHOOL = {
   division: 'Naga City',
   region: 'Region V (Bicol)',
   type: 'Private',
-} as const;
+};
+export function setSchoolProfile(p: Partial<typeof SCHOOL>): void {
+  for (const k of Object.keys(SCHOOL) as (keyof typeof SCHOOL)[]) {
+    const v = p[k];
+    if (typeof v === 'string' && v.trim() !== '') SCHOOL[k] = v;
+  }
+}
 
 // ── Grade-level code → DepEd label ─────────────────────────────────────────
 const GRADE_LABELS: Record<string, string> = {
@@ -215,7 +225,10 @@ export function buildSubjectRows(
 // (PEH); legacy data may carry the four classic ones (MUS/ART/PED/HEA). When
 // any are present we compute a MAPEH line = the per-period average of the
 // components, and the overall MAPEH final = the mean of those period grades.
-const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
+// The single source of truth for MAPEH component subject codes (grouped MUA/PEH
+// this year + the four classic MUS/ART/PED/HEA for legacy data). Imported by the
+// grade encoder so the set is never duplicated / out of sync.
+export const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
 const ALL_PERIOD_KEYS: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
 
 // Readable names for the standard learning areas (incl. MAPEH components), so a
@@ -415,6 +428,7 @@ export const MONTHS: { key: string; label: string }[] = [
   { key: 'feb', label: 'Feb' },
   { key: 'mar', label: 'Mar' },
   { key: 'apr', label: 'Apr' },
+  { key: 'may', label: 'May' },
 ];
 
 // The 14 observed-values traits NPS tracked, in report-card order.

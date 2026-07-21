@@ -6,7 +6,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
-import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
+import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES, MAPEH_COMPONENT_CODES as MAPEH_CODE_SET } from '@/lib/forms';
 import {
   AREA_GROUPS,
   AREA_GROUP_LABEL,
@@ -74,7 +74,6 @@ const DEFAULT_AREAS: { label: string; code: string; kw: string[]; band: 'lower' 
   // Default to Edukasyon sa Pagpapakatao (transferees come from EsP schools), NOT CLE.
   { label: 'Edukasyon sa Pagpapakatao', code: 'ESP', kw: [], band: 'all' },
 ];
-const MAPEH_CODE_SET = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
 
 const numIn =
   'w-12 rounded border border-border bg-panel px-1 py-1 text-center text-[12px] text-ink-primary tabular-nums focus:outline-none focus:border-ring';

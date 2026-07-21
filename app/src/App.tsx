@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireRegistrar } from '@/lib/auth';
-import { listSchoolYears, getGradingPolicy } from '@/lib/db';
-import { setPassingGrade } from '@/lib/forms';
+import { listSchoolYears, getGradingPolicy, getSchoolProfile } from '@/lib/db';
+import { setPassingGrade, setSchoolProfile } from '@/lib/forms';
 import { AppShell } from '@/components/shell/AppShell';
 import StudentDetail from '@/routes/students/StudentDetail';
 import StudentsList from '@/routes/students/StudentsList';
@@ -33,6 +33,7 @@ import SetupDescriptors from '@/routes/setup/SetupDescriptors';
 import SetupTransmutation from '@/routes/setup/SetupTransmutation';
 import SetupHonorCriteria from '@/routes/setup/SetupHonorCriteria';
 import SetupGradingPolicy from '@/routes/setup/SetupGradingPolicy';
+import SetupSchoolProfile from '@/routes/setup/SetupSchoolProfile';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
@@ -56,11 +57,12 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const ys = await listSchoolYears();
+        const [ys, profile] = await Promise.all([listSchoolYears(), getSchoolProfile()]);
+        if (profile) setSchoolProfile(profile);
         const active = ys.find((y) => y.isActive)?.code;
         if (active) setPassingGrade((await getGradingPolicy(active)).passingGrade);
       } catch {
-        /* keep the default */
+        /* keep the defaults */
       }
     })();
   }, []);
@@ -105,6 +107,7 @@ export default function App() {
           <Route path="setup/transmutation" element={<SetupTransmutation />} />
           <Route path="setup/honor-criteria" element={<SetupHonorCriteria />} />
           <Route path="setup/grading-policy" element={<SetupGradingPolicy />} />
+          <Route path="setup/school-profile" element={<SetupSchoolProfile />} />
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />
