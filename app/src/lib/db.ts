@@ -1055,6 +1055,26 @@ export async function listClassSubjects(classId: string): Promise<ClassSubjectAs
   }));
 }
 
+// EVERY (class, subject, teacher) row in the system — for the registrar's
+// oversight of what the Academic Coordinators assigned. teacherId null = the
+// subject is offered in that section but no teacher is assigned yet.
+export interface TeachingAssignmentRow {
+  classId: string;
+  subjectCode: string;
+  teacherId: number | null;
+}
+export async function listAllClassSubjects(): Promise<TeachingAssignmentRow[]> {
+  const { data, error } = await client()
+    .from('reg_class_subjects')
+    .select('class_id, subject_code, teacher_id');
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    classId: str(r.class_id),
+    subjectCode: str(r.subject_code),
+    teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
+  }));
+}
+
 // Replace the section's whole teaching load with the given rows (subjects with
 // no teacher are stored with teacher_id null; subjects not passed are dropped).
 export async function saveClassSubjects(

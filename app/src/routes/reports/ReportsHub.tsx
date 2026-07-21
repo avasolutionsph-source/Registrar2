@@ -9,6 +9,7 @@ import {
   Heart,
   Cake,
   Route as RouteIcon,
+  ClipboardList,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -74,6 +75,12 @@ const TILES: Tile[] = [
     icon: Cake,
     label: 'Birthdays',
     desc: 'Active learners with birthdays per month (for SCO) — print + CSV',
+  },
+  {
+    to: '/reports/teaching-assignments',
+    icon: ClipboardList,
+    label: 'Teaching Assignments',
+    desc: 'Every subject × section and its teacher (as set by the Academic Coordinators); flags unassigned',
   },
 ];
 
