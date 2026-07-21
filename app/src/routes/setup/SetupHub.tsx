@@ -54,6 +54,12 @@ const TILES: Tile[] = [
     desc: 'WWs / PTs / EXs-QA split per subject type, per school year + Attitude Scale bands',
   },
   {
+    to: '/setup/descriptors',
+    icon: Percent,
+    label: 'Report Card Descriptors',
+    desc: 'Letter scales (Preschool C/D/B, Grades 1-3 A/B/C/D/E) + which levels show letters',
+  },
+  {
     to: '/setup/schools',
     icon: School,
     label: 'Schools',

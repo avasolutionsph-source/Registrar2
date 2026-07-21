@@ -1367,6 +1367,85 @@ export async function listWeightAudit(limit = 50): Promise<WeightAuditRow[]> {
   }));
 }
 
+// ── descriptor scales + descriptive/numerical toggle (per SY) ──
+// Display layer only. Preschool (C/D/B) and Grades 1-3 (A/B/C/D/E) are separate
+// scales because the same letter means different things in each.
+
+export interface DescriptorBand {
+  scaleKey: string;
+  letter: string;
+  label: string;
+  min: number;
+  sortOrder: number;
+}
+export interface DescriptiveLevel {
+  gradeLevel: string;
+  mode: 'descriptive' | 'numerical';
+  scaleKey: string | null;
+}
+
+export async function listDescriptorScales(sy: string): Promise<DescriptorBand[]> {
+  const { data, error } = await client()
+    .from('reg_descriptor_scales')
+    .select('*')
+    .eq('sy', sy)
+    .order('scale_key', { ascending: true })
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    scaleKey: str(r.scale_key), letter: str(r.letter), label: str(r.label),
+    min: Number(r.min), sortOrder: Number(r.sort_order),
+  }));
+}
+
+export async function listDescriptiveLevels(sy: string): Promise<DescriptiveLevel[]> {
+  const { data, error } = await client()
+    .from('reg_descriptive_levels')
+    .select('*')
+    .eq('sy', sy)
+    .order('grade_level', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    gradeLevel: str(r.grade_level),
+    mode: str(r.mode) as DescriptiveLevel['mode'],
+    scaleKey: r.scale_key ? str(r.scale_key) : null,
+  }));
+}
+
+// Validate here so the registrar gets a clear message: no overlap and no gap
+// inside a scale's covered range (Part F).
+export async function saveDescriptorScales(sy: string, bands: DescriptorBand[]): Promise<void> {
+  const byScale = new Map<string, number[]>();
+  for (const b of bands) {
+    if (!byScale.has(b.scaleKey)) byScale.set(b.scaleKey, []);
+    byScale.get(b.scaleKey)!.push(b.min);
+  }
+  for (const [key, mins] of byScale) {
+    if (new Set(mins).size !== mins.length)
+      throw new Error(`Scale "${key}" has two bands with the same minimum.`);
+  }
+  const { error: delErr } = await client().from('reg_descriptor_scales').delete().eq('sy', sy);
+  if (delErr) throw delErr;
+  const { error } = await client().from('reg_descriptor_scales').insert(
+    bands.map((b) => ({
+      sy, scale_key: b.scaleKey, letter: b.letter, label: b.label,
+      min: b.min, sort_order: b.sortOrder,
+    })),
+  );
+  if (error) throw error;
+}
+
+export async function saveDescriptiveLevels(sy: string, levels: DescriptiveLevel[]): Promise<void> {
+  const { error } = await client().from('reg_descriptive_levels').upsert(
+    levels.map((l) => ({
+      sy, grade_level: l.gradeLevel, mode: l.mode,
+      scale_key: l.mode === 'descriptive' ? l.scaleKey : null,
+    })),
+    { onConflict: 'sy,grade_level' },
+  );
+  if (error) throw error;
+}
+
 // ── grade approval routing (whose grades each role checks) ──
 // One setting, not per school year: the history of an approval lives in that
 // approval's own record, not in this table.

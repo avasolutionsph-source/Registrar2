@@ -26,6 +26,7 @@ import SetupAdmin from '@/routes/setup/SetupAdmin';
 import SetupGradeLevels from '@/routes/setup/SetupGradeLevels';
 import SetupWeightComponents from '@/routes/setup/SetupWeightComponents';
 import SetupApprovalRouting from '@/routes/setup/SetupApprovalRouting';
+import SetupDescriptors from '@/routes/setup/SetupDescriptors';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="setup/weights" element={<Navigate to="/setup/weight-components" replace />} />
           <Route path="setup/weight-components" element={<SetupWeightComponents />} />
           <Route path="setup/approval-routing" element={<SetupApprovalRouting />} />
+          <Route path="setup/descriptors" element={<SetupDescriptors />} />
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />
