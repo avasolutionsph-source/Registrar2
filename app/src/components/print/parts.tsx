@@ -46,7 +46,7 @@ export function LearnerInfo({ student }: { student: Student }) {
       <Field className="col-span-3" label="Name Ext." value={student.extension} />
       <Field className="col-span-5" label="Middle Name" value={student.middleName} />
       <Field className="col-span-4" label="LRN" value={student.lrn} />
-      <Field className="col-span-3" label="Sex" value={sex} />
+      <Field className="col-span-3" label="Gender" value={sex} />
       <Field
         className="col-span-5"
         label="Date of Birth"

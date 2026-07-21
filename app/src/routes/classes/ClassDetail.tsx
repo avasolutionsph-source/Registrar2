@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2, Save } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -84,6 +84,27 @@ const CRED_KEYS: ['bc', 'bp', 'hc', 'pix', 'rf', 'f137', 'rc', 'gmc'] = [
   'rc',
   'gmc',
 ];
+
+// Standard DepEd class-list grouping: MALE then FEMALE, each alphabetical with
+// its own numbering; learners with no gender fall to an "Unspecified" group at
+// the end (never dropped). Returns only non-empty groups.
+function groupBySex(list: Student[]): { key: string; label: string; students: Student[] }[] {
+  const bucket = (g?: string) => {
+    const v = (g || '').trim().charAt(0).toUpperCase();
+    return v === 'M' ? 'Male' : v === 'F' ? 'Female' : 'Unspecified';
+  };
+  const buckets: Record<string, Student[]> = { Male: [], Female: [], Unspecified: [] };
+  for (const s of list) buckets[bucket(s.gender)].push(s);
+  const byName = (a: Student, b: Student) =>
+    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
+  return [
+    { key: 'Male', label: 'MALE' },
+    { key: 'Female', label: 'FEMALE' },
+    { key: 'Unspecified', label: 'UNSPECIFIED — needs gender data' },
+  ]
+    .map((g) => ({ ...g, students: buckets[g.key].slice().sort(byName) }))
+    .filter((g) => g.students.length > 0);
+}
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
@@ -585,16 +606,25 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr
-                        key={s.lrn}
-                        onClick={() => navigate(`/students/${s.lrn}`)}
-                        className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
-                      >
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3 text-ink-secondary">{s.address}</td>
-                        <td className="py-1.5 font-mono">{s.contactNumber}</td>
-                      </tr>
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <tr>
+                          <td colSpan={3} className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'}`}>
+                            {grp.label} · {grp.students.length}
+                          </td>
+                        </tr>
+                        {grp.students.map((s, i) => (
+                          <tr
+                            key={s.lrn}
+                            onClick={() => navigate(`/students/${s.lrn}`)}
+                            className="border-b border-border-soft last:border-0 cursor-pointer hover:bg-app"
+                          >
+                            <td className="py-1.5 pr-3">{i + 1}. {formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3 text-ink-secondary">{s.address}</td>
+                            <td className="py-1.5 font-mono">{s.contactNumber}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -613,15 +643,24 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3 text-ink-secondary">
-                          {s.guardianRelation === 'Father' ? s.fatherName : s.motherMaidenName}
-                        </td>
-                        <td className="py-1.5 pr-3 text-ink-secondary">{s.address}</td>
-                        <td className="py-1.5 font-mono">{s.contactNumber}</td>
-                      </tr>
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <tr>
+                          <td colSpan={4} className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'}`}>
+                            {grp.label} · {grp.students.length}
+                          </td>
+                        </tr>
+                        {grp.students.map((s, i) => (
+                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3">{i + 1}. {formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3 text-ink-secondary">
+                              {s.guardianRelation === 'Father' ? s.fatherName : s.motherMaidenName}
+                            </td>
+                            <td className="py-1.5 pr-3 text-ink-secondary">{s.address}</td>
+                            <td className="py-1.5 font-mono">{s.contactNumber}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
