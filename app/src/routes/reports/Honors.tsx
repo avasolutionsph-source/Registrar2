@@ -5,7 +5,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { Button } from '@/components/ui/button';
-import { listStudents, listClasses, listSubjects, listSchoolYears } from '@/lib/db';
+import { listStudents, listClasses, listSubjects, listSchoolYears, getHonorCriteria, type HonorCriteriaRow } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { gradeLabel, periodsForSy, formatSy } from '@/lib/forms';
 import {
@@ -118,6 +118,15 @@ export default function Honors() {
   const periods = useMemo(() => periodsForSy(sy), [sy]);
   const regime = honorRegimeForSy(sy);
 
+  // Registrar-configured award criteria for this SY (Setup ▸ Honor Criteria).
+  const [criteria, setCriteria] = useState<HonorCriteriaRow>({ gaMin: 90, floor: 80 });
+  useEffect(() => {
+    if (!sy) return;
+    let cancelled = false;
+    getHonorCriteria(sy).then((c) => { if (!cancelled) setCriteria(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sy]);
+
   useEffect(() => {
     if (period === 'final') return;
     if (!periods.some((p) => p.key === period)) setPeriod('final');
@@ -131,7 +140,7 @@ export default function Honors() {
       if (!grades || !grades.length) continue;
       const place = placementFor(s, sy, classes);
       if (!place || !isHonorEligibleLevel(place.gradeLevel, sy)) continue;
-      const r = evaluateAward(grades, index, period, sy);
+      const r = evaluateAward(grades, index, period, sy, criteria);
       if (!r.qualified || r.ga == null || r.gaExact == null) continue;
       out.push({
         lrn: s.lrn,
@@ -147,7 +156,7 @@ export default function Honors() {
       });
     }
     return out;
-  }, [students, classes, index, sy, period]);
+  }, [students, classes, index, sy, period, criteria]);
 
   const levelKeys = useMemo(() => {
     const present = new Set(awardees.map((a) => a.gradeLevel));

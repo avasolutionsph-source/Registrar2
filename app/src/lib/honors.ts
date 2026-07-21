@@ -22,8 +22,16 @@ import type { QuarterGrade, QuarterKey, Subject } from '@/types';
 // A term ('q1'..'q3'/'q4') or the year-end final average.
 export type HonorPeriod = QuarterKey | 'final';
 
-export const HONOR_GA_MIN = 90; // minimum General Average
-export const HONOR_GRADE_FLOOR = 80; // no learning-area grade may fall below this
+export const HONOR_GA_MIN = 90; // default minimum General Average
+export const HONOR_GRADE_FLOOR = 80; // default per-subject floor
+
+// Registrar-configurable criteria (reg_honor_criteria), per SY. Callers that
+// load it pass it in; the defaults above stand when it is absent.
+export interface HonorCriteria {
+  gaMin: number;
+  floor: number;
+}
+const DEFAULT_CRITERIA: HonorCriteria = { gaMin: HONOR_GA_MIN, floor: HONOR_GRADE_FLOOR };
 
 // Ordinal per grade-level code (Grade 1..12); pre-elementary → 0.
 const LEVEL_ORDINAL: Record<string, number> = {
@@ -127,10 +135,11 @@ export function evaluateHonor(
   grades: QuarterGrade[],
   index: Map<string, Subject>,
   period: HonorPeriod,
+  criteria: HonorCriteria = DEFAULT_CRITERIA,
 ): HonorResult {
   const pa = periodAverage(grades, index, period);
-  const gaMet = pa.ga != null && pa.ga >= HONOR_GA_MIN;
-  const belowFloor = gaMet && pa.lowest != null && pa.lowest < HONOR_GRADE_FLOOR;
+  const gaMet = pa.ga != null && pa.ga >= criteria.gaMin;
+  const belowFloor = gaMet && pa.lowest != null && pa.lowest < criteria.floor;
   return { ...pa, gaMet, belowFloor, qualified: gaMet && !belowFloor };
 }
 
@@ -148,14 +157,15 @@ export function evaluateAward(
   index: Map<string, Subject>,
   period: HonorPeriod,
   sy?: string,
+  criteria: HonorCriteria = DEFAULT_CRITERIA,
 ): AwardResult {
   const pa = periodAverage(grades, index, period);
   const regime = honorRegimeForSy(sy);
-  const gaMet = pa.ga != null && pa.ga >= HONOR_GA_MIN;
+  const gaMet = pa.ga != null && pa.ga >= criteria.gaMin;
   if (regime === 'tiered') {
     return { ...pa, regime, qualified: gaMet, tier: tierForGa(pa.ga), belowFloor: false };
   }
-  const belowFloor = gaMet && pa.lowest != null && pa.lowest < HONOR_GRADE_FLOOR;
+  const belowFloor = gaMet && pa.lowest != null && pa.lowest < criteria.floor;
   return { ...pa, regime, qualified: gaMet && !belowFloor, tier: null, belowFloor };
 }
 

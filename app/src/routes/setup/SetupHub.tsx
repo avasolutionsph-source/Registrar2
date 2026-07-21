@@ -66,6 +66,12 @@ const TILES: Tile[] = [
     desc: 'Initial Grade → transmuted grade lookup (DepEd), per school year',
   },
   {
+    to: '/setup/honor-criteria',
+    icon: Percent,
+    label: 'Honor Criteria',
+    desc: 'Academic Excellence Award: minimum GA + grade floor, per school year',
+  },
+  {
     to: '/setup/schools',
     icon: School,
     label: 'Schools',

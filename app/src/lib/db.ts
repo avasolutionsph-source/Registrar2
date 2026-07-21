@@ -1514,6 +1514,28 @@ export async function getDescriptorConfig(sy: string): Promise<DescriptorConfig>
   };
 }
 
+// ── honor criteria (Academic Excellence Award thresholds, per SY) ──
+export interface HonorCriteriaRow { gaMin: number; floor: number; }
+
+export async function getHonorCriteria(sy: string): Promise<HonorCriteriaRow> {
+  const { data, error } = await client()
+    .from('reg_honor_criteria')
+    .select('ga_min,grade_floor')
+    .eq('sy', sy)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { gaMin: Number(data.ga_min), floor: Number(data.grade_floor) } : { gaMin: 90, floor: 80 };
+}
+
+export async function saveHonorCriteria(sy: string, gaMin: number, floor: number): Promise<void> {
+  if (gaMin < 0 || gaMin > 100 || floor < 0 || floor > 100)
+    throw new Error('Both values must be between 0 and 100.');
+  const { error } = await client()
+    .from('reg_honor_criteria')
+    .upsert({ sy, ga_min: gaMin, grade_floor: floor }, { onConflict: 'sy' });
+  if (error) throw error;
+}
+
 // ── transmutation table (Initial Grade → transmuted grade, per SY) ──
 export interface TransmuteRow { min: number; grade: number; }
 
