@@ -20,6 +20,14 @@ create table if not exists reg_grading_policy (
   updated_at                timestamptz not null default now()
 );
 
+-- RLS: everyone signed in may read; only the registrar may change it.
+alter table public.reg_grading_policy enable row level security;
+drop policy if exists "read all authed" on public.reg_grading_policy;
+create policy "read all authed" on public.reg_grading_policy for select to authenticated using (true);
+drop policy if exists "registrar writes" on public.reg_grading_policy;
+create policy "registrar writes" on public.reg_grading_policy for all to authenticated
+  using (public.is_registrar()) with check (public.is_registrar());
+
 insert into reg_grading_policy
   (sy, passing_grade, remedial_max_fails, ga_decimals, tiebreak_decimals,
    round_ig_before_transmute, numerical_floor, honor_min_grade, honor_regime,
