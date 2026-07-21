@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { PrintHost } from '@/components/print/PrintHost';
+import { Letterhead } from '@/components/print/parts';
 import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
 import { gradeLabel } from '@/lib/forms';
@@ -129,12 +130,8 @@ export default function Statistics() {
   // The printable sheet — print-safe colours (black on white) so it renders both
   // in the on-screen report and inside the #print-root portal (PrintHost).
   const bd = 'border border-zinc-400';
-  const sheet = (
-    <div className="text-black">
-      <h2 className="text-center text-[15px] font-bold mb-3">
-        Statistics for School Year {currentSY?.code ?? ''}
-      </h2>
-      <table className="w-full text-[12.5px] border-collapse">
+  const table = (
+    <table className="w-full text-[12.5px] border-collapse text-black">
         <thead>
           <tr className="text-[11px] uppercase tracking-[0.03em] bg-zinc-100">
             <th className={`${bd} px-2 py-1.5 text-left`}>Grade</th>
@@ -168,7 +165,6 @@ export default function Statistics() {
           </tr>
         </tbody>
       </table>
-    </div>
   );
 
   return (
@@ -214,7 +210,12 @@ export default function Statistics() {
       ) : rows.every((r) => r.annual === 0) ? (
         <p className="text-[13px] text-ink-secondary">No enrolled students yet.</p>
       ) : (
-        <div className="overflow-x-auto">{sheet}</div>
+        <div className="overflow-x-auto">
+          <h2 className="text-center text-[15px] font-bold text-ink-primary mb-3">
+            Statistics for School Year {currentSY?.code ?? ''}
+          </h2>
+          {table}
+        </div>
       )}
 
       <PrintHost
@@ -222,7 +223,8 @@ export default function Statistics() {
         docTitle={`Statistics · SY ${currentSY?.code ?? ''}`}
         onClose={() => setPrinting(false)}
       >
-        {sheet}
+        <Letterhead docTitle="Enrolment Statistics" docSubtitle={`School Year ${currentSY?.code ?? ''}`} />
+        <div className="mt-3">{table}</div>
       </PrintHost>
     </>
   );
