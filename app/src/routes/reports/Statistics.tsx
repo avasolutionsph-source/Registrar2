@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
+import { PrintHost } from '@/components/print/PrintHost';
 import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
 import { gradeLabel } from '@/lib/forms';
@@ -42,6 +43,7 @@ export default function Statistics() {
   const [yearRoster, setYearRoster] = useState<StudentYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   const code = currentSY?.code;
   const isOld = mode === 'old';
@@ -124,6 +126,51 @@ export default function Statistics() {
     [rows],
   );
 
+  // The printable sheet — print-safe colours (black on white) so it renders both
+  // in the on-screen report and inside the #print-root portal (PrintHost).
+  const bd = 'border border-zinc-400';
+  const sheet = (
+    <div className="text-black">
+      <h2 className="text-center text-[15px] font-bold mb-3">
+        Statistics for School Year {currentSY?.code ?? ''}
+      </h2>
+      <table className="w-full text-[12.5px] border-collapse">
+        <thead>
+          <tr className="text-[11px] uppercase tracking-[0.03em] bg-zinc-100">
+            <th className={`${bd} px-2 py-1.5 text-left`}>Grade</th>
+            <th className={`${bd} px-2 py-1.5 text-left`}>Section</th>
+            <th className={`${bd} px-2 py-1.5 text-center w-[9%]`}>Male</th>
+            <th className={`${bd} px-2 py-1.5 text-center w-[9%]`}>Female</th>
+            <th className={`${bd} px-2 py-1.5 text-center w-[12%]`}>Annual Enrolment</th>
+            <th className={`${bd} px-2 py-1.5 text-center w-[14%]`}>Dropouts / Transferred Out</th>
+            <th className={`${bd} px-2 py-1.5 text-center w-[13%]`}>Corrected Enrolment</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td className={`${bd} px-2 py-1`}>{gradeLabel(r.gradeLevel)}</td>
+              <td className={`${bd} px-2 py-1`}>{r.sectionName}</td>
+              <td className={`${bd} px-2 py-1 text-center tabular-nums`}>{r.male}</td>
+              <td className={`${bd} px-2 py-1 text-center tabular-nums`}>{r.female}</td>
+              <td className={`${bd} px-2 py-1 text-center tabular-nums`}>{r.annual}</td>
+              <td className={`${bd} px-2 py-1 text-center tabular-nums`}>{r.dropped}</td>
+              <td className={`${bd} px-2 py-1 text-center tabular-nums font-medium`}>{corrected(r)}</td>
+            </tr>
+          ))}
+          <tr className="bg-zinc-100 font-bold">
+            <td className={`${bd} px-2 py-1.5`} colSpan={2}>TOTAL</td>
+            <td className={`${bd} px-2 py-1.5 text-center tabular-nums`}>{totals.male}</td>
+            <td className={`${bd} px-2 py-1.5 text-center tabular-nums`}>{totals.female}</td>
+            <td className={`${bd} px-2 py-1.5 text-center tabular-nums`}>{totals.annual}</td>
+            <td className={`${bd} px-2 py-1.5 text-center tabular-nums`}>{totals.dropped}</td>
+            <td className={`${bd} px-2 py-1.5 text-center tabular-nums`}>{totals.corrected}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <>
       <Breadcrumb items={[{ label: 'Reports', to: '/reports' }, { label: 'Statistics' }]} />
@@ -136,8 +183,9 @@ export default function Statistics() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => window.print()}
-            className="h-9 rounded-md border border-border px-3 text-[13px] hover:bg-panel-alt"
+            onClick={() => setPrinting(true)}
+            disabled={rows.every((r) => r.annual === 0)}
+            className="h-9 rounded-md border border-border px-3 text-[13px] hover:bg-panel-alt disabled:opacity-50"
           >
             Print
           </button>
@@ -166,46 +214,16 @@ export default function Statistics() {
       ) : rows.every((r) => r.annual === 0) ? (
         <p className="text-[13px] text-ink-secondary">No enrolled students yet.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <h2 className="text-center text-[15px] font-bold text-ink-primary mb-3">
-            Statistics for School Year {currentSY?.code ?? ''}
-          </h2>
-          <table className="w-full text-[12.5px] border-collapse">
-            <thead>
-              <tr className="text-[11px] uppercase tracking-[0.03em] text-ink-primary">
-                <th className="border border-border px-2 py-1.5 text-left">Grade</th>
-                <th className="border border-border px-2 py-1.5 text-left">Section</th>
-                <th className="border border-border px-2 py-1.5 text-center w-[9%]">Male</th>
-                <th className="border border-border px-2 py-1.5 text-center w-[9%]">Female</th>
-                <th className="border border-border px-2 py-1.5 text-center w-[12%]">Annual Enrolment</th>
-                <th className="border border-border px-2 py-1.5 text-center w-[14%]">Dropouts / Transferred Out</th>
-                <th className="border border-border px-2 py-1.5 text-center w-[13%]">Corrected Enrolment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td className="border border-border px-2 py-1 text-ink-secondary">{gradeLabel(r.gradeLevel)}</td>
-                  <td className="border border-border px-2 py-1">{r.sectionName}</td>
-                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.male}</td>
-                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.female}</td>
-                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.annual}</td>
-                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.dropped}</td>
-                  <td className="border border-border px-2 py-1 text-center tabular-nums font-medium">{corrected(r)}</td>
-                </tr>
-              ))}
-              <tr className="bg-panel-alt font-bold">
-                <td className="border border-border px-2 py-1.5" colSpan={2}>TOTAL</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.male}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.female}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.annual}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.dropped}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.corrected}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <div className="overflow-x-auto">{sheet}</div>
       )}
+
+      <PrintHost
+        open={printing}
+        docTitle={`Statistics · SY ${currentSY?.code ?? ''}`}
+        onClose={() => setPrinting(false)}
+      >
+        {sheet}
+      </PrintHost>
     </>
   );
 }
