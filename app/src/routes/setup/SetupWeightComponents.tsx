@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, AlertTriangle, CopyPlus, History, RotateCcw, Plus, Trash2 } from 'lucide-react';
+import { Save, AlertTriangle, CopyPlus, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -12,13 +12,10 @@ import {
   listAllClassSubjectTypes,
   listWeightAudit,
   setClassSubjectType,
-  listAttitudeScale,
-  saveAttitudeScale,
   type WeightComponent,
   type ClassSubjectType,
   type WeightAuditRow,
 } from '@/lib/db';
-import { DEFAULT_ATTITUDE_SCALE, type AttitudeBand } from '@/lib/grading';
 import type { SchoolYear } from '@/types';
 
 // Setup → Weight Components. The official WWs / PTs / EXs (QA in Grade 12) split
@@ -63,12 +60,6 @@ export default function SetupWeightComponents() {
   const [audit, setAudit] = useState<WeightAuditRow[]>([]);
   const [showAudit, setShowAudit] = useState(false);
 
-  // Attitude scale — moved here from its own page so the whole grading
-  // configuration lives behind one door. Same data, same rules, same table
-  // (reg_attitude_scale); only the location changed.
-  const [attitude, setAttitude] = useState<AttitudeBand[]>([]);
-  const [attSaving, setAttSaving] = useState(false);
-  const [attSaved, setAttSaved] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -89,11 +80,10 @@ export default function SetupWeightComponents() {
     let cancelled = false;
     (async () => {
       try {
-        const [ys, att] = await Promise.all([listSchoolYears(), listAttitudeScale()]);
+        const ys = await listSchoolYears();
         if (cancelled) return;
         setYears(ys);
         setSy(ys.find((y) => y.isActive)?.code ?? ys[ys.length - 1]?.code ?? '');
-        setAttitude(att);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load school years.');
       }
@@ -160,50 +150,6 @@ export default function SetupWeightComponents() {
   async function openAudit() {
     setShowAudit(true);
     try { setAudit(await listWeightAudit()); } catch { /* the table is registrar-only; empty is fine */ }
-  }
-
-  // ── Attitude scale handlers (unchanged behaviour, moved page) ──
-  const setBand = (i: number, patch: Partial<AttitudeBand>) => {
-    setAttitude((bands) => bands.map((b, j) => (j === i ? { ...b, ...patch } : b)));
-    setAttSaved(false);
-  };
-  const addBand = () => {
-    setAttitude((bands) => [...bands, { min: 0, letter: '', label: '' }]);
-    setAttSaved(false);
-  };
-  const removeBand = (i: number) => {
-    setAttitude((bands) => bands.filter((_, j) => j !== i));
-    setAttSaved(false);
-  };
-  const restoreAttitude = () => {
-    setAttitude(DEFAULT_ATTITUDE_SCALE.map((b) => ({ ...b })));
-    setAttSaved(false);
-  };
-  const attValid =
-    attitude.length > 0 && attitude.every((b) => b.letter.trim() && b.min >= 0 && b.min <= 100);
-
-  // Bands are matched high → low, so a band runs from its own minimum up to one
-  // below the next band's. The top band's ceiling is the scale's highest score
-  // (99 for Attitude — there is no 100). Display only; the stored value is `min`.
-  const attRanges = useMemo(() => {
-    const sorted = [...attitude].sort((a, b) => b.min - a.min);
-    return new Map(
-      sorted.map((b, i) => [b, i === 0 ? 99 : sorted[i - 1].min - 1] as const),
-    );
-  }, [attitude]);
-
-  async function saveAtt() {
-    if (!attValid) return;
-    setAttSaving(true);
-    setError(null);
-    try {
-      await saveAttitudeScale(attitude);
-      setAttSaved(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save the attitude scale.');
-    } finally {
-      setAttSaving(false);
-    }
   }
 
   async function assignType(row: ClassSubjectType, typeKey: string) {
@@ -520,96 +466,6 @@ export default function SetupWeightComponents() {
         )}
       </div>
 
-      {/* ── Section 2 ─────────────────────────────────────────────────── */}
-      <div className="mt-8 pt-6 border-t border-border">
-        <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-[15px] font-bold text-ink-primary">Attitude Scale</h2>
-            <p className="text-[12.5px] text-ink-secondary mt-0.5 max-w-[660px]">
-              The Attitude column on the grade sheet is encoded as a number, then shown as a letter
-              using these bands. A score matches the highest band whose minimum it reaches, so the
-              bands run from each minimum up to one below the next. Scores outside the scale are
-              rejected at encoding rather than stored without a descriptor.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {attSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
-            <Button variant="outline" onClick={restoreAttitude} className="gap-2">
-              <RotateCcw className="w-3.5 h-3.5" /> Defaults
-            </Button>
-            <Button onClick={saveAtt} disabled={!attValid || attSaving} className="gap-2">
-              <Save className="w-3.5 h-3.5" /> {attSaving ? 'Saving…' : 'Save attitude'}
-            </Button>
-          </div>
-        </div>
-
-        <SectionCard heading={`${attitude.length} bands`}>
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th className="py-2 pr-3 w-[14%]">Letter</th>
-                <th className="py-2 pr-3">Description</th>
-                <th className="py-2 px-2 w-[18%] text-center">Minimum score</th>
-                <th className="py-2 pl-2 w-[16%] text-center">Range</th>
-                <th className="py-2 w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {attitude.map((b, i) => (
-                <tr key={i} className="border-b border-border-soft last:border-0">
-                  <td className="py-2 pr-3">
-                    <Input
-                      value={b.letter}
-                      placeholder="e.g. MO"
-                      onChange={(e) => setBand(i, { letter: e.target.value })}
-                    />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <Input
-                      value={b.label}
-                      placeholder="e.g. Most Outstanding"
-                      onChange={(e) => setBand(i, { label: e.target.value })}
-                    />
-                  </td>
-                  <td className="py-2 px-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={b.min}
-                      onChange={(e) => setBand(i, { min: Number(e.target.value) || 0 })}
-                      className="text-center tabular-nums"
-                    />
-                  </td>
-                  <td className="py-2 pl-2 text-center tabular-nums text-ink-secondary">
-                    {b.min}–{attRanges.get(b) ?? 99}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeBand(i)}
-                      className="p-1 rounded text-ink-muted hover:text-nps-red hover:bg-app"
-                      aria-label="Remove band"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="mt-3 flex items-center justify-between px-1">
-            <Button variant="outline" size="sm" onClick={addBand} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Add band
-            </Button>
-            {!attValid && (
-              <span className="text-[12px] text-nps-red">
-                Every band needs a letter and a minimum score (0–100).
-              </span>
-            )}
-          </div>
-        </SectionCard>
-      </div>
     </>
   );
 }

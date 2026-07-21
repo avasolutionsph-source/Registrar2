@@ -133,7 +133,7 @@ export default function ClassDetail() {
         setTransfers(trans);
         setRoster(rosterList);
         setTeachers(tchs);
-        listAttitudeScale().then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
+        listAttitudeScale(c?.sy).then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
         setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
         if (c && rosterList.length) {
           const esc = await listEscForClass(rosterList.map((s) => s.lrn), c.sy);

@@ -98,7 +98,7 @@ export default function StudentDetail() {
         setSubjects(subs);
         setReleases(rel);
         setKlass(s ? classes.find((c) => c.id === s.currentClassId) : undefined);
-        listAttitudeScale().then((sc) => { if (!cancelled) setAttitudeScale(sc); }).catch(() => {});
+        listAttitudeScale(s?.currentSY).then((sc) => { if (!cancelled) setAttitudeScale(sc); }).catch(() => {});
         if (s?.photoPath) {
           const url = await getPhotoSignedUrl(s.photoPath);
           if (!cancelled) setPhotoUrl(url);

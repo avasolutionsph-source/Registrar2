@@ -1656,35 +1656,30 @@ export async function listRoutingAudit(limit = 50): Promise<RoutingAuditRow[]> {
 // The subject grade sheet's attitude column converts a numerical score to a
 // letter using these bands. Stored in reg_attitude_scale; falls back to the
 // DepEd-style default when the table is empty or unavailable.
-export async function listAttitudeScale(): Promise<AttitudeBand[]> {
+// Attitude is now stored per SY in reg_descriptor_scales (scale_key='attitude'),
+// alongside the other descriptor scales. When a SY is given, that is the source;
+// the legacy single-setting reg_attitude_scale is a fallback for old callers and
+// unseeded years, and the code default is the last resort.
+export async function listAttitudeScale(sy?: string): Promise<AttitudeBand[]> {
   try {
+    if (sy) {
+      const { data } = await client()
+        .from('reg_descriptor_scales')
+        .select('letter,label,min')
+        .eq('sy', sy).eq('scale_key', 'attitude')
+        .order('min', { ascending: false });
+      if (data && data.length) return data.map((r) => ({ min: Number(r.min), letter: str(r.letter), label: str(r.label) }));
+    }
     const { data, error } = await client()
       .from('reg_attitude_scale')
       .select('*')
       .order('min', { ascending: false });
     if (error) throw error;
-    const rows = (data ?? []).map((r) => ({
-      min: Number(r.min),
-      letter: str(r.letter),
-      label: str(r.label),
-    }));
+    const rows = (data ?? []).map((r) => ({ min: Number(r.min), letter: str(r.letter), label: str(r.label) }));
     return rows.length ? rows : DEFAULT_ATTITUDE_SCALE;
   } catch {
     return DEFAULT_ATTITUDE_SCALE;
   }
-}
-
-// Replace the whole attitude scale with the given bands. Runs as the signed-in
-// registrar; reg_attitude_scale RLS gates the writes.
-export async function saveAttitudeScale(bands: AttitudeBand[]): Promise<void> {
-  const c = client();
-  const del = await c.from('reg_attitude_scale').delete().gte('min', -1);
-  if (del.error) throw del.error;
-  if (!bands.length) return;
-  const { error } = await c
-    .from('reg_attitude_scale')
-    .insert(bands.map((b) => ({ letter: b.letter, label: b.label, min: b.min })));
-  if (error) throw error;
 }
 
 // ── schools (transferee origin master list) ──

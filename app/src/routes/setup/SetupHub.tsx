@@ -51,13 +51,13 @@ const TILES: Tile[] = [
     to: '/setup/weight-components',
     icon: Percent,
     label: 'Weight Components',
-    desc: 'WWs / PTs / EXs-QA split per subject type, per school year + Attitude Scale bands',
+    desc: 'WWs / PTs / EXs-QA split per subject type, per school year',
   },
   {
     to: '/setup/descriptors',
     icon: Percent,
-    label: 'Report Card Descriptors',
-    desc: 'Letter scales (Preschool C/D/B, Grades 1-3 A/B/C/D/E) + which levels show letters',
+    label: 'Descriptors and Range',
+    desc: 'Performance descriptors, attitude, deportment, and special program scales',
   },
   {
     to: '/setup/transmutation',
