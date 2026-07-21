@@ -18,6 +18,7 @@ import AddClass from '@/routes/classes/AddClass';
 import EditClass from '@/routes/classes/EditClass';
 import TeachersList from '@/routes/teachers/TeachersList';
 import TeacherDetail from '@/routes/teachers/TeacherDetail';
+import TeacherClassGradesheet from '@/routes/teachers/TeacherClassGradesheet';
 import AddTeacher from '@/routes/teachers/AddTeacher';
 import EditTeacher from '@/routes/teachers/EditTeacher';
 import SetupHub from '@/routes/setup/SetupHub';
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="teachers" element={<TeachersList />} />
           <Route path="teachers/new" element={<AddTeacher />} />
           <Route path="teachers/:id" element={<TeacherDetail />} />
+          <Route path="teachers/:id/sheet/:classId/:subjectCode" element={<TeacherClassGradesheet />} />
           <Route path="teachers/:id/edit" element={<EditTeacher />} />
           <Route path="setup" element={<SetupHub />} />
           <Route path="setup/school-year" element={<SetupSchoolYear />} />

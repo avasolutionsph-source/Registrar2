@@ -15,10 +15,8 @@ import {
   listSubjects,
   listTeacherLoad,
   assignTeacherSubject,
-  listStudentsByClass,
 } from '@/lib/db';
-import { subjectFitsSection, periodsForSy } from '@/lib/forms';
-import { formatLastFirstMiddle } from '@/lib/format';
+import { subjectFitsSection } from '@/lib/forms';
 import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
 
 export default function TeacherDetail() {
@@ -42,20 +40,6 @@ export default function TeacherDetail() {
   const [taBusy, setTaBusy] = useState(false);
   const [taErr, setTaErr] = useState<string | null>(null);
 
-  // Which assigned class×subject grade sheet the registrar is viewing (read-only).
-  const [selGs, setSelGs] = useState<{ classId: string; subjectCode: string } | null>(null);
-  const [gsRoster, setGsRoster] = useState<Student[] | null>(null); // null = loading
-  const [gsErr, setGsErr] = useState<string | null>(null);
-  useEffect(() => {
-    if (!selGs) { setGsRoster(null); return; }
-    let cancelled = false;
-    setGsRoster(null);
-    setGsErr(null);
-    listStudentsByClass(selGs.classId)
-      .then((r) => { if (!cancelled) setGsRoster(r); })
-      .catch((e) => { if (!cancelled) { setGsErr(e?.message ?? 'Failed to load the class roster.'); setGsRoster([]); } });
-    return () => { cancelled = true; };
-  }, [selGs]);
 
   const numId = Number(id);
 
@@ -421,19 +405,12 @@ export default function TeacherDetail() {
                             return (
                               <span
                                 key={code}
-                                className={`inline-flex items-center rounded-full border text-[12px] text-ink-primary overflow-hidden ${
-                                  selGs?.classId === cid && selGs?.subjectCode === code
-                                    ? 'border-accent bg-accent/10'
-                                    : 'border-border-soft bg-panel'
-                                }`}
+                                className="inline-flex items-center rounded-full border border-border-soft bg-panel text-[12px] text-ink-primary overflow-hidden"
                               >
                                 <button
-                                  onClick={() => {
-                                    setSelGs({ classId: cid, subjectCode: code });
-                                    document.getElementById('gradesheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                  }}
+                                  onClick={() => navigate(`/teachers/${id}/sheet/${cid}/${encodeURIComponent(code)}`)}
                                   className="pl-3 pr-2 py-1 hover:text-accent"
-                                  title="View this class's grade sheet"
+                                  title="Open this class's grade sheet"
                                 >
                                   {s?.fullName ?? code}
                                 </button>
@@ -457,81 +434,10 @@ export default function TeacherDetail() {
           </SectionCard>
 
           <SectionCard id="gradesheet" heading="Class Grade-Sheet">
-            {!selGs ? (
-              <p className="text-[12.5px] text-ink-secondary px-1">
-                Click a subject in the Teaching Assignments above to view that class's grade sheet
-                for the subject.
-              </p>
-            ) : (
-              (() => {
-                const cls = classById.get(selGs.classId);
-                const subj = subjectByCode.get(selGs.subjectCode.toUpperCase());
-                const periods = periodsForSy(cls?.sy);
-                return (
-                  <div>
-                    <div className="mb-3 px-1">
-                      <div className="text-[13px] font-semibold text-ink-primary">
-                        {subj?.fullName ?? selGs.subjectCode}
-                        <span className="text-ink-muted font-normal">
-                          {' '}· {cls ? `Grade ${cls.gradeLevel} · ${cls.sectionName} · ${cls.sy}` : ''}
-                        </span>
-                      </div>
-                      <p className="text-[12px] text-ink-muted mt-0.5">
-                        Read-only view of {teacher?.firstName ?? 'this teacher'}'s class for this subject.
-                      </p>
-                    </div>
-                    {gsErr && (
-                      <p className="mb-2 text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{gsErr}</p>
-                    )}
-                    {gsRoster === null ? (
-                      <p className="text-[12.5px] text-ink-secondary px-1">Loading…</p>
-                    ) : gsRoster.length === 0 ? (
-                      <p className="text-[12.5px] text-ink-secondary px-1">No learners in this section.</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-[12.5px]">
-                          <thead>
-                            <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                              <th className="py-1.5 pr-3 w-8 text-right">#</th>
-                              <th className="py-1.5 pr-3">Learner</th>
-                              {periods.map((p) => (
-                                <th key={p.key} className="py-1.5 px-2 text-center">{p.label}</th>
-                              ))}
-                              <th className="py-1.5 pl-2 text-center">Final</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {gsRoster.map((s, i) => {
-                              const yearGrades = s.grades?.[(cls?.sy ?? '') as keyof typeof s.grades] ?? [];
-                              const g = yearGrades.find(
-                                (x) => x.subjectCode.toUpperCase() === selGs.subjectCode.toUpperCase(),
-                              );
-                              const cellOf = (key: string) => {
-                                const num = g?.[key as 'q1'];
-                                const letter = g?.letters?.[key as 'q1'];
-                                return num != null ? num : letter || '—';
-                              };
-                              return (
-                                <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                                  <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">{i + 1}</td>
-                                  <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                                  {periods.map((p) => (
-                                    <td key={p.key} className="py-1.5 px-2 text-center tabular-nums">{cellOf(p.key)}</td>
-                                  ))}
-                                  <td className="py-1.5 pl-2 text-center tabular-nums font-semibold">
-                                    {g?.final != null ? g.final : '—'}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()
-            )}
+            <p className="text-[12.5px] text-ink-secondary px-1">
+              Click a subject in the Teaching Assignments above to open that class's full grade sheet
+              (read-only) on its own page.
+            </p>
           </SectionCard>
         </div>
       </div>

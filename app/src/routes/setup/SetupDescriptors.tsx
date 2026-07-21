@@ -15,6 +15,18 @@ import {
 } from '@/lib/db';
 import type { SchoolYear } from '@/types';
 
+// Display order: Preschool → SHS (N1, N2, K, Grade 1-6, SNED, Grade 7-12).
+const LEVEL_ORDER = [
+  'N1', 'N2', 'K', 'I', 'II', 'III', 'IV', 'V', 'VI', 'S',
+  'VII', 'VIII', 'IX', 'X',
+  'XI-GAS', 'XI-HUMSS', 'XI-STEM', 'XI-ABM', 'XI-ASSH', 'XI-STEM-ENG', 'XI-STEM-HA',
+  'XII-GAS', 'XII-HUMSS', 'XII-STEM', 'XII-ABM', 'XII-ASSH', 'XII-STEM-ENG', 'XII-STEM-HA',
+];
+const levelRank = (g: string) => {
+  const i = LEVEL_ORDER.indexOf(g);
+  return i === -1 ? 999 : i;
+};
+
 // Setup → Report Card Descriptors. How grades are DISPLAYED — never how they are
 // computed. Two things, per school year:
 //   1. the descriptor scales (Preschool C/D/B, Grades 1-3 A/B/C/D/E), and
@@ -332,7 +344,7 @@ export default function SetupDescriptors() {
                   </tr>
                 </thead>
                 <tbody>
-                  {levels.map((l) => (
+                  {[...levels].sort((a, b) => levelRank(a.gradeLevel) - levelRank(b.gradeLevel)).map((l) => (
                     <tr key={l.gradeLevel} className="border-b border-border-soft last:border-0">
                       <td className="py-2 pr-3 text-ink-primary font-medium">{l.gradeLevel}</td>
                       <td className="py-2 pr-3">
