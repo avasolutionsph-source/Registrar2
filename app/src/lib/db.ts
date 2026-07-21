@@ -1286,6 +1286,37 @@ export async function listWeightComponents(sy: string): Promise<WeightComponent[
   }));
 }
 
+// Official {ww,pt,st} split PER SUBJECT for a grade level + SY, resolved from
+// the subject's TYPE (reg_default_subject_type → reg_weight_components) — the
+// same rule the teacher portal uses (reg_weights_for). The per-student grade
+// encoder has no section, so it resolves by grade level. Returns a map keyed by
+// subject code; codes with no configured type are omitted so the caller can
+// fall back to its legacy area-group weights. Never throws to the caller path —
+// on any error it returns {} so encoding still works.
+export interface GradeSubjectWeights { ww: number; pt: number; st: number }
+export async function listGradeSubjectWeights(
+  sy: string,
+  gradeLevel: string,
+  codes: string[],
+): Promise<Record<string, GradeSubjectWeights>> {
+  const out: Record<string, GradeSubjectWeights> = {};
+  if (!sy || !gradeLevel || !codes.length) return out;
+  try {
+    const { data, error } = await client().rpc('reg_weights_for_grade', {
+      p_sy: sy,
+      p_grade_level: gradeLevel,
+      p_subject_codes: codes,
+    });
+    if (error) throw error;
+    for (const r of data ?? []) {
+      out[String(r.subject_code).toUpperCase()] = { ww: Number(r.ww), pt: Number(r.pt), st: Number(r.ex) };
+    }
+  } catch {
+    // RPC missing / offline → empty map → caller uses legacy weights.
+  }
+  return out;
+}
+
 // The DB CHECK constraint enforces ww+pt+ex=100, but validate here too so the
 // user gets a clear message instead of a raw Postgres error.
 export async function saveWeightComponents(rows: WeightComponent[]): Promise<void> {

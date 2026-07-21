@@ -1,5 +1,8 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireRegistrar } from '@/lib/auth';
+import { listSchoolYears, getGradingPolicy } from '@/lib/db';
+import { setPassingGrade } from '@/lib/forms';
 import { AppShell } from '@/components/shell/AppShell';
 import StudentDetail from '@/routes/students/StudentDetail';
 import StudentsList from '@/routes/students/StudentsList';
@@ -47,6 +50,21 @@ import ComingSoon from '@/routes/ComingSoon';
 import Login from '@/routes/Login';
 
 export default function App() {
+  // Apply the active year's configured passing grade app-wide so Form 137 / SF10
+  // "Passed/Failed" remarks follow Setup ▸ Promotion & Grading Rules. Keeps the
+  // DepEd 75 default if it can't load (e.g. before sign-in).
+  useEffect(() => {
+    (async () => {
+      try {
+        const ys = await listSchoolYears();
+        const active = ys.find((y) => y.isActive)?.code;
+        if (active) setPassingGrade((await getGradingPolicy(active)).passingGrade);
+      } catch {
+        /* keep the default */
+      }
+    })();
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

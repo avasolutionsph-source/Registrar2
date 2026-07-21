@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, type DescriptorConfig, type TransmuteRow } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
@@ -13,6 +13,7 @@ import {
   AREA_WEIGHTS,
   classifyArea,
   computeGrade,
+  computeGradeWith,
   descriptiveScaleFor,
   isAreaGroup,
   isDescriptiveLevel,
@@ -192,6 +193,24 @@ export default function EncodeGrades() {
     getGradingPolicy(sy).then((p) => { if (!cancelled) setPassingGrade(p.passingGrade); }).catch(() => {});
     return () => { cancelled = true; };
   }, [sy]);
+  // Official per-SUBJECT weight split resolved by the subject's TYPE for this
+  // grade level (reg_weight_components) — the SAME rule the teacher portal uses.
+  // Keyed by subject code (upper). A subject not in the map keeps the legacy
+  // area-group weights, so nothing regresses for unseeded types / transferees.
+  const [typeWeights, setTypeWeights] = useState<Record<string, GradeSubjectWeights>>({});
+  const codesKey = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.subjectCode.toUpperCase()))).sort().join(','),
+    [rows],
+  );
+  useEffect(() => {
+    if (!sy || !gradeLevel || !codesKey) { setTypeWeights({}); return; }
+    let cancelled = false;
+    listGradeSubjectWeights(sy, gradeLevel, codesKey.split(','))
+      .then((m) => { if (!cancelled) setTypeWeights(m); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [sy, gradeLevel, codesKey]);
+
   const ks1 = descCfg ? descCfg.isDescriptive(gradeLevel, sy) : isDescriptiveLevel(gradeLevel, sy);
   const scale = descCfg ? descCfg.scaleFor(gradeLevel) : descriptiveScaleFor(gradeLevel);
 
@@ -238,7 +257,14 @@ export default function EncodeGrades() {
   // Displayed/saved quarter grade: from raw scores when encoded, else the legacy number.
   const quarterValue = (row: Row, q: QuarterKey): number | undefined => {
     const r = row.raw[q];
-    if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row), weights, transmutation) ?? undefined;
+    if (r && (r.ww || r.pt || r.st)) {
+      // Prefer the subject-TYPE split (matches the portal, correct for Grade 12);
+      // fall back to the legacy area-group weights when no type is configured.
+      const tw = typeWeights[row.subjectCode.toUpperCase()];
+      return (tw
+        ? computeGradeWith(r, tw, transmutation)
+        : computeGrade(r, groupOf(row), weights, transmutation)) ?? undefined;
+    }
     return row.legacy[q];
   };
   // Average of the encoded period grades (the auto-computed Final).

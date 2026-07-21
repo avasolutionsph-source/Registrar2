@@ -145,11 +145,21 @@ const CATEGORY_RANK: Record<string, number> = {
   Elective: 3,
 };
 
-const PASSING = 75;
+// The passing grade drives the "Passed/Failed" remark on Form 137 / SF10. It is
+// registrar-configurable per SY (Setup ▸ Promotion & Grading Rules); the app
+// sets this module default once from the active year via setPassingGrade(), and
+// any caller may override per call. Defaults to the DepEd 75 until set.
+let PASSING = 75;
+export function setPassingGrade(n: number): void {
+  if (Number.isFinite(n) && n >= 0 && n <= 100) PASSING = n;
+}
+export function getPassingGrade(): number {
+  return PASSING;
+}
 
-export function remark(final?: number): string {
+export function remark(final?: number, passingGrade: number = PASSING): string {
   if (final == null) return '—';
-  return final >= PASSING ? 'Passed' : 'Failed';
+  return final >= passingGrade ? 'Passed' : 'Failed';
 }
 
 export interface SubjectRow extends QuarterGrade {
