@@ -72,6 +72,12 @@ const TILES: Tile[] = [
     desc: 'Academic Excellence Award: minimum GA + grade floor, per school year',
   },
   {
+    to: '/setup/grading-policy',
+    icon: Percent,
+    label: 'Promotion & Grading Rules',
+    desc: 'Passing grade, remedial limit, GA rounding, grade-level coverage, honor tiers — per school year',
+  },
+  {
     to: '/setup/schools',
     icon: School,
     label: 'Schools',

@@ -195,9 +195,11 @@ export function computeGrade(
   group: AreaGroup,
   weights: Record<AreaGroup, Weights> = AREA_WEIGHTS,
   transmutation?: TransmuteRow[] | null,
+  roundIg: boolean = true,
 ): number | null {
   const ig = initialGrade(raw, weights[group]);
-  return ig == null ? null : transmuteWith(Math.round(ig), transmutation);
+  if (ig == null) return null;
+  return transmuteWith(roundIg ? Math.round(ig) : ig, transmutation);
 }
 
 // Same computation, but taking the {ww,pt,st} split DIRECTLY instead of looking
@@ -210,9 +212,11 @@ export function computeGradeWith(
   raw: RawComponents,
   w: Weights,
   transmutation?: TransmuteRow[] | null,
+  roundIg: boolean = true,
 ): number | null {
   const ig = initialGrade(raw, w);
-  return ig == null ? null : transmuteWith(Math.round(ig), transmutation);
+  if (ig == null) return null;
+  return transmuteWith(roundIg ? Math.round(ig) : ig, transmutation);
 }
 
 // ── Attitude / behaviour rating (numerical → letter) ────────────────────────
@@ -295,7 +299,9 @@ export function numericalFloorForSy(sy?: string): number {
 // numeric grades even in Grades 1–3, so those must be encoded as numbers.
 const DESCRIPTIVE_ROLLOUT_START = 2026;
 
-export function isDescriptiveLevel(gradeLevel?: string, sy?: string): boolean {
+// `floorOverride` (from reg_grading_policy.numerical_floor) wins over the code
+// year-math when supplied, so the descriptive/numerical cut can be configured.
+export function isDescriptiveLevel(gradeLevel?: string, sy?: string, floorOverride?: number): boolean {
   if (!gradeLevel) return false;
   if (KINDER_LEVELS.has(gradeLevel)) return true;
   const ord = NUMBERED_ORDINAL[gradeLevel.split('-')[0]] ?? 0;
@@ -303,7 +309,8 @@ export function isDescriptiveLevel(gradeLevel?: string, sy?: string): boolean {
   const y = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
   // Before the roll-out year, numbered grades were numeric (historical / transferee data).
   if (Number.isFinite(y) && y < DESCRIPTIVE_ROLLOUT_START) return false;
-  return ord < numericalFloorForSy(sy);
+  const floor = floorOverride && floorOverride > 0 ? floorOverride : numericalFloorForSy(sy);
+  return ord < floor;
 }
 
 export interface LetterDescriptor {
@@ -369,11 +376,31 @@ export function descriptiveScaleFor(gradeLevel?: string): LetterDescriptor[] {
 export const PASSING = 75;
 export const REMEDIAL_MAX_FAILS = 2; // remedial is allowed if failing at most 2 learning areas
 
-export function promotionStatus(finals: number[]): 'promoted' | 'remedial' | 'retained' {
-  const fails = finals.filter((g) => g < PASSING).length;
+// Registrar-configurable promotion rules (reg_grading_policy), per SY. Callers
+// that load it pass it in; the constants above stand when it is absent.
+export interface PromotionRules {
+  passingGrade: number;
+  remedialMaxFails: number;
+}
+const DEFAULT_PROMOTION: PromotionRules = {
+  passingGrade: PASSING,
+  remedialMaxFails: REMEDIAL_MAX_FAILS,
+};
+
+export function promotionStatus(
+  finals: number[],
+  rules: PromotionRules = DEFAULT_PROMOTION,
+): 'promoted' | 'remedial' | 'retained' {
+  const fails = finals.filter((g) => g < rules.passingGrade).length;
   if (fails === 0) return 'promoted';
-  if (fails <= REMEDIAL_MAX_FAILS) return 'remedial';
+  if (fails <= rules.remedialMaxFails) return 'remedial';
   return 'retained';
+}
+
+// Is a numerical grade a passing mark? Uses the configured passing grade when
+// given, else the code default (75).
+export function isPassing(grade: number | null | undefined, passingGrade: number = PASSING): boolean {
+  return grade != null && grade >= passingGrade;
 }
 
 // ── Subject → learning-area group (best-effort by code/name) ────────────────

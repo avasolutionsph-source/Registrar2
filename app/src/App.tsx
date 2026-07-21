@@ -29,6 +29,7 @@ import SetupApprovalRouting from '@/routes/setup/SetupApprovalRouting';
 import SetupDescriptors from '@/routes/setup/SetupDescriptors';
 import SetupTransmutation from '@/routes/setup/SetupTransmutation';
 import SetupHonorCriteria from '@/routes/setup/SetupHonorCriteria';
+import SetupGradingPolicy from '@/routes/setup/SetupGradingPolicy';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="setup/descriptors" element={<SetupDescriptors />} />
           <Route path="setup/transmutation" element={<SetupTransmutation />} />
           <Route path="setup/honor-criteria" element={<SetupHonorCriteria />} />
+          <Route path="setup/grading-policy" element={<SetupGradingPolicy />} />
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />

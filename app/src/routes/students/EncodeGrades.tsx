@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, type DescriptorConfig, type TransmuteRow } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, type DescriptorConfig, type TransmuteRow } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
@@ -16,6 +16,7 @@ import {
   descriptiveScaleFor,
   isAreaGroup,
   isDescriptiveLevel,
+  PASSING,
   type AreaGroup,
   type Component,
 } from '@/lib/grading';
@@ -182,11 +183,13 @@ export default function EncodeGrades() {
   // Descriptors). Falls back to the code defaults until it loads / if unseeded.
   const [descCfg, setDescCfg] = useState<DescriptorConfig | null>(null);
   const [transmutation, setTransmutation] = useState<TransmuteRow[]>([]);
+  const [passingGrade, setPassingGrade] = useState(PASSING);
   useEffect(() => {
     if (!sy) return;
     let cancelled = false;
     getDescriptorConfig(sy).then((c) => { if (!cancelled) setDescCfg(c); }).catch(() => {});
     listTransmutation(sy).then((t) => { if (!cancelled) setTransmutation(t); }).catch(() => {});
+    getGradingPolicy(sy).then((p) => { if (!cancelled) setPassingGrade(p.passingGrade); }).catch(() => {});
     return () => { cancelled = true; };
   }, [sy]);
   const ks1 = descCfg ? descCfg.isDescriptive(gradeLevel, sy) : isDescriptiveLevel(gradeLevel, sy);
@@ -541,7 +544,7 @@ export default function EncodeGrades() {
                         <td className="pl-2 text-[11.5px]">
                           {mFin == null ? (
                             <span className="text-ink-secondary">—</span>
-                          ) : mFin >= 75 ? (
+                          ) : mFin >= passingGrade ? (
                             <span className="text-ok-fg font-medium">Passed</span>
                           ) : (
                             <span className="text-nps-red font-medium">Failed</span>
@@ -640,7 +643,7 @@ export default function EncodeGrades() {
                         <td className="pl-2 text-[11.5px]">
                           {fin == null ? (
                             <span className="text-ink-secondary">—</span>
-                          ) : fin >= 75 ? (
+                          ) : fin >= passingGrade ? (
                             <span className="text-ok-fg font-medium">Passed</span>
                           ) : (
                             <span className="text-nps-red font-medium">Failed</span>

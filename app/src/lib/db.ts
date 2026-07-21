@@ -12,6 +12,7 @@ import {
   DEFAULT_ATTITUDE_SCALE,
   isDescriptiveLevel,
   descriptiveScaleFor,
+  numericalFloorForSy,
   type AreaGroup,
   type Weights,
   type AttitudeBand,
@@ -1539,6 +1540,107 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
   const { error } = await client()
     .from('reg_honor_criteria')
     .upsert({ sy, ga_min: gaMin, grade_floor: floor }, { onConflict: 'sy' });
+  if (error) throw error;
+}
+
+// ── grading policy (promotion, averaging, phase-in, tiers — per SY) ──
+// The last grading constants that used to live only in code. Every field has a
+// code default equal to its old hardcoded value, so an unseeded year behaves
+// exactly as before. The honor phase-in defaults follow the same year-math the
+// code used (numericalFloorForSy / minHonorGrade / honorRegime).
+export interface GradingPolicy {
+  passingGrade: number;
+  remedialMaxFails: number;
+  gaDecimals: number;
+  tiebreakDecimals: number;
+  roundIgBeforeTransmute: boolean;
+  numericalFloor: number;
+  honorMinGrade: number;
+  honorRegime: 'excellence' | 'tiered';
+  tierWith: number;
+  tierHigh: number;
+  tierHighest: number;
+}
+
+// Code defaults for an unseeded year, mirroring grading.ts / honors.ts.
+export function defaultGradingPolicy(sy?: string): GradingPolicy {
+  const y = sy ? parseInt(sy.slice(0, 4), 10) : NaN;
+  const honorMin = !Number.isFinite(y) ? 4 : y <= 2026 ? 2 : y === 2027 ? 3 : 4;
+  const regime: 'excellence' | 'tiered' =
+    Number.isFinite(y) && y <= 2025 ? 'tiered' : 'excellence';
+  return {
+    passingGrade: 75,
+    remedialMaxFails: 2,
+    gaDecimals: 0,
+    tiebreakDecimals: 2,
+    roundIgBeforeTransmute: true,
+    numericalFloor: numericalFloorForSy(sy),
+    honorMinGrade: honorMin,
+    honorRegime: regime,
+    tierWith: 90,
+    tierHigh: 95,
+    tierHighest: 98,
+  };
+}
+
+export async function getGradingPolicy(sy: string): Promise<GradingPolicy> {
+  const def = defaultGradingPolicy(sy);
+  try {
+    const { data, error } = await client()
+      .from('reg_grading_policy')
+      .select('*')
+      .eq('sy', sy)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return def;
+    return {
+      passingGrade: Number(data.passing_grade),
+      remedialMaxFails: Number(data.remedial_max_fails),
+      gaDecimals: Number(data.ga_decimals),
+      tiebreakDecimals: Number(data.tiebreak_decimals),
+      roundIgBeforeTransmute: Boolean(data.round_ig_before_transmute),
+      numericalFloor: Number(data.numerical_floor),
+      honorMinGrade: Number(data.honor_min_grade),
+      honorRegime: data.honor_regime === 'tiered' ? 'tiered' : 'excellence',
+      tierWith: Number(data.tier_with),
+      tierHigh: Number(data.tier_high),
+      tierHighest: Number(data.tier_highest),
+    };
+  } catch {
+    return def; // table missing / offline → code defaults
+  }
+}
+
+export async function saveGradingPolicy(sy: string, p: GradingPolicy): Promise<void> {
+  const pct = (n: number) => n >= 0 && n <= 100;
+  if (!pct(p.passingGrade) || !pct(p.tierWith) || !pct(p.tierHigh) || !pct(p.tierHighest))
+    throw new Error('Passing grade and honor tiers must be between 0 and 100.');
+  if (p.remedialMaxFails < 0 || p.remedialMaxFails > 20)
+    throw new Error('Remedial max fails is out of range.');
+  if (p.gaDecimals < 0 || p.gaDecimals > 4 || p.tiebreakDecimals < 0 || p.tiebreakDecimals > 6)
+    throw new Error('Decimal places are out of range.');
+  if (p.numericalFloor < 1 || p.numericalFloor > 12 || p.honorMinGrade < 1 || p.honorMinGrade > 12)
+    throw new Error('Grade-level coverage must be between 1 and 12.');
+  const { error } = await client()
+    .from('reg_grading_policy')
+    .upsert(
+      {
+        sy,
+        passing_grade: p.passingGrade,
+        remedial_max_fails: p.remedialMaxFails,
+        ga_decimals: p.gaDecimals,
+        tiebreak_decimals: p.tiebreakDecimals,
+        round_ig_before_transmute: p.roundIgBeforeTransmute,
+        numerical_floor: p.numericalFloor,
+        honor_min_grade: p.honorMinGrade,
+        honor_regime: p.honorRegime,
+        tier_with: p.tierWith,
+        tier_high: p.tierHigh,
+        tier_highest: p.tierHighest,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'sy' },
+    );
   if (error) throw error;
 }
 
