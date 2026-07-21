@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
-import { SectionCard } from '@/components/entity/SectionCard';
 import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
+import { gradeLabel } from '@/lib/forms';
 import type { GradeLevel, SchoolYear, Student, ClassRecord } from '@/types';
 
 type RegMode = 'current' | 'old';
@@ -14,8 +14,12 @@ interface Row {
   sectionName: string;
   male: number;
   female: number;
-  total: number;
+  annual: number; // annual enrolment = male + female
+  dropped: number; // dropouts / transferred out
 }
+// Corrected enrolment = annual − dropped.
+const corrected = (r: Row) => r.annual - r.dropped;
+const isDropout = (status: Student['status']) => status === 'Dropped' || status === 'Transferred';
 
 const GRADE_GROUPS: { label: string; levels: GradeLevel[] }[] = [
   { label: 'Pre-Elementary', levels: ['N1', 'N2', 'K'] },
@@ -71,59 +75,86 @@ export default function Statistics() {
   // Current tab: counts by live class. Old System: grouped from that year's
   // enrolment_history roster (grade × section the learner held that year).
   const rows = useMemo<Row[]>(() => {
-    if (isOld) {
-      const map = new Map<string, Row>();
-      for (const s of yearRoster) {
-        const g = (s.yearGrade || '—') as GradeLevel;
-        const sec = s.yearSection || '—';
-        const key = `${g}|${sec}`;
-        let r = map.get(key);
-        if (!r) {
-          r = { gradeLevel: g, sectionName: sec, male: 0, female: 0, total: 0 };
-          map.set(key, r);
+    const list: Row[] = (() => {
+      if (isOld) {
+        const map = new Map<string, Row>();
+        for (const s of yearRoster) {
+          const g = (s.yearGrade || '—') as GradeLevel;
+          const sec = s.yearSection || '—';
+          const key = `${g}|${sec}`;
+          let r = map.get(key);
+          if (!r) {
+            r = { gradeLevel: g, sectionName: sec, male: 0, female: 0, annual: 0, dropped: 0 };
+            map.set(key, r);
+          }
+          if (s.gender === 'Female') r.female++;
+          else r.male++;
+          r.annual++;
+          if (isDropout(s.status)) r.dropped++;
         }
-        if (s.gender === 'Female') r.female++;
-        else r.male++;
-        r.total++;
+        return [...map.values()];
       }
-      return [...map.values()];
-    }
-    return classes
-      .filter((c) => isAllTime(currentSY) || c.sy === currentSY?.code)
-      .map((c) => {
-        const roster = students.filter((s) => s.currentClassId === c.id);
-        const male = roster.filter((s) => s.gender === 'Male').length;
-        const female = roster.filter((s) => s.gender === 'Female').length;
-        return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, total: male + female };
-      });
+      return classes
+        .filter((c) => isAllTime(currentSY) || c.sy === currentSY?.code)
+        .map((c) => {
+          const roster = students.filter((s) => s.currentClassId === c.id);
+          const male = roster.filter((s) => s.gender === 'Male').length;
+          const female = roster.filter((s) => s.gender === 'Female').length;
+          const dropped = roster.filter((s) => isDropout(s.status)).length;
+          return { gradeLevel: c.gradeLevel, sectionName: c.sectionName, male, female, annual: male + female, dropped };
+        });
+    })();
+    // Order by the standard grade sequence (Pre-Elem → SHS → SNED), section within.
+    const order = new Map(GRADE_GROUPS.flatMap((g) => g.levels).map((lvl, i) => [lvl, i]));
+    return list.sort(
+      (a, b) =>
+        (order.get(a.gradeLevel) ?? 999) - (order.get(b.gradeLevel) ?? 999) ||
+        a.sectionName.localeCompare(b.sectionName),
+    );
   }, [isOld, yearRoster, classes, students, currentSY]);
 
-  // Any grade not in a standard group (e.g. legacy "N"/"P" codes) — surfaced in
-  // an "Other" section so an old-year count is never silently truncated.
-  const groupedLevels = new Set(GRADE_GROUPS.flatMap((g) => g.levels));
-  const otherRows = rows.filter((r) => !groupedLevels.has(r.gradeLevel));
+  const totals = useMemo(
+    () => ({
+      male: rows.reduce((a, r) => a + r.male, 0),
+      female: rows.reduce((a, r) => a + r.female, 0),
+      annual: rows.reduce((a, r) => a + r.annual, 0),
+      dropped: rows.reduce((a, r) => a + r.dropped, 0),
+      corrected: rows.reduce((a, r) => a + corrected(r), 0),
+    }),
+    [rows],
+  );
 
   return (
     <>
       <Breadcrumb items={[{ label: 'Reports', to: '/reports' }, { label: 'Statistics' }]} />
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between print:hidden">
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Statistics</h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Enrollment counts by grade level × section · {currentSY?.label ?? 'All years'}
+            Enrolment per grade &amp; section · {currentSY?.label ?? 'All years'}
           </p>
         </div>
-        <ExportCsvButton
-          rows={rows}
-          columns={[
-            { header: 'Grade', value: (r) => r.gradeLevel },
-            { header: 'Section', value: (r) => r.sectionName },
-            { header: 'Male', value: (r) => r.male },
-            { header: 'Female', value: (r) => r.female },
-            { header: 'Total', value: (r) => r.total },
-          ]}
-          filename={`statistics-${currentSY?.code ?? 'all'}`}
-        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.print()}
+            className="h-9 rounded-md border border-border px-3 text-[13px] hover:bg-panel-alt"
+          >
+            Print
+          </button>
+          <ExportCsvButton
+            rows={rows}
+            columns={[
+              { header: 'Grade', value: (r) => gradeLabel(r.gradeLevel) },
+              { header: 'Section', value: (r) => r.sectionName },
+              { header: 'Male', value: (r) => r.male },
+              { header: 'Female', value: (r) => r.female },
+              { header: 'Annual Enrolment', value: (r) => r.annual },
+              { header: 'Dropouts/Transferred Out', value: (r) => r.dropped },
+              { header: 'Corrected Enrolment', value: (r) => corrected(r) },
+            ]}
+            filename={`statistics-${currentSY?.code ?? 'all'}`}
+          />
+        </div>
       </div>
 
       {error ? (
@@ -132,78 +163,48 @@ export default function Statistics() {
         </p>
       ) : loading ? (
         <p className="text-[13px] text-ink-secondary">Loading…</p>
-      ) : rows.every((r) => r.total === 0) ? (
+      ) : rows.every((r) => r.annual === 0) ? (
         <p className="text-[13px] text-ink-secondary">No enrolled students yet.</p>
       ) : (
-      <div className="flex flex-col gap-4">
-        {GRADE_GROUPS.map((group) => {
-          const groupRows = rows.filter((r) => group.levels.includes(r.gradeLevel));
-          if (groupRows.length === 0) return null;
-          const m = groupRows.reduce((a, r) => a + r.male, 0);
-          const f = groupRows.reduce((a, r) => a + r.female, 0);
-
-          return (
-            <SectionCard key={group.label} heading={`${group.label} · ${m + f} learners`}>
-              <table className="w-full text-[12.5px]">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                    <th className="py-1.5 pr-3 w-[18%]">Grade</th>
-                    <th className="py-1.5 pr-3">Section</th>
-                    <th className="py-1.5 pr-3 text-right w-[12%]">Male</th>
-                    <th className="py-1.5 pr-3 text-right w-[12%]">Female</th>
-                    <th className="py-1.5 text-right w-[12%]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupRows.map((r, i) => (
-                    <tr key={i} className="border-b border-border-soft last:border-0">
-                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">{r.gradeLevel}</td>
-                      <td className="py-1.5 pr-3">{r.sectionName}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{r.male}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{r.female}</td>
-                      <td className="py-1.5 text-right tabular-nums font-semibold">{r.total}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-panel-alt">
-                    <td colSpan={2} className="py-2 pr-3 font-semibold text-ink-primary">
-                      Subtotal
-                    </td>
-                    <td className="py-2 pr-3 text-right tabular-nums font-semibold">{m}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums font-semibold">{f}</td>
-                    <td className="py-2 text-right tabular-nums font-bold">{m + f}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </SectionCard>
-          );
-        })}
-        {otherRows.length > 0 && (
-          <SectionCard heading={`Other · ${otherRows.reduce((a, r) => a + r.total, 0)} learners`}>
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                  <th className="py-1.5 pr-3 w-[18%]">Grade</th>
-                  <th className="py-1.5 pr-3">Section</th>
-                  <th className="py-1.5 pr-3 text-right w-[12%]">Male</th>
-                  <th className="py-1.5 pr-3 text-right w-[12%]">Female</th>
-                  <th className="py-1.5 text-right w-[12%]">Total</th>
+        <div className="overflow-x-auto">
+          <h2 className="text-center text-[15px] font-bold text-ink-primary mb-3">
+            Statistics for School Year {currentSY?.code ?? ''}
+          </h2>
+          <table className="w-full text-[12.5px] border-collapse">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-[0.03em] text-ink-primary">
+                <th className="border border-border px-2 py-1.5 text-left">Grade</th>
+                <th className="border border-border px-2 py-1.5 text-left">Section</th>
+                <th className="border border-border px-2 py-1.5 text-center w-[9%]">Male</th>
+                <th className="border border-border px-2 py-1.5 text-center w-[9%]">Female</th>
+                <th className="border border-border px-2 py-1.5 text-center w-[12%]">Annual Enrolment</th>
+                <th className="border border-border px-2 py-1.5 text-center w-[14%]">Dropouts / Transferred Out</th>
+                <th className="border border-border px-2 py-1.5 text-center w-[13%]">Corrected Enrolment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i}>
+                  <td className="border border-border px-2 py-1 text-ink-secondary">{gradeLabel(r.gradeLevel)}</td>
+                  <td className="border border-border px-2 py-1">{r.sectionName}</td>
+                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.male}</td>
+                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.female}</td>
+                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.annual}</td>
+                  <td className="border border-border px-2 py-1 text-center tabular-nums">{r.dropped}</td>
+                  <td className="border border-border px-2 py-1 text-center tabular-nums font-medium">{corrected(r)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {otherRows.map((r, i) => (
-                  <tr key={i} className="border-b border-border-soft last:border-0">
-                    <td className="py-1.5 pr-3 font-mono text-ink-secondary">{r.gradeLevel}</td>
-                    <td className="py-1.5 pr-3">{r.sectionName}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{r.male}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{r.female}</td>
-                    <td className="py-1.5 text-right tabular-nums font-semibold">{r.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </SectionCard>
-        )}
-      </div>
+              ))}
+              <tr className="bg-panel-alt font-bold">
+                <td className="border border-border px-2 py-1.5" colSpan={2}>TOTAL</td>
+                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.male}</td>
+                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.female}</td>
+                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.annual}</td>
+                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.dropped}</td>
+                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{totals.corrected}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );
