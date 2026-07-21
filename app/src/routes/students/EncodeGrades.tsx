@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, type DescriptorConfig } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, type DescriptorConfig, type TransmuteRow } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
@@ -181,10 +181,12 @@ export default function EncodeGrades() {
   // Registrar-configured descriptor rules for this SY (Setup ▸ Report Card
   // Descriptors). Falls back to the code defaults until it loads / if unseeded.
   const [descCfg, setDescCfg] = useState<DescriptorConfig | null>(null);
+  const [transmutation, setTransmutation] = useState<TransmuteRow[]>([]);
   useEffect(() => {
     if (!sy) return;
     let cancelled = false;
     getDescriptorConfig(sy).then((c) => { if (!cancelled) setDescCfg(c); }).catch(() => {});
+    listTransmutation(sy).then((t) => { if (!cancelled) setTransmutation(t); }).catch(() => {});
     return () => { cancelled = true; };
   }, [sy]);
   const ks1 = descCfg ? descCfg.isDescriptive(gradeLevel, sy) : isDescriptiveLevel(gradeLevel, sy);
@@ -233,7 +235,7 @@ export default function EncodeGrades() {
   // Displayed/saved quarter grade: from raw scores when encoded, else the legacy number.
   const quarterValue = (row: Row, q: QuarterKey): number | undefined => {
     const r = row.raw[q];
-    if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row), weights) ?? undefined;
+    if (r && (r.ww || r.pt || r.st)) return computeGrade(r, groupOf(row), weights, transmutation) ?? undefined;
     return row.legacy[q];
   };
   // Average of the encoded period grades (the auto-computed Final).

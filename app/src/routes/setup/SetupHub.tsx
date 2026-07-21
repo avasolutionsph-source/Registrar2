@@ -60,6 +60,12 @@ const TILES: Tile[] = [
     desc: 'Letter scales (Preschool C/D/B, Grades 1-3 A/B/C/D/E) + which levels show letters',
   },
   {
+    to: '/setup/transmutation',
+    icon: Percent,
+    label: 'Transmutation Table',
+    desc: 'Initial Grade → transmuted grade lookup (DepEd), per school year',
+  },
+  {
     to: '/setup/schools',
     icon: School,
     label: 'Schools',

@@ -1514,6 +1514,41 @@ export async function getDescriptorConfig(sy: string): Promise<DescriptorConfig>
   };
 }
 
+// ── transmutation table (Initial Grade → transmuted grade, per SY) ──
+export interface TransmuteRow { min: number; grade: number; }
+
+// Registrar-configured transmutation for a SY, sorted high → low. Empty means
+// unseeded — pass it straight to computeGrade, which falls back to the DepEd
+// default when the array is empty, so grading never breaks on a missing year.
+export async function listTransmutation(sy: string): Promise<TransmuteRow[]> {
+  const { data, error } = await client()
+    .from('reg_transmutation')
+    .select('min_score,grade')
+    .eq('sy', sy)
+    .order('min_score', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ min: Number(r.min_score), grade: Number(r.grade) }));
+}
+
+// Replace a year's whole table in one shot, after validating it covers 0–100
+// with no gap and no overlap — a bad table would silently mis-grade the school.
+export async function saveTransmutation(sy: string, rows: TransmuteRow[], note?: string): Promise<void> {
+  const sorted = [...rows].sort((a, b) => a.min - b.min);
+  if (!sorted.length) throw new Error('The table cannot be empty.');
+  if (sorted[0].min !== 0) throw new Error('The lowest band must start at 0 so every score is covered.');
+  const mins = sorted.map((r) => r.min);
+  if (new Set(mins).size !== mins.length) throw new Error('Two bands share the same minimum.');
+  if (rows.some((r) => r.grade < 0 || r.grade > 100)) throw new Error('Every transmuted grade must be 0–100.');
+
+  const del = await client().from('reg_transmutation').delete().eq('sy', sy);
+  if (del.error) throw del.error;
+  const ins = await client().from('reg_transmutation').insert(
+    sorted.map((r) => ({ sy, min_score: r.min, grade: r.grade })),
+  );
+  if (ins.error) throw ins.error;
+  await client().from('reg_transmutation_audit').insert({ sy, note: note ?? 'Table replaced' });
+}
+
 // ── grade approval routing (whose grades each role checks) ──
 // One setting, not per school year: the history of an approval lives in that
 // approval's own record, not in this table.

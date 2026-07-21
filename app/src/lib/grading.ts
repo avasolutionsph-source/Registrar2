@@ -167,6 +167,23 @@ export function transmute(initial: number | null): number | null {
   return 60;
 }
 
+// One transmutation row as stored per school year (reg_transmutation).
+export interface TransmuteRow {
+  min: number;
+  grade: number;
+}
+
+// Transmute against a registrar-configured table (per SY). Rows are matched
+// high -> low, so they need not arrive sorted. An empty/undefined table falls
+// back to the built-in DepEd default, so an unseeded year still grades.
+export function transmuteWith(initial: number | null, table?: TransmuteRow[] | null): number | null {
+  if (initial == null) return null;
+  if (!table || !table.length) return transmute(initial);
+  const sorted = [...table].sort((a, b) => b.min - a.min);
+  for (const r of sorted) if (initial >= r.min) return r.grade;
+  return sorted[sorted.length - 1]?.grade ?? 60;
+}
+
 // Convenience: raw components → final transmuted grade for a learning area.
 //
 // NPS applies the transmutation table to the Initial Grade ROUNDED to a whole
@@ -177,9 +194,10 @@ export function computeGrade(
   raw: RawComponents,
   group: AreaGroup,
   weights: Record<AreaGroup, Weights> = AREA_WEIGHTS,
+  transmutation?: TransmuteRow[] | null,
 ): number | null {
   const ig = initialGrade(raw, weights[group]);
-  return ig == null ? null : transmute(Math.round(ig));
+  return ig == null ? null : transmuteWith(Math.round(ig), transmutation);
 }
 
 // Same computation, but taking the {ww,pt,st} split DIRECTLY instead of looking
@@ -188,9 +206,13 @@ export function computeGrade(
 // no name-based group can express: General Biology 1 is a Grade 11 Academic
 // Elective (20/50/30) AND a Grade 12 Specialized subject (25/45/30). Callers
 // resolve the split server-side (reg_weights_for) and pass it here.
-export function computeGradeWith(raw: RawComponents, w: Weights): number | null {
+export function computeGradeWith(
+  raw: RawComponents,
+  w: Weights,
+  transmutation?: TransmuteRow[] | null,
+): number | null {
   const ig = initialGrade(raw, w);
-  return ig == null ? null : transmute(Math.round(ig));
+  return ig == null ? null : transmuteWith(Math.round(ig), transmutation);
 }
 
 // ── Attitude / behaviour rating (numerical → letter) ────────────────────────
