@@ -10,9 +10,12 @@ import {
   isAreaGroup,
   resolveWeights,
   DEFAULT_ATTITUDE_SCALE,
+  isDescriptiveLevel,
+  descriptiveScaleFor,
   type AreaGroup,
   type Weights,
   type AttitudeBand,
+  type LetterDescriptor,
 } from './grading';
 import type {
   Student,
@@ -1444,6 +1447,45 @@ export async function saveDescriptiveLevels(sy: string, levels: DescriptiveLevel
     { onConflict: 'sy,grade_level' },
   );
   if (error) throw error;
+}
+
+// A ready-to-use view of a school year's descriptor configuration. Built once
+// from the DB and consulted by the encoder and the report card, so both agree
+// on which levels are descriptive and which letters they use — instead of the
+// old hardcoded phase-in rule. Falls back to the code defaults for any level
+// the DB has no row for, so an unseeded year still renders.
+export interface DescriptorConfig {
+  isDescriptive: (gradeLevel?: string, sy?: string) => boolean;
+  scaleFor: (gradeLevel?: string) => LetterDescriptor[];
+}
+
+export async function getDescriptorConfig(sy: string): Promise<DescriptorConfig> {
+  let bands: DescriptorBand[] = [];
+  let levels: DescriptiveLevel[] = [];
+  try {
+    [bands, levels] = await Promise.all([listDescriptorScales(sy), listDescriptiveLevels(sy)]);
+  } catch {
+    // Table missing or unreachable → pure code fallback below.
+  }
+  const levelByGrade = new Map(levels.map((l) => [l.gradeLevel, l]));
+  const bandsByScale = new Map<string, LetterDescriptor[]>();
+  for (const b of bands) {
+    if (!bandsByScale.has(b.scaleKey)) bandsByScale.set(b.scaleKey, []);
+    bandsByScale.get(b.scaleKey)!.push({ letter: b.letter, label: b.label, filipino: '' });
+  }
+
+  return {
+    isDescriptive: (gradeLevel, sYear) => {
+      const row = gradeLevel ? levelByGrade.get(gradeLevel) : undefined;
+      if (row) return row.mode === 'descriptive';
+      return isDescriptiveLevel(gradeLevel, sYear ?? sy); // unseeded level → code rule
+    },
+    scaleFor: (gradeLevel) => {
+      const row = gradeLevel ? levelByGrade.get(gradeLevel) : undefined;
+      const fromDb = row?.scaleKey ? bandsByScale.get(row.scaleKey) : undefined;
+      return fromDb && fromDb.length ? fromDb : descriptiveScaleFor(gradeLevel);
+    },
+  };
 }
 
 // ── grade approval routing (whose grades each role checks) ──

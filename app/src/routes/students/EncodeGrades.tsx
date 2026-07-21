@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, type DescriptorConfig } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES } from '@/lib/forms';
 import {
@@ -178,8 +178,17 @@ export default function EncodeGrades() {
     () => (student?.enrolmentHistory ?? []).find((h) => h.sy === sy)?.gradeLevel,
     [student, sy],
   );
-  const ks1 = isDescriptiveLevel(gradeLevel, sy);
-  const scale = descriptiveScaleFor(gradeLevel);
+  // Registrar-configured descriptor rules for this SY (Setup ▸ Report Card
+  // Descriptors). Falls back to the code defaults until it loads / if unseeded.
+  const [descCfg, setDescCfg] = useState<DescriptorConfig | null>(null);
+  useEffect(() => {
+    if (!sy) return;
+    let cancelled = false;
+    getDescriptorConfig(sy).then((c) => { if (!cancelled) setDescCfg(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sy]);
+  const ks1 = descCfg ? descCfg.isDescriptive(gradeLevel, sy) : isDescriptiveLevel(gradeLevel, sy);
+  const scale = descCfg ? descCfg.scaleFor(gradeLevel) : descriptiveScaleFor(gradeLevel);
 
   // The registrar-curated subject order for this grade/strand (Setup ▸ Subjects).
   // Drives both the display order here and the "Fill from curriculum" action.

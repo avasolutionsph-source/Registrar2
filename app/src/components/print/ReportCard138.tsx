@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
-import { listGradeSubjects } from '@/lib/db';
+import { listGradeSubjects, getDescriptorConfig, type DescriptorConfig } from '@/lib/db';
 import type { Student, Subject } from '@/types';
 import {
   buildSubjectRows,
@@ -142,12 +142,21 @@ export function ReportCard138({ student, subjects, sy }: Props) {
     return () => { cancelled = true; };
   }, [gradeCode]);
 
+  // Registrar-configured descriptor rules for this SY (Setup ▸ Report Card
+  // Descriptors). Falls back to the code rule until it loads / if unseeded.
+  const [descCfg, setDescCfg] = useState<DescriptorConfig | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getDescriptorConfig(year).then((c) => { if (!cancelled) setDescCfg(c); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [year]);
+
   const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects), orderCodes);
   const ord = ordOf(gradeCode);
   const isSHS = ord >= 11;
   const gradeRoman = romanPart(gradeCode);
   const track = trackLabel(gradeCode);
-  const descriptive = isDescriptiveLevel(gradeCode, year);
+  const descriptive = descCfg ? descCfg.isDescriptive(gradeCode, year) : isDescriptiveLevel(gradeCode, year);
   const conduct = conductForSy(student, year);
   const att = conduct.attendance;
   const values = conduct.values?.q;
