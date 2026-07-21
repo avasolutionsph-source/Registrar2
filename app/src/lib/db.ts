@@ -1574,6 +1574,52 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
   if (error) throw error;
 }
 
+// ── NAT scores (National Achievement Test, registrar-entered, per SY) ──
+export const NAT_SUBJECTS = [
+  { key: 'english', label: 'English' },
+  { key: 'filipino', label: 'Filipino' },
+  { key: 'math', label: 'Math' },
+  { key: 'science', label: 'Science' },
+  { key: 'ap', label: 'Araling Panlipunan' },
+] as const;
+export type NatSubjectKey = (typeof NAT_SUBJECTS)[number]['key'];
+export type NatRow = Partial<Record<NatSubjectKey, number>>;
+
+// NAT rows for a SY, keyed by LRN. Empty subjects are omitted.
+export async function listNatScores(sy: string): Promise<Record<string, NatRow>> {
+  const out: Record<string, NatRow> = {};
+  if (!sy) return out;
+  try {
+    const { data, error } = await client()
+      .from('reg_nat_scores')
+      .select('lrn, english, filipino, math, science, ap')
+      .eq('sy', sy);
+    if (error) throw error;
+    for (const r of data ?? []) {
+      const row: NatRow = {};
+      for (const s of NAT_SUBJECTS) {
+        const v = r[s.key];
+        if (v != null) row[s.key] = Number(v);
+      }
+      out[str(r.lrn)] = row;
+    }
+  } catch {
+    /* table missing / offline → empty */
+  }
+  return out;
+}
+
+// Upsert one learner's whole NAT row (blank subjects saved as null).
+export async function saveNatRow(sy: string, lrn: string, row: NatRow): Promise<void> {
+  const payload: Record<string, unknown> = { sy, lrn, updated_at: new Date().toISOString() };
+  for (const s of NAT_SUBJECTS) {
+    const v = row[s.key];
+    payload[s.key] = v == null || Number.isNaN(v) ? null : v;
+  }
+  const { error } = await client().from('reg_nat_scores').upsert(payload, { onConflict: 'sy,lrn' });
+  if (error) throw error;
+}
+
 // ── honor exclusions (manual derogatory-record screening, per SY) ──
 // A row = the learner is excluded from that year's Academic Excellence Award
 // even if their grades qualify. Returned as lrn → reason.

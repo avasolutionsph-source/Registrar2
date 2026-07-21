@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { ClassForm1 } from '@/components/print/ClassForm1';
+import { NatTab } from './NatTab';
 import { ClassForm5 } from '@/components/print/ClassForm5';
 import { BatchReportCards } from '@/components/print/BatchReportCards';
 import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
@@ -31,7 +32,6 @@ import {
   type Transfer,
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
-import { schoolIdFromLrn } from '@/lib/lrn';
 import { periodsForSy, subjectFitsSection } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
@@ -571,34 +571,7 @@ export default function ClassDetail() {
             </TabsContent>
 
             <TabsContent value="nat">
-              <SectionCard heading="NAT scores (DepEd National Achievement Test)">
-                <p className="text-[12.5px] text-ink-secondary mb-3">
-                  Grade {klass.gradeLevel} is not eligible for NAT. Page shown for completeness;
-                  SCHOOL ID column is derived from <span className="font-mono">LRN[0:6]</span>.
-                </p>
-                <table className="w-full text-[12px]">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-3">Name</th>
-                      <th className="py-1.5 pr-3">LRN</th>
-                      <th className="py-1.5 pr-3">School ID (from LRN)</th>
-                      <th className="py-1.5">Filipino</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                        <td className="py-1.5 pr-3 font-mono text-ink-secondary">
-                          {schoolIdFromLrn(s.lrn)}
-                        </td>
-                        <td className="py-1.5 text-ink-muted">—</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </SectionCard>
+              <NatTab klass={klass} roster={roster} />
             </TabsContent>
 
             <TabsContent value="pupils">
