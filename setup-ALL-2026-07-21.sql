@@ -334,6 +334,13 @@ drop trigger if exists reg_routing_audit_t on public.reg_approval_routing;
 create trigger reg_routing_audit_t before insert or update on public.reg_approval_routing
   for each row execute function public.reg_routing_audit();
 
+-- The inline UNIQUE (source_role, source_scope) does NOT dedupe rows whose
+-- source_scope is NULL (in SQL, NULL <> NULL), so a NULL-scope role would be
+-- re-inserted on every run. This expression index makes NULL scopes collide,
+-- and the insert below targets it — so re-running is now truly idempotent.
+create unique index if not exists reg_approval_routing_uq
+  on public.reg_approval_routing (source_role, coalesce(source_scope, ''));
+
 insert into public.reg_approval_routing (source_role, source_scope, approver_kind, approver_role, approver_derive) values
   ('teacher',null,'derived',null,'sas_of_subject'),
   ('teacher','preschool','fixed','acad_gs',null),
@@ -342,7 +349,7 @@ insert into public.reg_approval_routing (source_role, source_scope, approver_kin
   ('acad_shs',null,'fixed','principal',null),
   ('acad_gs',null,'unset',null,null),
   ('acad_jhs',null,'unset',null,null)
-on conflict (source_role, source_scope) do nothing;
+on conflict (source_role, coalesce(source_scope, '')) do nothing;
 
 create or replace function public.reg_highest_role(p_email text)
 returns text language sql stable security definer set search_path to 'public' as $$
