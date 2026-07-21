@@ -26,13 +26,18 @@ import type { SchoolYear } from '@/types';
 const SCALE_LABEL: Record<string, string> = {
   preschool: 'Preschool (Nursery & Kinder)',
   g1_3: 'Grades 1-3',
+  deportment: 'Deportment (encoded by the class adviser)',
+  special_program: 'Special Program (encoded by the class adviser)',
 };
+// Academic descriptors top out at 100; the conduct scales at 99 (there is no
+// 100 in either). The ceiling only affects the read-only Range column.
+const SCALE_MAX: Record<string, number> = { deportment: 99, special_program: 99 };
 
 // A band runs from its own minimum up to one below the next band's; the top
-// band's ceiling is 100. Read-only display.
-function rangesFor(bands: DescriptorBand[]) {
+// band's ceiling is the scale's max. Read-only display.
+function rangesFor(bands: DescriptorBand[], max: number) {
   const sorted = [...bands].sort((a, b) => b.min - a.min);
-  return new Map(sorted.map((b, i) => [b, i === 0 ? 100 : sorted[i - 1].min - 1] as const));
+  return new Map(sorted.map((b, i) => [b, i === 0 ? max : sorted[i - 1].min - 1] as const));
 }
 
 export default function SetupDescriptors() {
@@ -88,7 +93,7 @@ export default function SetupDescriptors() {
   );
   const ranges = useMemo(() => {
     const m = new Map<string, ReturnType<typeof rangesFor>>();
-    for (const k of scaleKeys) m.set(k, rangesFor(bands.filter((b) => b.scaleKey === k)));
+    for (const k of scaleKeys) m.set(k, rangesFor(bands.filter((b) => b.scaleKey === k), SCALE_MAX[k] ?? 100));
     return m;
   }, [bands, scaleKeys]);
 
