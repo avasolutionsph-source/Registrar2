@@ -5,7 +5,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { Button } from '@/components/ui/button';
-import { listStudents, listClasses, listSubjects, listSchoolYears, getHonorCriteria, type HonorCriteriaRow } from '@/lib/db';
+import { listStudents, listClasses, listSubjects, listSchoolYears, getHonorCriteria, listHonorExclusions, setHonorExclusion, type HonorCriteriaRow } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { gradeLabel, periodsForSy, formatSy } from '@/lib/forms';
 import {
@@ -132,7 +132,19 @@ export default function Honors() {
     if (!periods.some((p) => p.key === period)) setPeriod('final');
   }, [periods, period]);
 
-  const awardees = useMemo<Awardee[]>(() => {
+  // Manual derogatory-record screening (Setup: none — toggled on this report),
+  // per SY. lrn → reason. An excluded learner still computes as "qualified" but
+  // is dropped from the official awardee list below.
+  const [exclusions, setExclusions] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!sy) { setExclusions({}); return; }
+    let cancelled = false;
+    listHonorExclusions(sy).then((m) => { if (!cancelled) setExclusions(m); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sy]);
+
+  // Everyone whose grades meet the award criteria (before derogatory screening).
+  const qualifiedAll = useMemo<Awardee[]>(() => {
     if (!sy) return [];
     const out: Awardee[] = [];
     for (const s of students) {
@@ -157,6 +169,33 @@ export default function Honors() {
     }
     return out;
   }, [students, classes, index, sy, period, criteria]);
+
+  // The official list = qualifiers who are NOT excluded by a derogatory record.
+  const awardees = useMemo<Awardee[]>(
+    () => qualifiedAll.filter((a) => !(a.lrn in exclusions)),
+    [qualifiedAll, exclusions],
+  );
+
+  const excludedRows = useMemo(
+    () => qualifiedAll.filter((a) => a.lrn in exclusions),
+    [qualifiedAll, exclusions],
+  );
+
+  async function toggleExclusion(lrn: string, exclude: boolean) {
+    // Optimistic: update UI first, then persist; revert on error.
+    setExclusions((prev) => {
+      const next = { ...prev };
+      if (exclude) next[lrn] = next[lrn] ?? '';
+      else delete next[lrn];
+      return next;
+    });
+    try {
+      await setHonorExclusion(sy, lrn, exclude);
+    } catch {
+      // Reload the true state on failure.
+      listHonorExclusions(sy).then(setExclusions).catch(() => {});
+    }
+  }
 
   const levelKeys = useMemo(() => {
     const present = new Set(awardees.map((a) => a.gradeLevel));
@@ -222,7 +261,8 @@ export default function Honors() {
               <>
                 System-computed qualifiers: General Average of at least {HONOR_GA_MIN}, with no learning-area
                 grade lower than {HONOR_GRADE_FLOOR}. Single flat award, listed alphabetically. This SY covers
-                Grade {minGrade}–12. Derogatory-record screening is a manual check.
+                Grade {minGrade}–12. Use the screening panel below to exclude a qualifier with a
+                derogatory record.
               </>
             )}{' '}
             The <strong>By section</strong> view matches what each Class Adviser submits; the{' '}
@@ -328,7 +368,56 @@ export default function Honors() {
         <span className="px-2.5 py-1 rounded bg-panel border border-border text-ink-secondary">
           Total awardees: <span className="font-semibold text-ink-primary">{awardees.length}</span>
         </span>
+        {excludedRows.length > 0 && (
+          <span className="px-2.5 py-1 rounded bg-nps-red/10 border border-nps-red/20 text-nps-red">
+            Excluded (derogatory): <span className="font-semibold">{excludedRows.length}</span>
+          </span>
+        )}
       </div>
+
+      {/* Derogatory-record screening — on-screen only, never printed. */}
+      {!loading && qualifiedAll.length > 0 && (
+        <details className="mb-4 rounded-md border border-border bg-panel print:hidden">
+          <summary className="cursor-pointer select-none px-3 py-2 text-[12.5px] font-medium text-ink-primary">
+            Derogatory-record screening — {excludedRows.length} of {qualifiedAll.length} qualifier
+            {qualifiedAll.length === 1 ? '' : 's'} excluded
+          </summary>
+          <div className="px-3 pb-3">
+            <p className="text-[12px] text-ink-muted mb-2">
+              A qualifier with a derogatory record is not awarded. Excluding a learner removes them
+              from the lists, print and export below. This is saved for SY {sy}.
+            </p>
+            <div className="grid gap-1 max-h-[320px] overflow-y-auto">
+              {qualifiedAll
+                .slice()
+                .sort((a, b) => a.gradeName.localeCompare(b.gradeName) || a.name.localeCompare(b.name))
+                .map((a) => {
+                  const excluded = a.lrn in exclusions;
+                  return (
+                    <div
+                      key={a.lrn}
+                      className={`flex items-center justify-between gap-3 rounded px-2 py-1 text-[12.5px] ${
+                        excluded ? 'bg-nps-red/5' : ''
+                      }`}
+                    >
+                      <span className={excluded ? 'text-ink-muted line-through' : 'text-ink-primary'}>
+                        {a.name}
+                        <span className="text-ink-muted"> · {a.gradeName}{a.section ? ` · ${a.section}` : ''}</span>
+                      </span>
+                      <Button
+                        variant={excluded ? 'outline' : 'ghost'}
+                        className="h-7 px-2 text-[11.5px] shrink-0"
+                        onClick={() => toggleExclusion(a.lrn, !excluded)}
+                      >
+                        {excluded ? 'Restore' : 'Exclude'}
+                      </Button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </details>
+      )}
 
       {loading ? (
         <p className="text-[12.5px] text-ink-secondary px-1">Loading…</p>

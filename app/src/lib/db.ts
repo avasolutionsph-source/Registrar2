@@ -1574,6 +1574,41 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
   if (error) throw error;
 }
 
+// ── honor exclusions (manual derogatory-record screening, per SY) ──
+// A row = the learner is excluded from that year's Academic Excellence Award
+// even if their grades qualify. Returned as lrn → reason.
+export async function listHonorExclusions(sy: string): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (!sy) return out;
+  try {
+    const { data, error } = await client()
+      .from('reg_honor_exclusions')
+      .select('lrn, reason')
+      .eq('sy', sy);
+    if (error) throw error;
+    for (const r of data ?? []) out[str(r.lrn)] = str(r.reason);
+  } catch {
+    /* table missing / offline → no exclusions */
+  }
+  return out;
+}
+
+// Exclude a learner (excluded=true) or restore them (excluded=false).
+export async function setHonorExclusion(
+  sy: string, lrn: string, excluded: boolean, reason = '',
+): Promise<void> {
+  const c = client();
+  if (excluded) {
+    const { error } = await c
+      .from('reg_honor_exclusions')
+      .upsert({ sy, lrn, reason, updated_at: new Date().toISOString() }, { onConflict: 'sy,lrn' });
+    if (error) throw error;
+  } else {
+    const { error } = await c.from('reg_honor_exclusions').delete().eq('sy', sy).eq('lrn', lrn);
+    if (error) throw error;
+  }
+}
+
 // ── school officials / signatories (printed on Form 137/138/SF10) ──
 export interface Official { positionKey: string; personName: string; title: string; }
 
