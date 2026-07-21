@@ -1063,6 +1063,17 @@ export interface TeachingAssignmentRow {
   subjectCode: string;
   teacherId: number | null;
 }
+// Every (grade_level, subject) the registrar set as a grade's curriculum
+// (Setup ▸ Subjects). Returned as a set of `${gradeLevel}|${SUBJECT}` for quick
+// "does this subject belong to this grade?" checks.
+export async function listGradeSubjectKeys(): Promise<Set<string>> {
+  const set = new Set<string>();
+  const { data, error } = await client().from('reg_grade_subjects').select('grade_level, subject_code');
+  if (error) throw error;
+  for (const r of data ?? []) set.add(`${str(r.grade_level)}|${str(r.subject_code).toUpperCase()}`);
+  return set;
+}
+
 export async function listAllClassSubjects(): Promise<TeachingAssignmentRow[]> {
   const { data, error } = await client()
     .from('reg_class_subjects')

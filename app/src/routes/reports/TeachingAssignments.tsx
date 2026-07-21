@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Letterhead } from '@/components/print/parts';
-import { listAllClassSubjects, listClasses, listTeachers, listSubjects } from '@/lib/db';
+import { listAllClassSubjects, listClasses, listTeachers, listSubjects, listGradeSubjectKeys } from '@/lib/db';
 import { gradeLabel } from '@/lib/forms';
 import { isAllTime } from '@/types';
 import type { SchoolYear, ClassRecord, Teacher, Subject } from '@/types';
@@ -21,7 +21,9 @@ interface Assignment {
   subjectCode: string;
   subjectName: string;
   teacher: string; // '' when unassigned
+  offGrade: boolean; // subject not in this grade's curriculum (non-SHS check)
 }
+const isShs = (g: string) => g.startsWith('XI') || g.startsWith('XII');
 
 export default function TeachingAssignments() {
   const { currentSY } = useOutletContext<{ currentSY: SchoolYear | null }>();
@@ -40,8 +42,8 @@ export default function TeachingAssignments() {
     (async () => {
       setLoading(true);
       try {
-        const [links, classes, teachers, subjects] = await Promise.all([
-          listAllClassSubjects(), listClasses(), listTeachers(), listSubjects(),
+        const [links, classes, teachers, subjects, gradeKeys] = await Promise.all([
+          listAllClassSubjects(), listClasses(), listTeachers(), listSubjects(), listGradeSubjectKeys(),
         ]);
         if (cancelled) return;
         const classById = new Map<string, ClassRecord>(classes.map((c) => [c.id, c]));
@@ -60,6 +62,8 @@ export default function TeachingAssignments() {
             subjectCode: l.subjectCode,
             subjectName: subjectByCode.get(l.subjectCode.toUpperCase())?.fullName ?? l.subjectCode,
             teacher: t ? `${t.title} ${t.familyName}, ${t.firstName}`.replace(/\s+/g, ' ').trim() : '',
+            // Non-SHS sections should only carry their grade's curriculum subjects.
+            offGrade: !isShs(c.gradeLevel) && !gradeKeys.has(`${c.gradeLevel}|${l.subjectCode.toUpperCase()}`),
           });
         }
         setRows(built);
@@ -107,6 +111,7 @@ export default function TeachingAssignments() {
   }, [filtered]);
 
   const gaps = filtered.filter((r) => r.teacher === '').length;
+  const offGrade = filtered.filter((r) => r.offGrade).length;
 
   const table = (
     <table className="w-full text-[12.5px] border-collapse text-black">
@@ -126,7 +131,14 @@ export default function TeachingAssignments() {
                   {gradeLabel(g.gradeLevel)} · {g.sectionName}
                 </td>
               )}
-              <td className="border border-zinc-400 px-2 py-1">{r.subjectName}</td>
+              <td className="border border-zinc-400 px-2 py-1">
+                {r.subjectName}
+                {r.offGrade && (
+                  <span className="ml-2 text-[11px] font-medium text-amber-700" title="This subject is not in the grade's curriculum (Setup ▸ Subjects)">
+                    ⚠ not in grade curriculum
+                  </span>
+                )}
+              </td>
               <td className={`border border-zinc-400 px-2 py-1 ${r.teacher ? '' : 'text-red-600 font-medium'}`}>
                 {r.teacher || '— unassigned —'}
               </td>
@@ -181,6 +193,7 @@ export default function TeachingAssignments() {
         <span className="text-[12px] text-ink-muted">
           {filtered.length} assignment{filtered.length === 1 ? '' : 's'}
           {gaps > 0 && <span className="text-red-600"> · {gaps} unassigned</span>}
+          {offGrade > 0 && <span className="text-amber-700"> · {offGrade} not in grade curriculum</span>}
         </span>
       </div>
 
