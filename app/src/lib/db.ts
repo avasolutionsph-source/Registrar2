@@ -1329,6 +1329,32 @@ export async function listUntypedClassSubjects(): Promise<UntypedClassSubject[]>
   }));
 }
 
+export interface ClassSubjectType {
+  classId: string;
+  gradeLevel: string;
+  sectionName: string;
+  subjectCode: string;
+  subjectName: string;
+  typeKey: string | null;
+  configured: boolean;
+}
+
+// Every section × subject for a year with its current type, so any can be
+// re-assigned — not only the ones that have no type yet.
+export async function listAllClassSubjectTypes(sy: string): Promise<ClassSubjectType[]> {
+  const { data, error } = await client().rpc('reg_all_class_subject_types', { p_sy: sy });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    classId: str(r.class_id),
+    gradeLevel: str(r.grade_level),
+    sectionName: str(r.section_name),
+    subjectCode: str(r.subject_code),
+    subjectName: str(r.subject_name),
+    typeKey: r.type_key ? str(r.type_key) : null,
+    configured: Boolean(r.configured),
+  }));
+}
+
 export async function setClassSubjectType(
   classId: string,
   subjectCode: string,

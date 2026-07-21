@@ -9,13 +9,13 @@ import {
   listWeightComponents,
   saveWeightComponents,
   copyWeightsToSy,
-  listUntypedClassSubjects,
+  listAllClassSubjectTypes,
   listWeightAudit,
   setClassSubjectType,
   listAttitudeScale,
   saveAttitudeScale,
   type WeightComponent,
-  type UntypedClassSubject,
+  type ClassSubjectType,
   type WeightAuditRow,
 } from '@/lib/db';
 import { DEFAULT_ATTITUDE_SCALE, type AttitudeBand } from '@/lib/grading';
@@ -43,7 +43,8 @@ export default function SetupWeightComponents() {
   const [years, setYears] = useState<SchoolYear[]>([]);
   const [sy, setSy] = useState('');
   const [rows, setRows] = useState<WeightComponent[]>([]);
-  const [untyped, setUntyped] = useState<UntypedClassSubject[]>([]);
+  const [types, setTypes] = useState<ClassSubjectType[]>([]);
+  const [onlyUnset, setOnlyUnset] = useState(false);
   const [audit, setAudit] = useState<WeightAuditRow[]>([]);
   const [showAudit, setShowAudit] = useState(false);
 
@@ -92,10 +93,10 @@ export default function SetupWeightComponents() {
     setUnlockedSy('');
     (async () => {
       try {
-        const [w, u] = await Promise.all([listWeightComponents(sy), listUntypedClassSubjects()]);
+        const [w, t] = await Promise.all([listWeightComponents(sy), listAllClassSubjectTypes(sy)]);
         if (cancelled) return;
         setRows(w);
-        setUntyped(u.filter((x) => x.sy === sy));
+        setTypes(t);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the weights.');
       } finally {
@@ -190,15 +191,27 @@ export default function SetupWeightComponents() {
     }
   }
 
-  async function assignType(u: UntypedClassSubject, typeKey: string) {
-    if (!typeKey) return;
+  async function assignType(row: ClassSubjectType, typeKey: string) {
+    const key = typeKey || null;
+    const prev = types;
+    // Optimistic: reflect the choice and its computed status immediately.
+    setTypes((cur) =>
+      cur.map((x) =>
+        x.classId === row.classId && x.subjectCode === row.subjectCode
+          ? { ...x, typeKey: key, configured: key != null }
+          : x,
+      ),
+    );
     try {
-      await setClassSubjectType(u.classId, u.subjectCode, typeKey);
-      setUntyped((cur) => cur.filter((x) => !(x.classId === u.classId && x.subjectCode === u.subjectCode)));
+      await setClassSubjectType(row.classId, row.subjectCode, typeKey);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to assign the subject type.');
+      setTypes(prev); // roll back on failure
+      setError(e instanceof Error ? e.message : 'Failed to set the subject type.');
     }
   }
+
+  const unsetCount = types.filter((t) => !t.configured).length;
+  const shownTypes = onlyUnset ? types.filter((t) => !t.configured) : types;
 
   return (
     <>
@@ -364,34 +377,57 @@ export default function SetupWeightComponents() {
         </SectionCard>
       )}
 
-      {/* Missing configuration — flagged, never guessed. */}
-      {untyped.length > 0 && (
-        <div className="mt-4">
-          <SectionCard heading={`${untyped.length} subjects cannot compute yet`}>
-            <p className="text-[12.5px] text-ink-secondary mb-3">
-              These have no subject type, so the system does not know their split. Their grade sheets
-              are blocked until a type is chosen — nothing is assumed on their behalf.
-            </p>
+      {/* Subject type per section — the split follows the TYPE, and the type can
+          be changed for any section, not only ones that have none yet. A row
+          with no type (or a type with no weights this year) blocks its grade
+          sheet and is highlighted. */}
+      {types.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-[15px] font-bold text-ink-primary">Subject types per section</h2>
+              <p className="text-[12.5px] text-ink-secondary mt-0.5 max-w-[660px]">
+                Each subject's split comes from its type here. The same subject can be a different
+                type in a different section. A row with no type cannot compute — its grade sheet is
+                blocked until you choose one.
+                {unsetCount > 0 && (
+                  <span className="text-nps-red font-semibold"> {unsetCount} still need a type.</span>
+                )}
+              </p>
+            </div>
+            {unsetCount > 0 && (
+              <label className="flex items-center gap-1.5 text-[12.5px] text-ink-secondary shrink-0">
+                <input type="checkbox" checked={onlyUnset} onChange={(e) => setOnlyUnset(e.target.checked)} />
+                Show only unset
+              </label>
+            )}
+          </div>
+          <SectionCard heading={`${shownTypes.length} of ${types.length} section subjects`}>
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                   <th className="py-2 pr-3">Section</th>
                   <th className="py-2 pr-3">Subject</th>
-                  <th className="py-2 w-[34%]">Subject type</th>
+                  <th className="py-2 w-[36%]">Subject type</th>
                 </tr>
               </thead>
               <tbody>
-                {untyped.map((u) => (
-                  <tr key={`${u.classId}-${u.subjectCode}`} className="border-b border-border-soft last:border-0">
-                    <td className="py-2 pr-3 text-ink-secondary">{u.gradeLevel} — {u.sectionName}</td>
-                    <td className="py-2 pr-3 text-ink-primary">{u.subjectName}</td>
+                {shownTypes.map((t) => (
+                  <tr
+                    key={`${t.classId}-${t.subjectCode}`}
+                    className={`border-b border-border-soft last:border-0 ${t.configured ? '' : 'bg-nps-red/5'}`}
+                  >
+                    <td className="py-2 pr-3 text-ink-secondary">{t.gradeLevel} — {t.sectionName}</td>
+                    <td className="py-2 pr-3 text-ink-primary">{t.subjectName}</td>
                     <td className="py-2">
                       <select
-                        defaultValue=""
-                        onChange={(e) => assignType(u, e.target.value)}
-                        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-[12.5px]"
+                        value={t.typeKey ?? ''}
+                        onChange={(e) => assignType(t, e.target.value)}
+                        className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
+                          t.configured ? 'border-border' : 'border-nps-red'
+                        }`}
                       >
-                        <option value="">Choose a type…</option>
+                        <option value="">— no type (blocked) —</option>
                         {rows.map((r) => (
                           <option key={r.typeKey} value={r.typeKey}>
                             {r.label} ({r.ww}/{r.pt}/{r.ex})
