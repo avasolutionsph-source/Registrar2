@@ -1574,6 +1574,34 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
   if (error) throw error;
 }
 
+// ── school officials / signatories (printed on Form 137/138/SF10) ──
+export interface Official { positionKey: string; personName: string; title: string; }
+
+export async function listOfficials(): Promise<Official[]> {
+  try {
+    const { data, error } = await client()
+      .from('reg_officials')
+      .select('position_key, person_name, title');
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      positionKey: str(r.position_key), personName: str(r.person_name), title: str(r.title),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveOfficials(rows: Official[]): Promise<void> {
+  const payload = rows.map((r) => ({
+    position_key: r.positionKey,
+    person_name: r.personName.trim(),
+    title: r.title.trim(),
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await client().from('reg_officials').upsert(payload, { onConflict: 'position_key' });
+  if (error) throw error;
+}
+
 // ── school profile (identity shown on printed forms; single row) ──
 export interface SchoolProfile {
   name: string; schoolId: string; address: string;

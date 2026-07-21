@@ -5,6 +5,8 @@ import {
   formatSy,
   gradeLabel,
   SCHOOL,
+  signatoryName,
+  signatoryTitle,
   type YearRecord,
 } from '@/lib/forms';
 import { formatBirthdate } from '@/lib/format';
@@ -207,14 +209,14 @@ function Certification({
           </div>
           <div className="text-center">
             <div className="h-6" />
-            <div className="border-t border-zinc-500 pt-1 font-bold uppercase">Marites C. Ramos</div>
-            <div className="text-zinc-600">School Registrar</div>
+            <div className="border-t border-zinc-500 pt-1 font-bold uppercase">{signatoryName('registrar')}</div>
+            <div className="text-zinc-600">{signatoryTitle('registrar', 'School Registrar')}</div>
           </div>
         </div>
       ) : (
         <div className="mt-6 text-center text-[10px]">
-          <div className="font-bold uppercase">Marites C. Ramos</div>
-          <div className="text-zinc-600">Registrar</div>
+          <div className="font-bold uppercase">{signatoryName('registrar')}</div>
+          <div className="text-zinc-600">{signatoryTitle('registrar', 'Registrar')}</div>
         </div>
       )}
     </div>

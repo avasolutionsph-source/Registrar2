@@ -36,6 +36,27 @@ export function setSchoolProfile(p: Partial<typeof SCHOOL>): void {
   }
 }
 
+// School officials / signatories printed on Form 137/138/SF10. Registrar-editable
+// in Setup ▸ Admin (reg_officials); populated once at startup via setSignatories().
+// Print components read signatoryName('registrar') so no name is hardcoded.
+export const SIGNATORIES: Record<string, { name: string; title: string }> = {
+  registrar: { name: 'Marites C. Ramos', title: 'Registrar' },
+};
+export function setSignatories(rows: { positionKey: string; personName: string; title: string }[]): void {
+  for (const r of rows) {
+    if (!r.positionKey) continue;
+    SIGNATORIES[r.positionKey] = { name: r.personName ?? '', title: r.title ?? '' };
+  }
+}
+// The signatory NAME for a position, or a blank line's worth of spaces when the
+// position is vacant (so the printed form still shows a signature line).
+export function signatoryName(positionKey: string): string {
+  return SIGNATORIES[positionKey]?.name?.trim() || ' ';
+}
+export function signatoryTitle(positionKey: string, fallback: string): string {
+  return SIGNATORIES[positionKey]?.title?.trim() || fallback;
+}
+
 // ── Grade-level code → DepEd label ─────────────────────────────────────────
 const GRADE_LABELS: Record<string, string> = {
   N1: 'Nursery 1',

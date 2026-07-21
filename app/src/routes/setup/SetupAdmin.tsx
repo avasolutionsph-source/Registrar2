@@ -1,104 +1,130 @@
 import { useEffect, useState } from 'react';
+import { Save } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { Select } from '@/components/ui/select';
-import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { listTeachers, listSubjects } from '@/lib/db';
-import type { Teacher, Subject } from '@/types';
+import { listOfficials, saveOfficials, type Official } from '@/lib/db';
 
+// Setup ▸ Admin. School officials / signatories printed on Form 137 / 138 / SF10.
+// Free-text name per position so a signatory need not be in the teachers list.
 const POSITIONS = [
   { key: 'registrar', label: 'Registrar' },
   { key: 'principal', label: 'Principal' },
+  { key: 'director', label: 'Director' },
   { key: 'coord_elem', label: 'Coordinator — Elementary' },
   { key: 'coord_hs', label: 'Coordinator — Junior HS' },
   { key: 'coord_shs', label: 'Coordinator — Senior HS' },
+  { key: 'coord_pre', label: 'Coordinator — Preschool' },
   { key: 'guidance', label: 'Guidance Coordinator' },
-  { key: 'director', label: 'Director' },
-  { key: 'finance', label: 'Finance' },
 ];
 
+type Row = { name: string; title: string };
+
 export default function SetupAdmin() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [rows, setRows] = useState<Record<string, Row>>({});
+  const [saved0, setSaved0] = useState<Record<string, Row>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [t, s] = await Promise.all([listTeachers(), listSubjects()]);
+        const officials = await listOfficials();
         if (cancelled) return;
-        setTeachers(t);
-        setSubjects(s);
-      } catch {
-        /* leave dropdowns with just "Vacant" */
+        const byKey = new Map(officials.map((o) => [o.positionKey, o]));
+        const init: Record<string, Row> = {};
+        for (const p of POSITIONS) {
+          const o = byKey.get(p.key);
+          init[p.key] = { name: o?.personName ?? '', title: o?.title ?? p.label };
+        }
+        setRows(init);
+        setSaved0(init);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load officials.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
+
+  const dirty = POSITIONS.some(
+    (p) => rows[p.key]?.name !== saved0[p.key]?.name || rows[p.key]?.title !== saved0[p.key]?.title,
+  );
+  const set = (key: string, field: keyof Row, v: string) =>
+    setRows((r) => ({ ...r, [key]: { ...r[key], [field]: v } }));
+
+  async function save() {
+    if (!dirty) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload: Official[] = POSITIONS.map((p) => ({
+        positionKey: p.key,
+        personName: rows[p.key]?.name ?? '',
+        title: rows[p.key]?.title ?? p.label,
+      }));
+      await saveOfficials(payload);
+      setSaved0(rows);
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <>
       <Breadcrumb items={[{ label: 'Setup', to: '/setup' }, { label: 'Admin' }]} />
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-ink-primary">Admin</h1>
-        <p className="text-[13px] text-ink-secondary mt-1">
-          Assign teachers to school positions and Subject Area Coordinators. Drives auto-populated signatures on Form 137 / Form 138.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3.5 max-w-3xl">
-        <SectionCard heading="School Positions">
-          <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-            Each role can be vacant or assigned to one teacher.
+      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-ink-primary">Admin — Signatories</h1>
+          <p className="text-[13px] text-ink-secondary mt-1 max-w-[640px]">
+            The people who sign official documents. The Registrar name auto-fills the signature on
+            Form 137, SF10 and the Tracking Record. Leave a position blank if it is vacant.
           </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
-            {POSITIONS.map((p) => (
-              <Field key={p.key} label={p.label}>
-                <Select defaultValue="">
-                  <option value="">— Vacant —</option>
-                  {teachers
-                    .filter((t) => t.yearEnded === 0)
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title} {t.familyName}, {t.firstName}
-                      </option>
-                    ))}
-                </Select>
-              </Field>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard heading="Subject Area Coordinators">
-          <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-            Coordinator per subject. Used for Form 137 signatory matrix.
-          </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
-            {subjects.slice(0, 8).map((s) => (
-              <Field key={s.code} label={`${s.code} · ${s.fullName}`}>
-                <Select defaultValue="">
-                  <option value="">— Vacant —</option>
-                  {teachers
-                    .filter((t) => t.yearEnded === 0)
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title} {t.familyName}, {t.firstName}
-                      </option>
-                    ))}
-                </Select>
-              </Field>
-            ))}
-          </div>
-        </SectionCard>
-
-        <div className="flex gap-2 justify-end">
-          <Button variant="outline">Cancel</Button>
-          <Button>Save assignments</Button>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {saved && !dirty && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
+          <Button onClick={save} disabled={!dirty || saving} className="gap-2">
+            <Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save'}
+          </Button>
         </div>
       </div>
+
+      {error && <p className="mb-3 text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{error}</p>}
+
+      {loading ? (
+        <p className="text-[13px] text-ink-secondary">Loading…</p>
+      ) : (
+        <SectionCard heading="School Positions">
+          <div className="grid gap-3 max-w-3xl">
+            <div className="grid grid-cols-[1fr_1.3fr_1fr] gap-3 px-1 text-[11px] uppercase tracking-wide text-ink-muted">
+              <span>Position</span><span>Name (as signed)</span><span>Printed title</span>
+            </div>
+            {POSITIONS.map((p) => (
+              <div key={p.key} className="grid grid-cols-[1fr_1.3fr_1fr] gap-3 items-center px-1">
+                <span className="text-[13px] text-ink-primary">{p.label}</span>
+                <Input
+                  value={rows[p.key]?.name ?? ''}
+                  placeholder="— Vacant —"
+                  onChange={(e) => set(p.key, 'name', e.target.value)}
+                />
+                <Input
+                  value={rows[p.key]?.title ?? ''}
+                  placeholder={p.label}
+                  onChange={(e) => set(p.key, 'title', e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
     </>
   );
 }

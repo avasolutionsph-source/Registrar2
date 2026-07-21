@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, RequireRegistrar } from '@/lib/auth';
-import { listSchoolYears, getGradingPolicy, getSchoolProfile } from '@/lib/db';
-import { setPassingGrade, setSchoolProfile } from '@/lib/forms';
+import { listSchoolYears, getGradingPolicy, getSchoolProfile, listOfficials } from '@/lib/db';
+import { setPassingGrade, setSchoolProfile, setSignatories } from '@/lib/forms';
 import { AppShell } from '@/components/shell/AppShell';
 import StudentDetail from '@/routes/students/StudentDetail';
 import StudentsList from '@/routes/students/StudentsList';
@@ -57,8 +57,11 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [ys, profile] = await Promise.all([listSchoolYears(), getSchoolProfile()]);
+        const [ys, profile, officials] = await Promise.all([
+          listSchoolYears(), getSchoolProfile(), listOfficials(),
+        ]);
         if (profile) setSchoolProfile(profile);
+        if (officials.length) setSignatories(officials);
         const active = ys.find((y) => y.isActive)?.code;
         if (active) setPassingGrade((await getGradingPolicy(active)).passingGrade);
       } catch {

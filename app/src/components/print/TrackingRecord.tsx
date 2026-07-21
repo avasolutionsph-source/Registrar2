@@ -1,4 +1,4 @@
-import { SCHOOL } from '@/lib/forms';
+import { SCHOOL, signatoryName, signatoryTitle } from '@/lib/forms';
 
 // Registrar's-office destination tracking records (official NPS templates):
 //   • Transferred-Out Students Destination Tracking Record
@@ -191,8 +191,8 @@ export function TrackingRecord({ kind, rows, syLabel }: Props) {
 
       <div className="mt-8 text-[10px]">
         <div className="inline-block text-center">
-          <div className="font-bold uppercase">Marites C. Ramos</div>
-          <div className="text-zinc-600">Registrar</div>
+          <div className="font-bold uppercase">{signatoryName('registrar')}</div>
+          <div className="text-zinc-600">{signatoryTitle('registrar', 'Registrar')}</div>
         </div>
       </div>
     </div>
