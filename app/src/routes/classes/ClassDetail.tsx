@@ -548,7 +548,7 @@ export default function ClassDetail() {
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3">LRN</th>
                       <th className="py-1.5 pr-3">Name</th>
-                      <th className="py-1.5 pr-3">Sex</th>
+                      <th className="py-1.5 pr-3">Gender</th>
                       <th className="py-1.5 pr-3">Birthdate</th>
                       <th className="py-1.5 pr-3">Father</th>
                       <th className="py-1.5">Mother (maiden)</th>
@@ -668,7 +668,7 @@ export default function ClassDetail() {
                       <th className="py-1.5 pr-3">Middle Name</th>
                       <th className="py-1.5 pr-3">Last Name</th>
                       <th className="py-1.5 pr-3 w-[12%]">Birthdate</th>
-                      <th className="py-1.5 pr-3 w-[7%]">Sex</th>
+                      <th className="py-1.5 pr-3 w-[7%]">Gender</th>
                       <th className="py-1.5 w-[16%]">LRN</th>
                     </tr>
                   </thead>

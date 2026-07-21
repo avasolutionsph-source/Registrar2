@@ -51,7 +51,7 @@ export default function StudentNo() {
       width: '16%',
       render: (s) => <span className="font-mono text-ink-secondary">{s.lrn}</span>,
     },
-    { key: 'gender', header: 'Sex', width: '6%', render: (s) => s.gender.charAt(0) },
+    { key: 'gender', header: 'Gender', width: '6%', render: (s) => s.gender.charAt(0) },
     { key: 'yrs', header: 'Yrs', width: '8%', render: (s) => s.loyaltyYears },
   ];
 

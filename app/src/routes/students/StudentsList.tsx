@@ -175,7 +175,7 @@ export default function StudentsList() {
         return c ? `Grade ${c.gradeLevel} · ${c.sectionName}` : '—';
       },
     },
-    { key: 'gender', header: 'Sex', width: '7%', render: (s) => s.gender.charAt(0) },
+    { key: 'gender', header: 'Gender', width: '7%', render: (s) => s.gender.charAt(0) },
     {
       key: 'status',
       header: 'Status',
@@ -271,7 +271,7 @@ export default function StudentsList() {
     { header: 'LRN', value: (s: StudentYear) => displayLrn(s.lrn) },
     { header: 'Student No.', value: (s: StudentYear) => s.studentNo },
     { header: isOld ? 'Grade that year' : 'Class', value: classLabel },
-    { header: 'Sex', value: (s: StudentYear) => s.gender },
+    { header: 'Gender', value: (s: StudentYear) => s.gender },
     { header: 'Status', value: (s: StudentYear) => s.status },
   ];
   const exportName = `students-${isOld || !isAllTime(currentSY) ? (currentSY?.code ?? 'all') : 'all'}`;
