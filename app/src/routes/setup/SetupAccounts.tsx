@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listUserRoles, addUserRole, deleteUserRole, type UserRoleRow } from '@/lib/db';
+import { listUserRoles, addUserRole, deleteUserRole, listTeachers, type UserRoleRow } from '@/lib/db';
 
 // Every office role the portal recognises (portalAuth.jsx ROLE_HOME).
 const ROLES: { value: string; label: string }[] = [
@@ -80,6 +80,8 @@ export default function SetupAccounts() {
   const [role, setRole] = useState('teacher');
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
+  // Teacher roster (name + email) — feeds the email suggestions only.
+  const [teachers, setTeachers] = useState<{ email: string; name: string }[]>([]);
 
   async function load() {
     setError(null);
@@ -91,7 +93,35 @@ export default function SetupAccounts() {
   }
   useEffect(() => {
     load();
+    // Suggestions are a convenience — the form still works if this fails.
+    listTeachers()
+      .then((ts) =>
+        setTeachers(
+          ts
+            .filter((t) => (t.email || '').trim())
+            .map((t) => ({
+              email: t.email.trim().toLowerCase(),
+              name: `${t.title} ${t.familyName}, ${t.firstName}`.replace(/\s+/g, ' ').trim(),
+            })),
+        ),
+      )
+      .catch(() => {});
   }, []);
+
+  // Every email the registrar is likely to mean, for the datalist: the teacher
+  // roster first (name shown beside the address), then accounts that already
+  // hold a role. De-duplicated; the browser filters as the registrar types.
+  const emailSuggestions = (() => {
+    const seen = new Map<string, string>();
+    for (const t of teachers) if (!seen.has(t.email)) seen.set(t.email, t.name);
+    for (const r of rows ?? []) {
+      const em = r.email.trim().toLowerCase();
+      if (!seen.has(em)) seen.set(em, '');
+    }
+    return Array.from(seen, ([em, label]) => ({ email: em, label })).sort((a, b) =>
+      a.email.localeCompare(b.email),
+    );
+  })();
 
   async function assign(e: FormEvent) {
     e.preventDefault();
@@ -166,7 +196,21 @@ export default function SetupAccounts() {
         <form onSubmit={assign} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
           <div className="col-span-5">
             <Field label="Email">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@nps.edu.ph" required />
+              <Input
+                type="email"
+                list="account-email-suggestions"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@nps.edu.ph"
+                required
+              />
+              <datalist id="account-email-suggestions">
+                {emailSuggestions.map((s) => (
+                  <option key={s.email} value={s.email}>
+                    {s.label}
+                  </option>
+                ))}
+              </datalist>
             </Field>
           </div>
           <div className="col-span-5">
