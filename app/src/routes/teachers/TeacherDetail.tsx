@@ -15,6 +15,7 @@ import {
   listSubjects,
   listTeacherLoad,
   assignTeacherSubject,
+  listGradeSubjects,
 } from '@/lib/db';
 import { subjectFitsSection } from '@/lib/forms';
 import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
@@ -100,10 +101,32 @@ export default function TeacherDetail() {
     return m;
   }, [subjects]);
   const selSectionObj = selSection ? classById.get(selSection) : undefined;
-  const subjOptions = useMemo(
-    () => (selSectionObj ? subjects.filter((s) => subjectFitsSection(s.level, selSectionObj.gradeLevel)) : []),
-    [subjects, selSectionObj],
-  );
+
+  // Curriculum (ordered subject codes) of the selected section's grade — the
+  // subject picker lists exactly these, in the order set in Setup ▸ Subjects.
+  // Fallback: level-filtered catalog when the grade has no curriculum yet.
+  const selGrade = selSectionObj?.gradeLevel ?? '';
+  const [gradeOrder, setGradeOrder] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!selGrade) {
+      setGradeOrder([]);
+      return;
+    }
+    listGradeSubjects(selGrade)
+      .then((codes) => { if (!cancelled) setGradeOrder(codes); })
+      .catch(() => { if (!cancelled) setGradeOrder([]); });
+    return () => { cancelled = true; };
+  }, [selGrade]);
+  const subjOptions = useMemo(() => {
+    if (!selSectionObj) return [];
+    if (!gradeOrder.length) {
+      return subjects.filter((s) => subjectFitsSection(s.level, selSectionObj.gradeLevel));
+    }
+    return gradeOrder
+      .map((code) => subjectByCode.get(code.toUpperCase()))
+      .filter((s): s is Subject => !!s);
+  }, [subjects, selSectionObj, gradeOrder, subjectByCode]);
   const subjLabel = (s: Subject) => `${s.fullName} (${s.code})`;
 
   async function addAssignment() {

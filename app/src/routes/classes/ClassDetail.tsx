@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2, Save } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -25,6 +25,7 @@ import {
   listTeachers,
   listClassSubjects,
   saveClassSubjects,
+  listGradeSubjects,
   listStudentsLite,
   bulkEnrollForSy,
   listAttitudeScale,
@@ -127,6 +128,9 @@ export default function ClassDetail() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
+  // Registrar-curated subject codes for this grade/strand, in curriculum order
+  // (Setup ▸ Subjects — Order per Grade). Drives which subjects the load tab lists.
+  const [gradeOrder, setGradeOrder] = useState<string[]>([]);
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadSaved, setLoadSaved] = useState(false);
   const [removingLrn, setRemovingLrn] = useState<string | null>(null);
@@ -156,6 +160,11 @@ export default function ClassDetail() {
         setTeachers(tchs);
         listAttitudeScale(c?.sy).then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
         setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
+        if (c) {
+          listGradeSubjects(c.gradeLevel)
+            .then((codes) => { if (!cancelled) setGradeOrder(codes); })
+            .catch(() => { if (!cancelled) setGradeOrder([]); });
+        }
         if (c && rosterList.length) {
           const esc = await listEscForClass(rosterList.map((s) => s.lrn), c.sy);
           if (cancelled) return;
@@ -257,6 +266,36 @@ export default function ClassDetail() {
 
   const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
   const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
+
+  // The load tab mirrors "Setup ▸ Subjects — Order per Grade": exactly this
+  // grade/strand's curriculum subjects, in curriculum order. Subjects already
+  // saved for the section but no longer in the curriculum stay visible (flagged)
+  // so nothing silently disappears. Grades with no curriculum configured yet
+  // fall back to the level-filtered catalog.
+  const loadSubjects = useMemo(() => {
+    if (!klass) return [] as { subject: Subject; inCurriculum: boolean }[];
+    if (!gradeOrder.length) {
+      return subjects
+        .filter((s) => subjectFitsSection(s.level, klass.gradeLevel))
+        .map((subject) => ({ subject, inCurriculum: true }));
+    }
+    const byCode = new Map(subjects.map((s) => [s.code.toUpperCase(), s]));
+    const seen = new Set<string>();
+    const rows: { subject: Subject; inCurriculum: boolean }[] = [];
+    for (const code of gradeOrder) {
+      const subject = byCode.get(code.toUpperCase());
+      if (!subject || seen.has(code.toUpperCase())) continue;
+      seen.add(code.toUpperCase());
+      rows.push({ subject, inCurriculum: true });
+    }
+    for (const code of Object.keys(load)) {
+      const subject = byCode.get(code.toUpperCase());
+      if (!subject || seen.has(code.toUpperCase())) continue;
+      seen.add(code.toUpperCase());
+      rows.push({ subject, inCurriculum: false });
+    }
+    return rows;
+  }, [klass, subjects, gradeOrder, load]);
 
   const isOffered = (code: string) => Object.prototype.hasOwnProperty.call(load, code);
   const toggleOffered = (code: string, offered: boolean) => {
@@ -883,7 +922,8 @@ export default function ClassDetail() {
                   <p className="text-[11.5px] text-ink-muted max-w-[560px]">
                     Tick the subjects taken by this section and choose who teaches each. The
                     assigned teacher is who encodes the grades for that subject. Only ticked
-                    subjects are saved.
+                    subjects are saved. The list follows this grade&apos;s subjects and order
+                    from Setup ▸ Subjects.
                   </p>
                   <div className="flex items-center gap-2 shrink-0">
                     {loadSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
@@ -907,16 +947,15 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {subjects.filter((s) => subjectFitsSection(s.level, klass.gradeLevel)).length === 0 ? (
+                    {loadSubjects.length === 0 ? (
                       <tr>
                         <td colSpan={3} className="py-6 text-center text-ink-secondary">
-                          No subjects for this level yet. Add or tag them in Setup ▸ Subjects.
+                          No subjects for this grade yet. Set the grade&apos;s subjects and
+                          order in Setup ▸ Subjects.
                         </td>
                       </tr>
                     ) : (
-                      subjects
-                        .filter((s) => subjectFitsSection(s.level, klass.gradeLevel))
-                        .map((s) => {
+                      loadSubjects.map(({ subject: s, inCurriculum }) => {
                         const offered = isOffered(s.code);
                         return (
                           <tr key={s.code} className="border-b border-border-soft last:border-0">
@@ -931,6 +970,11 @@ export default function ClassDetail() {
                             <td className="py-1.5 pr-3">
                               <span className="font-mono text-ink-secondary mr-2">{s.code}</span>
                               {s.fullName}
+                              {!inCurriculum && (
+                                <span className="ml-2 inline-block align-middle">
+                                  <StatusBadge tone="pending">not in grade curriculum</StatusBadge>
+                                </span>
+                              )}
                             </td>
                             <td className="py-1.5">
                               <select
