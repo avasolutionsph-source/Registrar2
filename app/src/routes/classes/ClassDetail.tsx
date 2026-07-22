@@ -181,6 +181,37 @@ export default function ClassDetail() {
     };
   }, [id]);
 
+  // The load tab mirrors "Setup ▸ Subjects — Order per Grade": exactly this
+  // grade/strand's curriculum subjects, in curriculum order. Subjects already
+  // saved for the section but no longer in the curriculum stay visible (flagged)
+  // so nothing silently disappears. Grades with no curriculum configured yet
+  // fall back to the level-filtered catalog. MUST stay above the early returns
+  // below — a hook after them changes the hook count between renders (React #310).
+  const loadSubjects = useMemo(() => {
+    if (!klass) return [] as { subject: Subject; inCurriculum: boolean }[];
+    if (!gradeOrder.length) {
+      return subjects
+        .filter((s) => subjectFitsSection(s.level, klass.gradeLevel))
+        .map((subject) => ({ subject, inCurriculum: true }));
+    }
+    const byCode = new Map(subjects.map((s) => [s.code.toUpperCase(), s]));
+    const seen = new Set<string>();
+    const rows: { subject: Subject; inCurriculum: boolean }[] = [];
+    for (const code of gradeOrder) {
+      const subject = byCode.get(code.toUpperCase());
+      if (!subject || seen.has(code.toUpperCase())) continue;
+      seen.add(code.toUpperCase());
+      rows.push({ subject, inCurriculum: true });
+    }
+    for (const code of Object.keys(load)) {
+      const subject = byCode.get(code.toUpperCase());
+      if (!subject || seen.has(code.toUpperCase())) continue;
+      seen.add(code.toUpperCase());
+      rows.push({ subject, inCurriculum: false });
+    }
+    return rows;
+  }, [klass, subjects, gradeOrder, load]);
+
   if (klass === undefined) {
     return (
       <div>
@@ -266,36 +297,6 @@ export default function ClassDetail() {
 
   const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
   const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
-
-  // The load tab mirrors "Setup ▸ Subjects — Order per Grade": exactly this
-  // grade/strand's curriculum subjects, in curriculum order. Subjects already
-  // saved for the section but no longer in the curriculum stay visible (flagged)
-  // so nothing silently disappears. Grades with no curriculum configured yet
-  // fall back to the level-filtered catalog.
-  const loadSubjects = useMemo(() => {
-    if (!klass) return [] as { subject: Subject; inCurriculum: boolean }[];
-    if (!gradeOrder.length) {
-      return subjects
-        .filter((s) => subjectFitsSection(s.level, klass.gradeLevel))
-        .map((subject) => ({ subject, inCurriculum: true }));
-    }
-    const byCode = new Map(subjects.map((s) => [s.code.toUpperCase(), s]));
-    const seen = new Set<string>();
-    const rows: { subject: Subject; inCurriculum: boolean }[] = [];
-    for (const code of gradeOrder) {
-      const subject = byCode.get(code.toUpperCase());
-      if (!subject || seen.has(code.toUpperCase())) continue;
-      seen.add(code.toUpperCase());
-      rows.push({ subject, inCurriculum: true });
-    }
-    for (const code of Object.keys(load)) {
-      const subject = byCode.get(code.toUpperCase());
-      if (!subject || seen.has(code.toUpperCase())) continue;
-      seen.add(code.toUpperCase());
-      rows.push({ subject, inCurriculum: false });
-    }
-    return rows;
-  }, [klass, subjects, gradeOrder, load]);
 
   const isOffered = (code: string) => Object.prototype.hasOwnProperty.call(load, code);
   const toggleOffered = (code: string, offered: boolean) => {
