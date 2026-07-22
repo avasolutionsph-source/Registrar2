@@ -82,6 +82,10 @@ export default function SetupAccounts() {
   const [search, setSearch] = useState('');
   // Teacher roster (name + email) — feeds the email suggestions only.
   const [teachers, setTeachers] = useState<{ email: string; name: string }[]>([]);
+  // Whether the custom suggestion dropdown is open (own dropdown, NOT a native
+  // datalist — the native one can't be height-capped and Chrome injects its own
+  // "Manage addresses" autofill entries into it).
+  const [showSug, setShowSug] = useState(false);
 
   async function load() {
     setError(null);
@@ -122,6 +126,18 @@ export default function SetupAccounts() {
       a.email.localeCompare(b.email),
     );
   })();
+
+  // What the dropdown shows: suggestions matching the typed text against the
+  // email or the teacher's name. Nothing shows until the registrar starts
+  // typing — an all-accounts dropdown would just duplicate the accounts list
+  // right below the form. About five rows are visible at a time; the rest
+  // scroll (the dropdown itself is height-capped).
+  const typedEmail = email.trim().toLowerCase();
+  const sugMatches = typedEmail
+    ? emailSuggestions.filter(
+        (s) => s.email.includes(typedEmail) || s.label.toLowerCase().includes(typedEmail),
+      )
+    : [];
 
   async function assign(e: FormEvent) {
     e.preventDefault();
@@ -196,21 +212,36 @@ export default function SetupAccounts() {
         <form onSubmit={assign} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
           <div className="col-span-5">
             <Field label="Email">
-              <Input
-                type="email"
-                list="account-email-suggestions"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@nps.edu.ph"
-                required
-              />
-              <datalist id="account-email-suggestions">
-                {emailSuggestions.map((s) => (
-                  <option key={s.email} value={s.email}>
-                    {s.label}
-                  </option>
-                ))}
-              </datalist>
+              <div className="relative">
+                <Input
+                  type="email"
+                  autoComplete="off"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setShowSug(true); }}
+                  onFocus={() => setShowSug(true)}
+                  onBlur={() => setTimeout(() => setShowSug(false), 120)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setShowSug(false); }}
+                  placeholder="name@nps.edu.ph"
+                  required
+                />
+                {showSug && sugMatches.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-[190px] overflow-y-auto rounded-md border border-border bg-panel shadow-lg">
+                    {sugMatches.map((s) => (
+                      <button
+                        type="button"
+                        key={s.email}
+                        // onMouseDown (not onClick) so the pick lands before the
+                        // input's blur closes the dropdown.
+                        onMouseDown={(e) => { e.preventDefault(); setEmail(s.email); setShowSug(false); }}
+                        className="block w-full text-left px-2.5 py-1.5 hover:bg-app"
+                      >
+                        <span className="block text-[13px] text-ink-primary">{s.email}</span>
+                        {s.label && <span className="block text-[11.5px] text-ink-secondary">{s.label}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
           </div>
           <div className="col-span-5">
