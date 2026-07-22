@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -21,6 +21,7 @@ interface Assignment {
   subjectCode: string;
   subjectName: string;
   teacher: string; // '' when unassigned
+  assignedBy: string; // coordinator email who assigned ('' if unknown)
   offGrade: boolean; // subject not in this grade's curriculum (non-SHS check)
 }
 const isShs = (g: string) => g.startsWith('XI') || g.startsWith('XII');
@@ -62,6 +63,7 @@ export default function TeachingAssignments() {
             subjectCode: l.subjectCode,
             subjectName: subjectByCode.get(l.subjectCode.toUpperCase())?.fullName ?? l.subjectCode,
             teacher: t ? `${t.title} ${t.familyName}, ${t.firstName}`.replace(/\s+/g, ' ').trim() : '',
+            assignedBy: l.assignedBy,
             // Non-SHS sections should only carry their grade's curriculum subjects.
             offGrade: !isShs(c.gradeLevel) && !gradeKeys.has(`${c.gradeLevel}|${l.subjectCode.toUpperCase()}`),
           });
@@ -117,34 +119,40 @@ export default function TeachingAssignments() {
     <table className="w-full text-[12.5px] border-collapse text-black">
       <thead>
         <tr className="text-[11px] uppercase tracking-[0.03em] bg-zinc-100">
-          <th className="border border-zinc-400 px-2 py-1.5 text-left w-[22%]">Grade &amp; Section</th>
-          <th className="border border-zinc-400 px-2 py-1.5 text-left">Subject</th>
+          <th className="border border-zinc-400 px-2 py-1.5 text-right w-8">#</th>
+          <th className="border border-zinc-400 px-2 py-1.5 text-left w-[34%]">Subject</th>
           <th className="border border-zinc-400 px-2 py-1.5 text-left">Teacher</th>
+          <th className="border border-zinc-400 px-2 py-1.5 text-left w-[24%]">Assigned by</th>
         </tr>
       </thead>
       <tbody>
-        {groups.map((g) =>
-          g.subjects.map((r, i) => (
-            <tr key={`${r.classId}-${r.subjectCode}`}>
-              {i === 0 && (
-                <td className="border border-zinc-400 px-2 py-1 align-top font-medium" rowSpan={g.subjects.length}>
-                  {gradeLabel(g.gradeLevel)} · {g.sectionName}
-                </td>
-              )}
-              <td className="border border-zinc-400 px-2 py-1">
-                {r.subjectName}
-                {r.offGrade && (
-                  <span className="ml-2 text-[11px] font-medium text-amber-700" title="This subject is not in the grade's curriculum (Setup ▸ Subjects)">
-                    ⚠ not in grade curriculum
-                  </span>
-                )}
-              </td>
-              <td className={`border border-zinc-400 px-2 py-1 ${r.teacher ? '' : 'text-red-600 font-medium'}`}>
-                {r.teacher || '— unassigned —'}
+        {groups.map((g) => (
+          <Fragment key={`${g.gradeLevel}-${g.sectionName}`}>
+            <tr>
+              <td colSpan={4} className="border border-zinc-400 bg-zinc-200 px-2 py-1 font-bold">
+                {gradeLabel(g.gradeLevel)} · {g.sectionName}
+                <span className="font-normal text-zinc-600"> — {g.subjects.length} subject{g.subjects.length === 1 ? '' : 's'}</span>
               </td>
             </tr>
-          )),
-        )}
+            {g.subjects.map((r, i) => (
+              <tr key={`${r.classId}-${r.subjectCode}`}>
+                <td className="border border-zinc-400 px-2 py-1 text-right tabular-nums text-zinc-500">{i + 1}</td>
+                <td className="border border-zinc-400 px-2 py-1">
+                  {r.subjectName}
+                  {r.offGrade && (
+                    <span className="ml-2 text-[11px] font-medium text-amber-700" title="This subject is not in the grade's curriculum (Setup ▸ Subjects)">
+                      ⚠ not in grade curriculum
+                    </span>
+                  )}
+                </td>
+                <td className={`border border-zinc-400 px-2 py-1 ${r.teacher ? '' : 'text-red-600 font-medium'}`}>
+                  {r.teacher || '— unassigned —'}
+                </td>
+                <td className="border border-zinc-400 px-2 py-1 text-zinc-600">{r.assignedBy || '—'}</td>
+              </tr>
+            ))}
+          </Fragment>
+        ))}
       </tbody>
     </table>
   );
@@ -173,6 +181,8 @@ export default function TeachingAssignments() {
               { header: 'Subject', value: (r) => r.subjectName },
               { header: 'Subject Code', value: (r) => r.subjectCode },
               { header: 'Teacher', value: (r) => r.teacher || 'UNASSIGNED' },
+              { header: 'Assigned by', value: (r) => r.assignedBy },
+              { header: 'In curriculum', value: (r) => (r.offGrade ? 'NO' : 'yes') },
             ]}
             filename={`teaching-assignments-${code ?? 'all'}`}
           />

@@ -1062,6 +1062,7 @@ export interface TeachingAssignmentRow {
   classId: string;
   subjectCode: string;
   teacherId: number | null;
+  assignedBy: string; // email of the coordinator who assigned it ('' if unknown)
 }
 // Every (grade_level, subject) the registrar set as a grade's curriculum
 // (Setup ▸ Subjects). Returned as a set of `${gradeLevel}|${SUBJECT}` for quick
@@ -1077,12 +1078,13 @@ export async function listGradeSubjectKeys(): Promise<Set<string>> {
 export async function listAllClassSubjects(): Promise<TeachingAssignmentRow[]> {
   const { data, error } = await client()
     .from('reg_class_subjects')
-    .select('class_id, subject_code, teacher_id');
+    .select('class_id, subject_code, teacher_id, assigned_by');
   if (error) throw error;
   return (data ?? []).map((r) => ({
     classId: str(r.class_id),
     subjectCode: str(r.subject_code),
     teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
+    assignedBy: r.assigned_by ? str(r.assigned_by) : '',
   }));
 }
 
