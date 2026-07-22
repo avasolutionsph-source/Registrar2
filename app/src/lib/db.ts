@@ -1062,7 +1062,7 @@ export interface TeachingAssignmentRow {
   classId: string;
   subjectCode: string;
   teacherId: number | null;
-  assignedBy: string; // email of the coordinator who assigned it ('' if unknown)
+  assignedBy: string; // email of whoever assigned it — coordinator or registrar ('' if unknown)
 }
 // Every (grade_level, subject) the registrar set as a grade's curriculum
 // (Setup ▸ Subjects). Returned as a set of `${gradeLevel}|${SUBJECT}` for quick
@@ -1090,20 +1090,49 @@ export async function listAllClassSubjects(): Promise<TeachingAssignmentRow[]> {
 
 // Replace the section's whole teaching load with the given rows (subjects with
 // no teacher are stored with teacher_id null; subjects not passed are dropped).
+// The rewrite preserves what the delete would otherwise erase: each kept
+// subject's type (Setup ▸ Weight Components) and — when the teacher is
+// unchanged — who assigned them. A new or changed teacher is stamped with the
+// signed-in registrar's email, matching what acad_assign_subject does for the
+// Academic Coordinators.
 export async function saveClassSubjects(
   classId: string,
   rows: ClassSubjectAssignment[],
 ): Promise<void> {
   const c = client();
+  const { data: prevRows, error: prevErr } = await c
+    .from('reg_class_subjects')
+    .select('subject_code, teacher_id, subject_type, assigned_by')
+    .eq('class_id', classId);
+  if (prevErr) throw prevErr;
+  const prev = new Map(
+    (prevRows ?? []).map((r: Row) => [
+      str(r.subject_code),
+      {
+        teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
+        subjectType: r.subject_type ? str(r.subject_type) : null,
+        assignedBy: r.assigned_by ? str(r.assigned_by) : null,
+      },
+    ]),
+  );
+  const me = (await c.auth.getSession()).data.session?.user?.email ?? null;
   const del = await c.from('reg_class_subjects').delete().eq('class_id', classId);
   if (del.error) throw del.error;
   if (!rows.length) return;
   const { error } = await c.from('reg_class_subjects').insert(
-    rows.map((r) => ({
-      class_id: classId,
-      subject_code: r.subjectCode,
-      teacher_id: r.teacherId,
-    })),
+    rows.map((r) => {
+      const p = prev.get(r.subjectCode);
+      return {
+        class_id: classId,
+        subject_code: r.subjectCode,
+        teacher_id: r.teacherId,
+        subject_type: p?.subjectType ?? null,
+        assigned_by:
+          r.teacherId == null ? null
+          : p && p.teacherId === r.teacherId ? p.assignedBy
+          : me,
+      };
+    }),
   );
   if (error) throw error;
 }
@@ -1124,16 +1153,24 @@ export async function listTeacherLoad(
 // Assign (or clear) ONE subject in ONE section to a teacher without touching the
 // section's other subjects. Upserts the single (class, subject) row — teacherId
 // null keeps the subject offered but unassigned. PK (class_id, subject_code)
-// backs the on-conflict merge.
+// backs the on-conflict merge. Stamps the signed-in registrar as the assigner
+// (cleared with the teacher), same as acad_assign_subject for the coordinators.
 export async function assignTeacherSubject(
   classId: string,
   subjectCode: string,
   teacherId: number | null,
 ): Promise<void> {
-  const { error } = await client()
+  const c = client();
+  const me = (await c.auth.getSession()).data.session?.user?.email ?? null;
+  const { error } = await c
     .from('reg_class_subjects')
     .upsert(
-      { class_id: classId, subject_code: subjectCode, teacher_id: teacherId },
+      {
+        class_id: classId,
+        subject_code: subjectCode,
+        teacher_id: teacherId,
+        assigned_by: teacherId == null ? null : me,
+      },
       { onConflict: 'class_id,subject_code' },
     );
   if (error) throw error;

@@ -21,7 +21,7 @@ interface Assignment {
   subjectCode: string;
   subjectName: string;
   teacher: string; // '' when unassigned
-  assignedBy: string; // coordinator email who assigned ('' if unknown)
+  assignedBy: string; // email of whoever assigned — coordinator or registrar ('' if unknown)
   offGrade: boolean; // subject not in this grade's curriculum (non-SHS check)
 }
 const isShs = (g: string) => g.startsWith('XI') || g.startsWith('XII');
@@ -164,8 +164,8 @@ export default function TeachingAssignments() {
         <div>
           <h1 className="text-xl font-bold text-ink-primary">Teaching Assignments</h1>
           <p className="text-[13px] text-ink-secondary mt-1 max-w-2xl">
-            Every subject × section and the teacher assigned by the Academic Coordinators.
-            Verify the whole load here; <span className="text-red-600 font-medium">unassigned</span>{' '}
+            Every subject × section and the teacher assigned by the Academic Coordinators or the
+            Registrar. Verify the whole load here; <span className="text-red-600 font-medium">unassigned</span>{' '}
             subjects are flagged.
           </p>
         </div>
