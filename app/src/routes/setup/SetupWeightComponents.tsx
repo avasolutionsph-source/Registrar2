@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Save, AlertTriangle, CopyPlus, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
   type WeightAuditRow,
 } from '@/lib/db';
 import type { SchoolYear } from '@/types';
+import { gradeCardLabel, gradeLabel, gradeRank, levelOfGrade } from '@/lib/forms';
 
 // Setup → Weight Components. The official WWs / PTs / EXs (QA in Grade 12) split
 // per SUBJECT TYPE, per SCHOOL YEAR.
@@ -171,8 +172,71 @@ export default function SetupWeightComponents() {
     }
   }
 
+  // Assign one type to EVERY section of a grade for one subject (the N-G10
+  // grade rows). Optimistic across the whole group, rolled back together on
+  // failure so the sections never end up half-updated on screen.
+  async function assignTypeToGrade(group: ClassSubjectType[], typeKey: string) {
+    const key = typeKey || null;
+    const prev = types;
+    const members = new Set(group.map((g) => `${g.classId}|${g.subjectCode}`));
+    setTypes((cur) =>
+      cur.map((x) =>
+        members.has(`${x.classId}|${x.subjectCode}`)
+          ? { ...x, typeKey: key, configured: key != null }
+          : x,
+      ),
+    );
+    try {
+      await Promise.all(group.map((g) => setClassSubjectType(g.classId, g.subjectCode, typeKey)));
+    } catch (e) {
+      setTypes(prev); // roll back on failure
+      setError(e instanceof Error ? e.message : 'Failed to set the subject type.');
+    }
+  }
+
   const unsetCount = types.filter((t) => !t.configured).length;
-  const shownTypes = onlyUnset ? types.filter((t) => !t.configured) : types;
+
+  // Nursery-G10 sections share the grade catalog, so the same subject is the
+  // same type in every section of a grade — one row per (grade x subject),
+  // applied to all its sections at once. A group whose sections DISAGREE
+  // (legacy data) is "mixed": its per-section rows stay visible under it until
+  // one type is picked for the grade. SHS stays per section: strand curricula
+  // differ, and the same subject can be a different type per grade/strand
+  // (General Biology 1 is Academic Elective in G11 but Specialized in G12).
+  const { gradeGroups, shsSections } = useMemo(() => {
+    const byGrade = new Map<string, { gradeLevel: string; subjectCode: string; subjectName: string; rows: ClassSubjectType[] }>();
+    const bySection = new Map<string, { classId: string; gradeLevel: string; sectionName: string; rows: ClassSubjectType[] }>();
+    for (const t of types) {
+      if (levelOfGrade(t.gradeLevel) === 'shs') {
+        let g = bySection.get(t.classId);
+        if (!g) { g = { classId: t.classId, gradeLevel: t.gradeLevel, sectionName: t.sectionName, rows: [] }; bySection.set(t.classId, g); }
+        g.rows.push(t);
+      } else {
+        const k = `${t.gradeLevel}|${t.subjectCode}`;
+        let g = byGrade.get(k);
+        if (!g) { g = { gradeLevel: t.gradeLevel, subjectCode: t.subjectCode, subjectName: t.subjectName, rows: [] }; byGrade.set(k, g); }
+        g.rows.push(t);
+      }
+    }
+    const gradeGroups = [...byGrade.values()]
+      .map((g) => {
+        const first = g.rows[0]?.typeKey ?? null;
+        const mixed = g.rows.some((r) => r.typeKey !== first);
+        return { ...g, typeKey: mixed ? null : first, mixed, unset: g.rows.some((r) => !r.configured) };
+      })
+      .sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.subjectName.localeCompare(b.subjectName));
+    const shsSections = [...bySection.values()]
+      .sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName));
+    return { gradeGroups, shsSections };
+  }, [types]);
+
+  const shownGradeGroups = onlyUnset ? gradeGroups.filter((g) => g.unset) : gradeGroups;
+  const shownShsSections = shsSections
+    .map((s) => ({ ...s, rows: onlyUnset ? s.rows.filter((r) => !r.configured) : s.rows }))
+    .filter((s) => s.rows.length > 0);
+  const shownCount =
+    shownGradeGroups.reduce((n, g) => n + g.rows.length, 0) +
+    shownShsSections.reduce((n, s) => n + s.rows.length, 0);
 
   return (
     <>
@@ -360,19 +424,22 @@ export default function SetupWeightComponents() {
         })()
       )}
 
-      {/* Subject type per section — the split follows the TYPE, and the type can
-          be changed for any section, not only ones that have none yet. A row
+      {/* Subject types — the split follows the TYPE. Nursery-G10 is one row per
+          (grade x subject): sections of a grade share the grade catalog, so one
+          choice covers all of them (a legacy "mixed" group expands until it is
+          aligned). SHS stays per section because strand curricula differ. A row
           with no type (or a type with no weights this year) blocks its grade
           sheet and is highlighted. */}
       {types.length > 0 && (
         <div className="mt-6 pt-6 border-t border-border">
           <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="text-[15px] font-bold text-ink-primary">Subject types per section</h2>
+              <h2 className="text-[15px] font-bold text-ink-primary">Subject types</h2>
               <p className="text-[12.5px] text-ink-secondary mt-0.5 max-w-[660px]">
-                Each subject's split comes from its type here. The same subject can be a different
-                type in a different section. A row with no type cannot compute — its grade sheet is
-                blocked until you choose one.
+                Each subject's split comes from its type here. Nursery–Grade 10 is one row per grade
+                — choosing a type applies it to every section of that grade. Senior High is per
+                section, since strands carry different curricula. A row with no type cannot compute
+                — its grade sheet is blocked until you choose one.
                 {unsetCount > 0 && (
                   <span className="text-nps-red font-semibold"> {unsetCount} still need a type.</span>
                 )}
@@ -385,40 +452,114 @@ export default function SetupWeightComponents() {
               </label>
             )}
           </div>
-          <SectionCard heading={`${shownTypes.length} of ${types.length} section subjects`}>
+          <SectionCard heading={`${shownCount} of ${types.length} section subjects`}>
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                  <th className="py-2 pr-3">Section</th>
+                  <th className="py-2 pr-3">Grade / Section</th>
                   <th className="py-2 pr-3">Subject</th>
                   <th className="py-2 w-[36%]">Subject type</th>
                 </tr>
               </thead>
               <tbody>
-                {shownTypes.map((t) => (
-                  <tr
-                    key={`${t.classId}-${t.subjectCode}`}
-                    className={`border-b border-border-soft last:border-0 ${t.configured ? '' : 'bg-nps-red/5'}`}
-                  >
-                    <td className="py-2 pr-3 text-ink-secondary">{t.gradeLevel} — {t.sectionName}</td>
-                    <td className="py-2 pr-3 text-ink-primary">{t.subjectName}</td>
-                    <td className="py-2">
-                      <select
-                        value={t.typeKey ?? ''}
-                        onChange={(e) => assignType(t, e.target.value)}
-                        className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
-                          t.configured ? 'border-border' : 'border-nps-red'
-                        }`}
+                {/* Nursery-G10 — one row per grade x subject, applied to all sections. */}
+                {shownGradeGroups.map((g) => (
+                  <Fragment key={`${g.gradeLevel}|${g.subjectCode}`}>
+                    <tr className={`border-b border-border-soft ${g.unset ? 'bg-nps-red/5' : ''}`}>
+                      <td className="py-2 pr-3 text-ink-secondary">
+                        {gradeCardLabel(g.gradeLevel)}
+                        <span className="text-ink-muted"> · all {g.rows.length} section{g.rows.length === 1 ? '' : 's'}</span>
+                      </td>
+                      <td className="py-2 pr-3 text-ink-primary">{g.subjectName}</td>
+                      <td className="py-2">
+                        <select
+                          value={g.mixed ? '__mixed' : g.typeKey ?? ''}
+                          onChange={(e) => {
+                            if (e.target.value !== '__mixed') assignTypeToGrade(g.rows, e.target.value);
+                          }}
+                          className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
+                            g.unset ? 'border-nps-red' : 'border-border'
+                          }`}
+                        >
+                          {g.mixed && (
+                            <option value="__mixed" disabled>
+                              — mixed: sections differ (pick one to align them) —
+                            </option>
+                          )}
+                          <option value="">— no type (blocked) —</option>
+                          {rows.map((r) => (
+                            <option key={r.typeKey} value={r.typeKey}>
+                              {r.label} ({r.ww}/{r.pt}/{r.ex})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                    {/* Sections shown only while they disagree; picking a type
+                        above (or matching them here) collapses the group. */}
+                    {g.mixed &&
+                      g.rows.map((t) => (
+                        <tr
+                          key={`${t.classId}-${t.subjectCode}`}
+                          className={`border-b border-border-soft ${t.configured ? '' : 'bg-nps-red/5'}`}
+                        >
+                          <td className="py-2 pr-3 pl-6 text-ink-muted">↳ {t.sectionName}</td>
+                          <td className="py-2 pr-3 text-ink-muted">{t.subjectName}</td>
+                          <td className="py-2">
+                            <select
+                              value={t.typeKey ?? ''}
+                              onChange={(e) => assignType(t, e.target.value)}
+                              className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
+                                t.configured ? 'border-border' : 'border-nps-red'
+                              }`}
+                            >
+                              <option value="">— no type (blocked) —</option>
+                              {rows.map((r) => (
+                                <option key={r.typeKey} value={r.typeKey}>
+                                  {r.label} ({r.ww}/{r.pt}/{r.ex})
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                  </Fragment>
+                ))}
+
+                {/* Senior High — per section (strand curricula differ). */}
+                {shownShsSections.map((s) => (
+                  <Fragment key={s.classId}>
+                    <tr className="border-b border-border-soft">
+                      <td colSpan={3} className="pt-4 pb-1 text-[12px] font-bold uppercase tracking-[0.04em] text-ink-secondary">
+                        {gradeLabel(s.gradeLevel)} — {s.sectionName}
+                      </td>
+                    </tr>
+                    {s.rows.map((t) => (
+                      <tr
+                        key={`${t.classId}-${t.subjectCode}`}
+                        className={`border-b border-border-soft ${t.configured ? '' : 'bg-nps-red/5'}`}
                       >
-                        <option value="">— no type (blocked) —</option>
-                        {rows.map((r) => (
-                          <option key={r.typeKey} value={r.typeKey}>
-                            {r.label} ({r.ww}/{r.pt}/{r.ex})
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
+                        <td className="py-2 pr-3" />
+                        <td className="py-2 pr-3 text-ink-primary">{t.subjectName}</td>
+                        <td className="py-2">
+                          <select
+                            value={t.typeKey ?? ''}
+                            onChange={(e) => assignType(t, e.target.value)}
+                            className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
+                              t.configured ? 'border-border' : 'border-nps-red'
+                            }`}
+                          >
+                            <option value="">— no type (blocked) —</option>
+                            {rows.map((r) => (
+                              <option key={r.typeKey} value={r.typeKey}>
+                                {r.label} ({r.ww}/{r.pt}/{r.ex})
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
