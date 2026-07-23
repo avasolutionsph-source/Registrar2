@@ -112,7 +112,15 @@ export default function ClassGrades() {
   const cellOf = (s: Student, code: string): number | null => {
     const g = gradesOf(s).find((x) => x.subjectCode.toUpperCase() === code);
     if (!g) return null;
-    if (showAttitude) return period === 'final' ? null : g.attitude?.[period] ?? null;
+    if (showAttitude) {
+      if (period === 'final') return null;
+      // Attitude is stored on the grade entry but its declaration is landing in
+      // a parallel types change — read it structurally so this page builds
+      // with or without that declaration.
+      const att = (g as { attitude?: Partial<Record<Exclude<HonorPeriod, 'final'>, number | null>> })
+        .attitude;
+      return att?.[period] ?? null;
+    }
     return (period === 'final' ? g.final : g[period]) ?? null;
   };
 
