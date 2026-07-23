@@ -50,6 +50,7 @@ grant execute on function public.acad_teacher_loads() to authenticated;
 
 -- ── Check (run while signed in as each coordinator) ─────────────────────────
 --   select distinct grade_level from public.acad_teacher_loads() order by 1;
---   • acad_jhs must list only VII–X
 --   • acad_pre must list only N1/N2/K-type levels
+--   • acad_gs  must list only I–VI (and S/SNED)
+--   • acad_jhs must list only VII–X
 --   • acad_shs must list only XI-*/XII-*
