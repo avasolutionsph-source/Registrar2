@@ -58,7 +58,7 @@ const ROLE_ACCESS: Record<string, string> = {
   // Preschool has no coordinator office in the portal yet (unlike GS/JHS/SHS),
   // so the role can be granted but opens nothing. Say so rather than imply an
   // office that does not exist.
-  acad_pre: 'Portal access only — Preschool coordinator office not built yet',
+  acad_pre: 'Academic Coordinator office — Preschool (teaching loads, routed grade approval)',
   acad_gs: 'Academic Coordinator office — Grade School (teaching loads)',
   acad_jhs: 'Academic Coordinator office — Junior High (teaching loads)',
   acad_shs: 'Academic Coordinator office — Senior High (teaching loads)',
