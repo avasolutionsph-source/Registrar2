@@ -308,6 +308,18 @@ export default function ClassDetail() {
     });
     setLoadSaved(false);
   };
+  // Select-all for the Taken column: ticks every listed subject at once but
+  // never touches the teacher — existing assignments stay, new ticks open as
+  // "Not assigned yet". Unticking clears the whole load list.
+  const toggleAllOffered = (offered: boolean) => {
+    setLoad((l) => {
+      if (!offered) return {};
+      const next = { ...l };
+      for (const { subject } of loadSubjects) next[subject.code] = next[subject.code] ?? null;
+      return next;
+    });
+    setLoadSaved(false);
+  };
   const setSubjectTeacher = (code: string, teacherId: number | null) => {
     setLoad((l) => ({ ...l, [code]: teacherId }));
     setLoadSaved(false);
@@ -942,7 +954,27 @@ export default function ClassDetail() {
                 <table className="w-full text-[12.5px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-3 w-[10%] text-center">Taken</th>
+                      <th className="py-1.5 pr-3 w-[10%] text-center">
+                        <span className="inline-flex items-center justify-center gap-1.5">
+                          {loadSubjects.length > 0 && (
+                            <input
+                              type="checkbox"
+                              checked={loadSubjects.every(({ subject }) => isOffered(subject.code))}
+                              ref={(el) => {
+                                if (el) {
+                                  const some = loadSubjects.some(({ subject }) => isOffered(subject.code));
+                                  const all = loadSubjects.every(({ subject }) => isOffered(subject.code));
+                                  el.indeterminate = some && !all;
+                                }
+                              }}
+                              onChange={(e) => toggleAllOffered(e.target.checked)}
+                              title="Tick all subjects — teachers stay unassigned"
+                              className="h-3.5 w-3.5 accent-nps-red align-middle"
+                            />
+                          )}
+                          Taken
+                        </span>
+                      </th>
                       <th className="py-1.5 pr-3">Subject</th>
                       <th className="py-1.5 w-[45%]">Teacher</th>
                     </tr>
