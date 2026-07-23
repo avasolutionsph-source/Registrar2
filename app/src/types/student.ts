@@ -50,6 +50,13 @@ export interface RawScore {
   total: number;
 }
 
+// One ACTIVITY's score as the teacher portal stores it — either side may be
+// null (blank cell / HPS not set yet).
+export interface ItemScore {
+  earned: number | null;
+  total: number | null;
+}
+
 // The three DepEd summative components for a single quarter.
 export interface QuarterComponents {
   ww?: RawScore; // Written / Oral Works
@@ -77,6 +84,18 @@ export interface QuarterGrade {
   // grade engine turns these into q1..q4. Editing the raw scores is how a
   // corrected grade is reached (instead of editing the final directly).
   raw?: Partial<Record<QuarterKey, QuarterComponents>>;
+  // Teacher-portal per-ACTIVITY detail behind `raw`: every activity's earned
+  // score over its highest possible score, per component per quarter. `st` is
+  // the fixed [ST1, ST2, Term Exam] trio. Blank cells are stored as null.
+  items?: Partial<Record<QuarterKey, {
+    ww?: ItemScore[];
+    pt?: ItemScore[];
+    st?: ItemScore[];
+  }>>;
+  // Numerical attitude rating per quarter (letter comes from the SY's scale).
+  attitude?: Partial<Record<QuarterKey, number | null>>;
+  // The weight-components subject TYPE the grades were computed with.
+  subjectType?: string;
   // Learning-area weight-group override (else inferred from the subject).
   areaGroup?: string;
   // KS1 (Kinder–Grade 3) descriptive letter per quarter, in place of a number.

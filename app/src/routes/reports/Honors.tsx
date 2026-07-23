@@ -75,7 +75,12 @@ export default function Honors() {
   const [years, setYears] = useState<SchoolYear[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [sy, setSy] = useState<string>('');
+  // Seed the SY from the shell's current-year context on the very first paint,
+  // so the period chips start on the RIGHT calendar (3 terms for SY 2026-2027
+  // onward) instead of flashing the old Q1–Q4 while the year list loads.
+  const [sy, setSy] = useState<string>(() =>
+    currentSY && currentSY.code !== ALL_TIME_CODE ? currentSY.code : '',
+  );
   const [period, setPeriod] = useState<HonorPeriod>('final');
   // "section" = per class (what a Class Adviser pulls from their class grade sheet
   // and submits to the registrar). "level" = alphabetized summary per grade level
@@ -313,14 +318,23 @@ export default function Honors() {
         <div className="flex flex-col gap-1">
           <span className="text-[11px] uppercase tracking-[0.04em] text-ink-muted">Period</span>
           <div className="flex gap-1.5">
-            {periods.map((p) => (
-              <button key={p.key} onClick={() => setPeriod(p.key)} className={btnCls(period === p.key)}>
-                {p.label}
-              </button>
-            ))}
-            <button onClick={() => setPeriod('final')} className={btnCls(period === 'final')}>
-              Year-end
-            </button>
+            {/* The chips follow the selected SY's calendar (3 terms from
+                SY 2026-2027, quarters before) — hidden until the SY is known
+                so the wrong calendar never shows. */}
+            {sy ? (
+              <>
+                {periods.map((p) => (
+                  <button key={p.key} onClick={() => setPeriod(p.key)} className={btnCls(period === p.key)}>
+                    {p.label}
+                  </button>
+                ))}
+                <button onClick={() => setPeriod('final')} className={btnCls(period === 'final')}>
+                  Year-end
+                </button>
+              </>
+            ) : (
+              <span className="px-2.5 py-1.5 text-[12px] text-ink-muted">…</span>
+            )}
           </div>
         </div>
 

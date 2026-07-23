@@ -1387,6 +1387,32 @@ export async function listGradeSubjectWeights(
   return out;
 }
 
+// Official split for ONE section × subject, resolved from the subject's TYPE in
+// that section (reg_class_subjects.subject_type → reg_weight_components) — the
+// exact resolver the teacher portal computes with (reg_weights_for). Null when
+// the type is unset or has no weights for the SY: the caller must block the
+// computation and say so, never guess a split.
+export interface ClassSubjectWeights {
+  ww: number; pt: number; st: number;
+  exLabel: string; typeKey: string; label: string;
+}
+export async function weightsForClassSubject(
+  classId: string,
+  subjectCode: string,
+): Promise<ClassSubjectWeights | null> {
+  const { data, error } = await client().rpc('reg_weights_for', {
+    p_class_id: classId,
+    p_subject_code: subjectCode,
+  });
+  if (error) throw error;
+  const r = (data ?? [])[0];
+  if (!r) return null;
+  return {
+    ww: Number(r.ww), pt: Number(r.pt), st: Number(r.ex),
+    exLabel: str(r.ex_label) || 'EXs', typeKey: str(r.type_key), label: str(r.label),
+  };
+}
+
 // The DB CHECK constraint enforces ww+pt+ex=100, but validate here too so the
 // user gets a clear message instead of a raw Postgres error.
 export async function saveWeightComponents(rows: WeightComponent[]): Promise<void> {
