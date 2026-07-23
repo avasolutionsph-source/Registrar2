@@ -231,6 +231,19 @@ export default function SetupWeightComponents() {
   }, [types]);
 
   const shownGradeGroups = onlyUnset ? gradeGroups.filter((g) => g.unset) : gradeGroups;
+  // Display buckets: one heading per grade level, its subjects listed beneath
+  // (shownGradeGroups is already sorted by grade rank, then subject name).
+  type GradeGroup = (typeof gradeGroups)[number];
+  const gradeBuckets: { gradeLevel: string; sections: number; groups: GradeGroup[] }[] = [];
+  for (const g of shownGradeGroups) {
+    const last = gradeBuckets[gradeBuckets.length - 1];
+    if (last && last.gradeLevel === g.gradeLevel) {
+      last.groups.push(g);
+      if (g.rows.length > last.sections) last.sections = g.rows.length;
+    } else {
+      gradeBuckets.push({ gradeLevel: g.gradeLevel, sections: g.rows.length, groups: [g] });
+    }
+  }
   const shownShsSections = shsSections
     .map((s) => ({ ...s, rows: onlyUnset ? s.rows.filter((r) => !r.configured) : s.rows }))
     .filter((s) => s.rows.length > 0);
@@ -462,57 +475,39 @@ export default function SetupWeightComponents() {
                 </tr>
               </thead>
               <tbody>
-                {/* Nursery-G10 — one row per grade x subject, applied to all sections. */}
-                {shownGradeGroups.map((g) => (
-                  <Fragment key={`${g.gradeLevel}|${g.subjectCode}`}>
-                    <tr className={`border-b border-border-soft ${g.unset ? 'bg-nps-red/5' : ''}`}>
-                      <td className="py-2 pr-3 text-ink-secondary">
-                        {gradeCardLabel(g.gradeLevel)}
-                        <span className="text-ink-muted"> · all {g.rows.length} section{g.rows.length === 1 ? '' : 's'}</span>
-                      </td>
-                      <td className="py-2 pr-3 text-ink-primary">{g.subjectName}</td>
-                      <td className="py-2">
-                        <select
-                          value={g.mixed ? '__mixed' : g.typeKey ?? ''}
-                          onChange={(e) => {
-                            if (e.target.value !== '__mixed') assignTypeToGrade(g.rows, e.target.value);
-                          }}
-                          className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
-                            g.unset ? 'border-nps-red' : 'border-border'
-                          }`}
-                        >
-                          {g.mixed && (
-                            <option value="__mixed" disabled>
-                              — mixed: sections differ (pick one to align them) —
-                            </option>
-                          )}
-                          <option value="">— no type (blocked) —</option>
-                          {rows.map((r) => (
-                            <option key={r.typeKey} value={r.typeKey}>
-                              {r.label} ({r.ww}/{r.pt}/{r.ex})
-                            </option>
-                          ))}
-                        </select>
+                {/* Nursery-G10 — grouped per grade level: one heading, then its
+                    subjects. A choice still applies to every section of the
+                    grade. */}
+                {gradeBuckets.map((b) => (
+                  <Fragment key={b.gradeLevel}>
+                    <tr className="border-b border-border-soft">
+                      <td colSpan={3} className="pt-4 pb-1 text-[12px] font-bold uppercase tracking-[0.04em] text-ink-secondary">
+                        {gradeCardLabel(b.gradeLevel)}
+                        <span className="font-normal normal-case tracking-normal text-ink-muted">
+                          {' '}· applies to all {b.sections} section{b.sections === 1 ? '' : 's'} of this grade
+                        </span>
                       </td>
                     </tr>
-                    {/* Sections shown only while they disagree; picking a type
-                        above (or matching them here) collapses the group. */}
-                    {g.mixed &&
-                      g.rows.map((t) => (
-                        <tr
-                          key={`${t.classId}-${t.subjectCode}`}
-                          className={`border-b border-border-soft ${t.configured ? '' : 'bg-nps-red/5'}`}
-                        >
-                          <td className="py-2 pr-3 pl-6 text-ink-muted">↳ {t.sectionName}</td>
-                          <td className="py-2 pr-3 text-ink-muted">{t.subjectName}</td>
+                    {b.groups.map((g) => (
+                      <Fragment key={`${g.gradeLevel}|${g.subjectCode}`}>
+                        <tr className={`border-b border-border-soft ${g.unset ? 'bg-nps-red/5' : ''}`}>
+                          <td className="py-2 pr-3" />
+                          <td className="py-2 pr-3 text-ink-primary">{g.subjectName}</td>
                           <td className="py-2">
                             <select
-                              value={t.typeKey ?? ''}
-                              onChange={(e) => assignType(t, e.target.value)}
+                              value={g.mixed ? '__mixed' : g.typeKey ?? ''}
+                              onChange={(e) => {
+                                if (e.target.value !== '__mixed') assignTypeToGrade(g.rows, e.target.value);
+                              }}
                               className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
-                                t.configured ? 'border-border' : 'border-nps-red'
+                                g.unset ? 'border-nps-red' : 'border-border'
                               }`}
                             >
+                              {g.mixed && (
+                                <option value="__mixed" disabled>
+                                  — mixed: sections differ (pick one to align them) —
+                                </option>
+                              )}
                               <option value="">— no type (blocked) —</option>
                               {rows.map((r) => (
                                 <option key={r.typeKey} value={r.typeKey}>
@@ -522,7 +517,36 @@ export default function SetupWeightComponents() {
                             </select>
                           </td>
                         </tr>
-                      ))}
+                        {/* Sections shown only while they disagree; picking a type
+                            above (or matching them here) collapses the group. */}
+                        {g.mixed &&
+                          g.rows.map((t) => (
+                            <tr
+                              key={`${t.classId}-${t.subjectCode}`}
+                              className={`border-b border-border-soft ${t.configured ? '' : 'bg-nps-red/5'}`}
+                            >
+                              <td className="py-2 pr-3 pl-6 text-ink-muted">↳ {t.sectionName}</td>
+                              <td className="py-2 pr-3 text-ink-muted">{t.subjectName}</td>
+                              <td className="py-2">
+                                <select
+                                  value={t.typeKey ?? ''}
+                                  onChange={(e) => assignType(t, e.target.value)}
+                                  className={`h-8 w-full rounded-md border bg-surface px-2 text-[12.5px] ${
+                                    t.configured ? 'border-border' : 'border-nps-red'
+                                  }`}
+                                >
+                                  <option value="">— no type (blocked) —</option>
+                                  {rows.map((r) => (
+                                    <option key={r.typeKey} value={r.typeKey}>
+                                      {r.label} ({r.ww}/{r.pt}/{r.ex})
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    ))}
                   </Fragment>
                 ))}
 
