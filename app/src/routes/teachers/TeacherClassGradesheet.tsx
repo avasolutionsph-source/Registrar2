@@ -131,7 +131,9 @@ export default function TeacherClassGradesheet() {
     const nextAtt: Record<string, Record<string, string>> = {};
     for (const pk of pks) nextActs[pk] = emptyComp();
     for (const stu of r) {
-      const entry = (stu.grades?.[sy] ?? []).find((e) => e.subjectCode.toUpperCase() === code);
+      const entry = (stu.grades?.[sy as keyof Student['grades']] ?? []).find(
+        (e) => e.subjectCode.toUpperCase() === code,
+      );
       nextScores[stu.lrn] = {};
       nextAtt[stu.lrn] = {};
       for (const pk of pks) {
@@ -338,7 +340,7 @@ export default function TeacherClassGradesheet() {
             const g = Object.keys(rawPk).length
               ? computeGradeWith(rawPk, weights, transmutation)
               : qOf(existing, pk);
-            (entry as Record<string, unknown>)[pk] = g ?? undefined;
+            Object.assign(entry, { [pk]: g ?? undefined });
             if (typeof g === 'number') qvals.push(g);
           }
           entry.final = qvals.length
