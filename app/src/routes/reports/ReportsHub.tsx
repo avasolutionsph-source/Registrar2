@@ -10,6 +10,7 @@ import {
   Cake,
   Route as RouteIcon,
   ClipboardList,
+  Table2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -27,6 +28,12 @@ const TILES: Tile[] = [
     icon: BarChart3,
     label: 'Statistics',
     desc: 'Enrollment counts per grade level × section, per SY',
+  },
+  {
+    to: '/reports/class-grades',
+    icon: Table2,
+    label: 'Class Grades',
+    desc: 'One section, every learner × subject per term — honors counter-checking + attitude view',
   },
   {
     to: '/reports/alumni',

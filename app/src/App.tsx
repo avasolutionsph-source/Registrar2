@@ -49,6 +49,7 @@ import Honors from '@/routes/reports/Honors';
 import Tracking from '@/routes/reports/Tracking';
 import Birthdays from '@/routes/reports/Birthdays';
 import TeachingAssignments from '@/routes/reports/TeachingAssignments';
+import ClassGrades from '@/routes/reports/ClassGrades';
 import ComingSoon from '@/routes/ComingSoon';
 import Login from '@/routes/Login';
 
@@ -121,6 +122,7 @@ export default function App() {
           <Route path="setup/*" element={<ComingSoon />} />
           <Route path="reports" element={<ReportsHub />} />
           <Route path="reports/statistics" element={<Statistics />} />
+          <Route path="reports/class-grades" element={<ClassGrades />} />
           <Route path="reports/alumni" element={<Alumni />} />
           <Route path="reports/loyalty" element={<Loyalty />} />
           <Route path="reports/honors" element={<Honors />} />
