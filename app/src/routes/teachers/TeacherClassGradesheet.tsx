@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Pencil, Save, Plus } from 'lucide-react';
+import { Pencil, Save } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,24 +27,33 @@ import {
 import type { Student, ClassRecord, Subject, Teacher, QuarterGrade, QuarterKey } from '@/types';
 
 // The FULL class × subject grade sheet, opened from a subject chip on the
-// teacher profile: every activity score (WW / PT / EXs), the Initial and term
-// grades, and the attitude rating — the same sheet the teacher encodes in the
-// portal, not just the per-term summary. Editing is deliberately behind an
-// "Edit grades" button so a correction is always an explicit act: scores are
-// what get edited, and each term grade is recomputed from them with the same
-// engine (weights by subject type + the SY's transmutation table).
+// teacher profile. The table mirrors the TEACHER PORTAL's grade sheet exactly —
+// same columns (per-activity scores, Total / PS / Weighted Score per component,
+// the EXs breakdown, Initial and Final Grade, Attitude) — so a sheet reads the
+// same anywhere in the system; only who may edit differs. Editing here is
+// behind an explicit "Edit grades" button: corrections change the SCORES, and
+// each term grade recomputes with the same engine the teacher portal uses
+// (weights by subject type + the SY's transmutation table).
 
 type CompKey = 'ww' | 'pt' | 'st';
 type CompArrays = Record<CompKey, string[]>;
 
-const COMP_FULL: Record<CompKey, string> = {
+const GROUP_FULL: Record<CompKey, string> = {
   ww: 'Written Works & Oral Works',
   pt: 'Product / Performance Tasks',
   st: 'Summative Tests & Term Exam',
 };
 
-// EXs are a fixed trio per the official sheet: two Summative Tests + Term Exam.
-const EX_LABELS = ['ST 1', 'ST 2', 'Term Exam'];
+// EXs are a FIXED structure per the official sheet: exactly two Summative Tests
+// (30% each) and one Term Exam (40%). Slot index → its label + internal weight.
+const EX_SLOTS = [
+  { idx: 0, label: 'Summative Test 1', short: 'ST 1', weight: 30 },
+  { idx: 1, label: 'Summative Test 2', short: 'ST 2', weight: 30 },
+  { idx: 2, label: 'Term Examination', short: 'Term Exam', weight: 40 },
+];
+
+// One alignment rule for every score cell — same as the portal sheet.
+const SCORE_CELL = 'px-1 py-1 text-left';
 
 const num = (s: string | number | null | undefined): number | null => {
   if (s === '' || s == null) return null;
@@ -99,6 +108,21 @@ const qOf = (e: QuarterGrade | undefined, pk: string): number | null => {
   return typeof v === 'number' ? v : null;
 };
 
+// Standard class-list grouping (same as the portal sheet): MALE first, then
+// FEMALE, each alphabetical with its OWN numbering; learners with no gender
+// value go to an "Unspecified" group at the end instead of being dropped.
+function groupRosterBySex(roster: Student[]) {
+  const byName = (a: Student, b: Student) =>
+    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
+  const groups = [
+    { key: 'Male', label: 'Male', students: roster.filter((s) => s.gender === 'Male').sort(byName) },
+    { key: 'Female', label: 'Female', students: roster.filter((s) => s.gender === 'Female').sort(byName) },
+  ];
+  const other = roster.filter((s) => s.gender !== 'Male' && s.gender !== 'Female').sort(byName);
+  if (other.length) groups.push({ key: 'Unspecified', label: 'Unspecified', students: other });
+  return groups.filter((g) => g.students.length > 0);
+}
+
 export default function TeacherClassGradesheet() {
   const { id, classId, subjectCode } = useParams<{ id: string; classId: string; subjectCode: string }>();
   const navigate = useNavigate();
@@ -114,7 +138,9 @@ export default function TeacherClassGradesheet() {
   const [attScale, setAttScale] = useState<AttitudeBand[]>(DEFAULT_ATTITUDE_SCALE);
   const [error, setError] = useState<string | null>(null);
 
-  const [view, setView] = useState<string>('summary'); // 'summary' | period key
+  const [period, setPeriod] = useState<string>('q1');
+  const [showFinal, setShowFinal] = useState(false);
+  const [finalSort, setFinalSort] = useState<'rank' | 'name'>('rank');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -163,6 +189,15 @@ export default function TeacherClassGradesheet() {
         nextAtt[stu.lrn][pk] = a == null ? '' : String(a);
       }
     }
+    // Keep every learner's score rows as long as the class HPS rows.
+    for (const stu of r) {
+      for (const pk of pks) {
+        for (const c of ['ww', 'pt'] as const) {
+          const arr = nextScores[stu.lrn][pk][c];
+          while (arr.length < nextActs[pk][c].length) arr.push('');
+        }
+      }
+    }
     setActs(nextActs);
     setScores(nextScores);
     setAtt(nextAtt);
@@ -207,58 +242,115 @@ export default function TeacherClassGradesheet() {
   const sy = cls?.sy ?? '';
   const subjName = subject?.fullName ?? subjectCode ?? '';
   const teacherName = teacher ? `${teacher.title} ${teacher.familyName}, ${teacher.firstName}`.replace(/\s+/g, ' ').trim() : '';
+  const readOnly = !editing;
 
-  const entryOf = (stu: Student) =>
+  const COMPONENTS: { key: CompKey; label: string }[] = [
+    { key: 'ww', label: 'WWs' },
+    { key: 'pt', label: 'PTs' },
+    { key: 'st', label: weights?.exLabel ?? 'EXs' },
+  ];
+
+  const entryFor = (stu: Student) =>
     (stu.grades?.[sy as keyof Student['grades']] ?? []).find((e) => e.subjectCode.toUpperCase() === code);
 
-  const cellOf = (g: QuarterGrade | undefined, key: string) => {
-    const n = qOf(g, key);
-    const letter = g?.letters?.[key as QuarterKey];
-    return n != null ? n : letter || '—';
-  };
+  // ── column helpers (same shapes as the portal sheet) ──
+  const colFor = (c: CompKey) => acts[period]?.[c] ?? [''];
+  // WW/PT: inputs + add col + (Total, PS, Weighted) = len + 4; EX fixed = 10.
+  const spanFor = (cKey: CompKey) => (cKey === 'st' ? 10 : colFor(cKey).length + 4);
 
-  // ── sheet-state setters (edit mode) ──
-  const setScore = (lrn: string, pk: string, c: CompKey, i: number, v: string) => {
+  const setHps = (c: CompKey, i: number, v: string) => {
+    setActs((a) => {
+      const per = a[period] ?? emptyComp();
+      const arr = [...(per[c] ?? [])];
+      while (arr.length <= i) arr.push('');
+      arr[i] = v;
+      return { ...a, [period]: { ...per, [c]: arr } };
+    });
+    setSaved(false);
+  };
+  const addActivity = (c: CompKey) => {
+    setActs((a) => {
+      const per = a[period] ?? emptyComp();
+      return { ...a, [period]: { ...per, [c]: [...(per[c] ?? []), ''] } };
+    });
     setScores((s) => {
-      const stu = s[lrn] ?? {};
-      const per = stu[pk] ?? emptyComp();
-      const arr = [...(per[c] ?? [])];
-      while (arr.length <= i) arr.push('');
-      arr[i] = v;
-      return { ...s, [lrn]: { ...stu, [pk]: { ...per, [c]: arr } } };
+      const next = { ...s };
+      for (const lrn of Object.keys(next)) {
+        const cur = next[lrn][period]?.[c] ?? [];
+        next[lrn] = { ...next[lrn], [period]: { ...(next[lrn][period] ?? emptyComp()), [c]: [...cur, ''] } };
+      }
+      return next;
     });
     setSaved(false);
   };
-  const setHps = (pk: string, c: CompKey, i: number, v: string) => {
+  const removeActivity = (c: CompKey, i: number) => {
     setActs((a) => {
-      const per = a[pk] ?? emptyComp();
+      const per = a[period] ?? emptyComp();
       const arr = [...(per[c] ?? [])];
-      while (arr.length <= i) arr.push('');
-      arr[i] = v;
-      return { ...a, [pk]: { ...per, [c]: arr } };
+      if (arr.length <= 1) return a;
+      arr.splice(i, 1);
+      return { ...a, [period]: { ...per, [c]: arr } };
+    });
+    setScores((s) => {
+      const next = { ...s };
+      for (const lrn of Object.keys(next)) {
+        const arr = [...(next[lrn][period]?.[c] ?? [])];
+        if (arr.length > i) arr.splice(i, 1);
+        next[lrn] = { ...next[lrn], [period]: { ...(next[lrn][period] ?? emptyComp()), [c]: arr } };
+      }
+      return next;
     });
     setSaved(false);
   };
-  const addActivity = (pk: string, c: CompKey) => {
-    setActs((a) => {
-      const per = a[pk] ?? emptyComp();
-      return { ...a, [pk]: { ...per, [c]: [...(per[c] ?? []), ''] } };
+  const setScore = (lrn: string, c: CompKey, i: number, v: string) => {
+    setScores((s) => {
+      const per = s[lrn]?.[period] ?? emptyComp();
+      const arr = [...(per[c] ?? [])];
+      while (arr.length <= i) arr.push('');
+      arr[i] = v;
+      return { ...s, [lrn]: { ...s[lrn], [period]: { ...per, [c]: arr } } };
     });
+    setSaved(false);
   };
-  const setAttVal = (lrn: string, pk: string, v: string) => {
-    setAtt((a) => ({ ...a, [lrn]: { ...(a[lrn] ?? {}), [pk]: v } }));
+  const setAttitude = (lrn: string, v: string) => {
+    setAtt((a) => ({ ...a, [lrn]: { ...(a[lrn] ?? {}), [period]: v } }));
     setSaved(false);
   };
 
-  const igFor = (lrn: string, pk: string): number | null => {
-    if (!weights) return null;
-    const raw = buildRaw(scores[lrn]?.[pk] ?? {}, acts[pk] ?? {});
-    return Object.keys(raw).length ? initialGrade(raw, weights) : null;
+  // ── computed cells (same math as the portal sheet) ──
+  const fmtNum = (x: number | null) => (x == null ? '—' : Number.isInteger(x) ? String(x) : x.toFixed(1));
+  const compFor = (lrn: string, c: CompKey) => {
+    const agg = aggregate(scores[lrn]?.[period]?.[c] ?? [], acts[period]?.[c] ?? []);
+    if (!agg || !agg.total) return null;
+    const ps = c === 'st'
+      ? exPercent(scores[lrn]?.[period]?.st ?? [], acts[period]?.st ?? [])
+      : (agg.earned / agg.total) * 100;
+    if (ps == null) return null;
+    return { ts: agg.earned, hps: agg.total, ps, ws: (ps * (weights?.[c] ?? 0)) / 100 };
   };
-  const liveGrade = (lrn: string, pk: string): number | null => {
+
+  const liveGradeFor = (lrn: string, pk: string): number | null => {
     if (!weights) return null;
     const raw = buildRaw(scores[lrn]?.[pk] ?? {}, acts[pk] ?? {});
     return Object.keys(raw).length ? computeGradeWith(raw, weights, transmutation) : null;
+  };
+  // The grade shown for a period: while editing, the live recompute leads; in
+  // view mode the STORED grade is authoritative (covers legacy entries with no
+  // per-activity detail), with the live value as fallback.
+  const gradeForPeriod = (stu: Student, pk: string): number | null => {
+    const live = liveGradeFor(stu.lrn, pk);
+    const stored = qOf(entryFor(stu), pk);
+    return editing ? live ?? stored : stored ?? live;
+  };
+  const igFor = (lrn: string): number | null => {
+    if (!weights) return null;
+    const raw = buildRaw(scores[lrn]?.[period] ?? {}, acts[period] ?? {});
+    return Object.keys(raw).length ? initialGrade(raw, weights) : null;
+  };
+  const overHps = (c: CompKey, i: number, val: string) => {
+    const hps = num((acts[period]?.[c] ?? [])[i]);
+    const v = num(val);
+    return v != null && hps != null && v > hps;
   };
 
   function cancelEditing() {
@@ -367,10 +459,10 @@ export default function TeacherClassGradesheet() {
     }
   }
 
-  const fmtIG = (n: number | null) => (n == null ? '—' : n.toFixed(2));
-  const periodLabel = periods.find((p) => p.key === view)?.label ?? '';
-  const inputCls =
-    'w-14 rounded border border-border bg-panel px-1.5 py-1 text-[12.5px] text-center tabular-nums focus:outline-none focus:border-nps-red';
+  const scoreInputCls = (bad: boolean) =>
+    `w-11 rounded border px-1 py-0.5 text-center disabled:bg-slate-100 disabled:text-slate-600 ${
+      bad ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200'
+    }`;
 
   return (
     <>
@@ -407,7 +499,7 @@ export default function TeacherClassGradesheet() {
                 className="gap-1.5"
                 disabled={!weights || roster === null}
                 title={weights ? 'Open the sheet for corrections' : 'Set the subject type in Setup ▸ Weight Components first'}
-                onClick={() => { setEditing(true); setSaved(false); if (view === 'summary') setView(periods[0]?.key ?? 'q1'); }}
+                onClick={() => { setEditing(true); setSaved(false); setShowFinal(false); }}
               >
                 <Pencil className="w-3.5 h-3.5" /> Edit grades
               </Button>
@@ -438,190 +530,380 @@ export default function TeacherClassGradesheet() {
         </p>
       )}
 
-      <div className="mb-3 flex items-center gap-1.5 flex-wrap">
-        {[{ key: 'summary', label: 'Summary' }, ...periods].map((p) => (
+      {error && (
+        <p className="mb-3 text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{error}</p>
+      )}
+
+      {/* period tabs + FINAL summary — same switcher as the portal sheet */}
+      <div className="inline-flex rounded-md border border-slate-300 overflow-hidden mb-3 text-sm bg-panel">
+        {periods.map((p) => (
           <button
             key={p.key}
-            onClick={() => setView(p.key)}
-            className={`h-8 rounded-md border px-3 text-[12.5px] font-medium transition-colors ${
-              view === p.key
-                ? 'bg-nps-red text-white border-nps-red'
-                : 'border-border text-ink-secondary hover:bg-panel-alt'
+            onClick={() => { setPeriod(p.key); setShowFinal(false); }}
+            className={`px-3 py-1.5 ${
+              !showFinal && period === p.key ? 'bg-nps-red text-white' : 'text-ink-secondary hover:bg-panel-alt'
             }`}
           >
             {p.label}
           </button>
         ))}
+        <button
+          onClick={() => setShowFinal(true)}
+          className={`px-3 py-1.5 border-l border-slate-300 font-medium ${
+            showFinal ? 'bg-nps-red text-white' : 'text-ink-secondary hover:bg-panel-alt'
+          }`}
+        >
+          Final
+        </button>
       </div>
-
-      {error && (
-        <p className="mb-3 text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{error}</p>
-      )}
 
       {roster === null ? (
         <p className="text-[13px] text-ink-secondary">Loading…</p>
-      ) : roster.length === 0 ? (
-        <p className="text-[13px] text-ink-secondary">No learners in this section.</p>
-      ) : view === 'summary' ? (
-        <div className="overflow-x-auto border border-border rounded-lg bg-panel">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th className="py-2 pr-3 pl-3 w-10 text-right">#</th>
-                <th className="py-2 pr-3">Learner</th>
-                {periods.map((p) => (
-                  <th key={p.key} className="py-2 px-3 text-center">{p.label}</th>
-                ))}
-                <th className="py-2 px-3 text-center">Final</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roster.map((s, i) => {
-                const g = entryOf(s);
-                return (
-                  <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                    <td className="py-1.5 pr-3 pl-3 text-right tabular-nums text-ink-muted">{i + 1}</td>
-                    <td className="py-1.5 pr-3 text-ink-primary">{formatLastFirstMiddle(s)}</td>
-                    {periods.map((p) => (
-                      <td key={p.key} className="py-1.5 px-3 text-center tabular-nums">{cellOf(g, p.key)}</td>
-                    ))}
-                    <td className="py-1.5 px-3 text-center tabular-nums font-semibold">
-                      {g?.final != null ? g.final : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-[11.5px] text-ink-muted border-t border-border-soft">
-            Per-term grades as stored. Open a term tab to see every activity score behind them.
-          </p>
-        </div>
+      ) : showFinal ? (
+        <FinalSummary
+          roster={roster}
+          periods={periods}
+          gradeForPeriod={gradeForPeriod}
+          sort={finalSort}
+          setSort={setFinalSort}
+          subjectName={subjName}
+        />
       ) : (
-        <div className="overflow-x-auto border border-border rounded-lg bg-panel">
-          <table className="text-[12.5px] min-w-full">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th rowSpan={2} className="py-2 pr-2 pl-3 w-8 text-right align-bottom">#</th>
-                <th rowSpan={2} className="py-2 pr-3 min-w-[220px] align-bottom">Learner</th>
-                {(['ww', 'pt', 'st'] as const).map((c) => (
-                  <th
-                    key={c}
-                    colSpan={(acts[view]?.[c] ?? []).length}
-                    className="py-2 px-2 text-center border-l border-border"
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      {c === 'st' ? (weights?.exLabel ?? 'EXs') : c === 'ww' ? 'WWs' : 'PTs'} — {COMP_FULL[c]}
-                      {weights && <> ({c === 'st' ? weights.st : weights[c]}%)</>}
-                      {editing && c !== 'st' && (
-                        <button
-                          onClick={() => addActivity(view, c)}
-                          title="Add an activity column"
-                          className="inline-flex h-4 w-4 items-center justify-center rounded border border-border text-ink-muted hover:text-nps-red hover:border-nps-red"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
-                  </th>
-                ))}
-                <th rowSpan={2} className="py-2 px-2 text-center border-l border-border align-bottom" title="Weighted percentage before transmutation">
-                  Initial Grade
-                </th>
-                <th rowSpan={2} className="py-2 px-2 text-center border-l border-border align-bottom" title="Initial Grade rounded, then transmuted">
-                  {periodLabel} Grade
-                </th>
-                <th rowSpan={2} className="py-2 px-2 text-center border-l border-border align-bottom">Attitude</th>
-                <th rowSpan={2} className="py-2 px-2 pr-3 text-center align-bottom">Letter</th>
-              </tr>
-              {/* HPS row — the highest possible score of every activity. */}
-              <tr className="text-[11px] text-ink-muted border-b border-border">
-                {(['ww', 'pt', 'st'] as const).map((c) =>
-                  (acts[view]?.[c] ?? []).map((h, i) => (
-                    <th key={`${c}${i}`} className={`py-1.5 px-1.5 text-center font-normal ${i === 0 ? 'border-l border-border' : ''}`}>
-                      <div className="font-medium text-ink-secondary">
-                        {c === 'st' ? EX_LABELS[i] ?? `EX ${i + 1}` : `${c.toUpperCase()} ${i + 1}`}
-                      </div>
-                      {editing ? (
-                        <input
-                          value={h}
-                          onChange={(e) => setHps(view, c, i, e.target.value)}
-                          placeholder="HPS"
-                          className={`${inputCls} mt-0.5`}
-                        />
-                      ) : (
-                        <div className="tabular-nums mt-0.5">{h === '' ? '—' : h}</div>
-                      )}
-                    </th>
-                  )),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {roster.map((s, i) => {
-                const g = entryOf(s);
-                const stored = qOf(g, view);
-                const shown = editing ? liveGrade(s.lrn, view) : stored ?? liveGrade(s.lrn, view);
-                const attRaw = att[s.lrn]?.[view] ?? '';
-                const attN = num(attRaw);
-                const letter = attitudeLetter(attN, attScale);
-                return (
-                  <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                    <td className="py-1 pr-2 pl-3 text-right tabular-nums text-ink-muted">{i + 1}</td>
-                    <td className="py-1 pr-3 text-ink-primary whitespace-nowrap">{formatLastFirstMiddle(s)}</td>
-                    {(['ww', 'pt', 'st'] as const).map((c) =>
-                      (acts[view]?.[c] ?? []).map((h, j) => {
-                        const val = scores[s.lrn]?.[view]?.[c]?.[j] ?? '';
-                        const over = num(val) != null && num(h) != null && (num(val) as number) > (num(h) as number);
-                        return (
-                          <td key={`${c}${j}`} className={`py-1 px-1.5 text-center ${j === 0 ? 'border-l border-border-soft' : ''}`}>
-                            {editing ? (
-                              <input
-                                value={val}
-                                onChange={(e) => setScore(s.lrn, view, c, j, e.target.value)}
-                                className={`${inputCls} ${over ? 'border-nps-red text-nps-red' : ''}`}
-                                title={over ? 'Higher than the HPS' : undefined}
-                              />
-                            ) : (
-                              <span className={`tabular-nums ${over ? 'text-nps-red font-semibold' : ''}`}>
-                                {val === '' ? '—' : val}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      }),
-                    )}
-                    <td className="py-1 px-2 text-center tabular-nums text-ink-secondary border-l border-border-soft">
-                      {fmtIG(igFor(s.lrn, view))}
-                    </td>
-                    <td className="py-1 px-2 text-center tabular-nums font-semibold border-l border-border-soft">
-                      {shown != null ? shown : cellOf(g, view) /* keeps KS1 letters visible */}
-                    </td>
-                    <td className="py-1 px-2 text-center border-l border-border-soft">
-                      {editing ? (
-                        <input
-                          value={attRaw}
-                          onChange={(e) => setAttVal(s.lrn, view, e.target.value)}
-                          className={`${inputCls} ${attRaw !== '' && !letter ? 'border-nps-red text-nps-red' : ''}`}
-                          title={attRaw !== '' && !letter ? 'Outside the attitude scale' : undefined}
-                        />
-                      ) : (
-                        <span className="tabular-nums">{attRaw === '' ? '—' : attRaw}</span>
-                      )}
-                    </td>
-                    <td className="py-1 px-2 pr-3 text-center font-medium">{letter?.letter ?? '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <p className="px-3 py-2 text-[11.5px] text-ink-muted border-t border-border-soft">
-            {editing
-              ? 'Blank scores count as 0 once a component has any encoded score. The last EX slot is the Term Exam (40%); the Summative Tests share 60%.'
-              : 'Every encoded activity score for this term, exactly as the teacher entered it in the portal.'}
+        <>
+          <p className="text-xs text-ink-muted mb-2">
+            <span className="font-medium">Written Works &amp; Oral Works</span> and{' '}
+            <span className="font-medium">Product / Performance Tasks</span> show the Total Raw Score,
+            Percentage Score (PS) and the Weighted Score.{' '}
+            <span className="font-medium">Summative Tests &amp; Term Exam</span> has a fixed breakdown:{' '}
+            <span className="font-medium">Summative Test 1 (30%)</span>,{' '}
+            <span className="font-medium">Summative Test 2 (30%)</span> and the{' '}
+            <span className="font-medium">Term Examination (40%)</span> — each shows its own Percentage &amp;
+            Weighted Score, which add up to the {weights?.exLabel ?? 'EXs'} Component Percentage Score that
+            feeds the Initial and Final Grade.
+            {weights && <> Weights for this subject: {weights.ww}/{weights.pt}/{weights.st} (WWs/PTs/{weights.exLabel}) — {weights.label}.</>}
           </p>
-        </div>
+
+          <div className="overflow-x-auto border border-slate-200 rounded-lg bg-panel">
+            <table className="text-[12px] whitespace-nowrap">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                  <th className="px-2 py-2 text-left sticky left-0 bg-slate-50 min-w-[180px]">Learner</th>
+                  {COMPONENTS.map((c) => (
+                    <th key={c.key} className="px-2 py-1 text-center border-l border-slate-200" colSpan={spanFor(c.key)}>
+                      {c.label} — {GROUP_FULL[c.key]} ({weights ? (c.key === 'st' ? weights.st : weights[c.key]) : '—'}%)
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-center border-l border-slate-200" title="Sum of the weighted component scores, before transmutation">Initial Grade</th>
+                  <th className="px-2 py-2 text-center border-l border-slate-200" title="Initial Grade rounded, then transmuted">Final Grade</th>
+                  <th className="px-2 py-2 text-center border-l border-slate-200">Attitude</th>
+                  <th className="px-2 py-2 text-center">Letter</th>
+                </tr>
+                <tr className="bg-panel border-b border-slate-200 text-slate-400 text-[10.5px]">
+                  <th className="px-2 py-1 text-left sticky left-0 bg-panel">HPS →</th>
+                  {COMPONENTS.map((c) =>
+                    c.key === 'st' ? (
+                      <Fragment key="st">
+                        {EX_SLOTS.map((slot) => (
+                          <Fragment key={`st-h-${slot.idx}`}>
+                            <th className={`${SCORE_CELL} align-top ${slot.idx === 0 ? 'border-l border-slate-200' : ''}`}>
+                              <input
+                                value={colFor('st')[slot.idx] ?? ''}
+                                onChange={(e) => setHps('st', slot.idx, e.target.value)}
+                                disabled={readOnly}
+                                placeholder="HPS"
+                                className="w-11 rounded border border-slate-300 px-1 py-0.5 text-center disabled:bg-slate-100 disabled:text-slate-500"
+                              />
+                              <div className="text-[8.5px] text-slate-400 mt-0.5">{slot.label}</div>
+                            </th>
+                            <th className="px-1 py-1 text-center text-[9.5px] font-semibold text-slate-500 bg-slate-50" title={`${slot.short} Percentage Score`}>
+                              PS
+                            </th>
+                            <th className="px-1 py-1 text-center text-[9.5px] font-semibold text-slate-500 bg-slate-50" title={`${slot.short} Weighted Score (${slot.weight}%)`}>
+                              {slot.weight}%
+                            </th>
+                          </Fragment>
+                        ))}
+                        <th className="px-1 py-1 text-center text-[10px] font-semibold text-slate-600 bg-slate-100 border-l border-slate-200" title="EX Component Percentage Score = ST1 + ST2 + Term Exam weighted scores">
+                          EX %
+                        </th>
+                      </Fragment>
+                    ) : (
+                      <Fragment key={c.key}>
+                        {colFor(c.key).map((h, i) => (
+                          <th key={`${c.key}-${i}`} className={`${SCORE_CELL} ${i === 0 ? 'border-l border-slate-200' : ''}`}>
+                            <div className="flex items-center gap-0.5">
+                              <input
+                                value={h}
+                                onChange={(e) => setHps(c.key, i, e.target.value)}
+                                disabled={readOnly}
+                                placeholder="HPS"
+                                className="w-11 rounded border border-slate-300 px-1 py-0.5 text-center disabled:bg-slate-100 disabled:text-slate-500"
+                              />
+                              {!readOnly && (
+                                <button
+                                  onClick={() => removeActivity(c.key, i)}
+                                  title="Remove activity"
+                                  className="text-slate-300 hover:text-red-500"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </th>
+                        ))}
+                        <th key={`${c.key}-add`} className="px-1 py-1 align-top">
+                          {!readOnly && (
+                            <button
+                              onClick={() => addActivity(c.key)}
+                              className="text-nps-red hover:underline text-[11px]"
+                              title={`Add ${c.label}`}
+                            >
+                              + {c.label.slice(0, -1)}
+                            </button>
+                          )}
+                        </th>
+                        <th className="px-1 py-1 text-center text-[10px] font-semibold text-slate-500 border-l border-slate-200 bg-slate-50" title="Total Raw Score">Total</th>
+                        <th className="px-1 py-1 text-center text-[10px] font-semibold text-slate-500 bg-slate-50" title="Percentage Score">PS</th>
+                        <th className="px-1 py-1 text-center text-[10px] font-semibold text-slate-500 bg-slate-50" title={`Weighted Score (${weights ? weights[c.key] : '—'}%)`}>
+                          {weights ? weights[c.key] : '—'}%
+                        </th>
+                      </Fragment>
+                    ),
+                  )}
+                  <th className="border-l border-slate-200" />
+                  <th className="border-l border-slate-200" />
+                  <th className="border-l border-slate-200" />
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {groupRosterBySex(roster).map((grp) => (
+                  <Fragment key={grp.key}>
+                    <tr>
+                      <td
+                        colSpan={99}
+                        className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider sticky left-0 ${
+                          grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {grp.label} · {grp.students.length}
+                      </td>
+                    </tr>
+                    {grp.students.map((stu, gi) => {
+                      const g = gradeForPeriod(stu, period);
+                      const attRaw = att[stu.lrn]?.[period] ?? '';
+                      const attVal = num(attRaw);
+                      const band = attitudeLetter(attVal, attScale);
+                      const attBad = attVal != null && !band;
+                      const stEarned = scores[stu.lrn]?.[period]?.st ?? [];
+                      const stHps = acts[period]?.st ?? [];
+                      return (
+                        <tr key={stu.lrn} className="border-b border-slate-100 last:border-0">
+                          <td className="px-2 py-1 sticky left-0 bg-panel">
+                            {gi + 1}. {formatLastFirstMiddle(stu)}
+                          </td>
+                          {COMPONENTS.map((c) =>
+                            c.key === 'st' ? (
+                              <Fragment key="st">
+                                {EX_SLOTS.map((slot) => {
+                                  const val = stEarned[slot.idx] ?? '';
+                                  const e = num(val);
+                                  const h = num(stHps[slot.idx]);
+                                  const ok = h != null && h > 0 && e != null;
+                                  const ps = ok ? (e / h) * 100 : null;
+                                  const ws = ps != null ? (ps * slot.weight) / 100 : null;
+                                  const over = overHps('st', slot.idx, val);
+                                  return (
+                                    <Fragment key={`${stu.lrn}-st-${slot.idx}`}>
+                                      <td className={`${SCORE_CELL} ${slot.idx === 0 ? 'border-l border-slate-100' : ''}`}>
+                                        <input
+                                          value={val}
+                                          onChange={(ev) => setScore(stu.lrn, 'st', slot.idx, ev.target.value)}
+                                          disabled={readOnly}
+                                          title={over ? 'Score exceeds the highest possible score (HPS)' : undefined}
+                                          className={scoreInputCls(over)}
+                                        />
+                                      </td>
+                                      <td className="px-1.5 py-1 text-center text-slate-500 tabular-nums bg-slate-50/60" title={`${slot.short} Percentage Score`}>
+                                        {ps == null ? '—' : fmtNum(ps)}
+                                      </td>
+                                      <td className="px-1.5 py-1 text-center text-slate-700 font-medium tabular-nums bg-slate-50/60" title={`${slot.short} Weighted Score (${slot.weight}%)`}>
+                                        {ws == null ? '—' : fmtNum(ws)}
+                                      </td>
+                                    </Fragment>
+                                  );
+                                })}
+                                <td className="px-1.5 py-1 text-center text-slate-800 font-semibold tabular-nums bg-slate-100 border-l border-slate-100" title="EX Component Percentage Score">
+                                  {(() => { const cp = compFor(stu.lrn, 'st'); return cp ? fmtNum(cp.ps) : '—'; })()}
+                                </td>
+                              </Fragment>
+                            ) : (
+                              <Fragment key={c.key}>
+                                {colFor(c.key).map((_, i) => {
+                                  const val = scores[stu.lrn]?.[period]?.[c.key]?.[i] ?? '';
+                                  const over = overHps(c.key, i, val);
+                                  return (
+                                    <td key={`${stu.lrn}-${c.key}-${i}`} className={`${SCORE_CELL} ${i === 0 ? 'border-l border-slate-100' : ''}`}>
+                                      <input
+                                        value={val}
+                                        onChange={(e) => setScore(stu.lrn, c.key, i, e.target.value)}
+                                        disabled={readOnly}
+                                        title={over ? 'Score exceeds the highest possible score (HPS)' : undefined}
+                                        className={scoreInputCls(over)}
+                                      />
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-0.5 py-1" />
+                                {(() => {
+                                  const cp = compFor(stu.lrn, c.key);
+                                  return (
+                                    <>
+                                      <td className="px-1.5 py-1 text-center text-slate-500 tabular-nums border-l border-slate-100 bg-slate-50/60">
+                                        {cp ? fmtNum(cp.ts) : '—'}
+                                      </td>
+                                      <td className="px-1.5 py-1 text-center text-slate-500 tabular-nums bg-slate-50/60">
+                                        {cp ? fmtNum(cp.ps) : '—'}
+                                      </td>
+                                      <td className="px-1.5 py-1 text-center text-slate-700 font-medium tabular-nums bg-slate-50/60">
+                                        {cp ? fmtNum(cp.ws) : '—'}
+                                      </td>
+                                    </>
+                                  );
+                                })()}
+                              </Fragment>
+                            ),
+                          )}
+                          <td className="px-2 py-1 text-center text-slate-600 tabular-nums border-l border-slate-100" title="Initial Grade — before transmutation">
+                            {fmtNum(igFor(stu.lrn))}
+                          </td>
+                          <td className="px-2 py-1 text-center font-semibold border-l border-slate-100" title="Final Grade — transmuted">
+                            {g ?? entryFor(stu)?.letters?.[period as QuarterKey] ?? '—'}
+                          </td>
+                          <td className="px-2 py-1 text-center border-l border-slate-100">
+                            <input
+                              value={attRaw}
+                              onChange={(e) => setAttitude(stu.lrn, e.target.value)}
+                              disabled={readOnly}
+                              title={attBad ? 'Attitude must be 75–99.' : ''}
+                              className={`w-12 rounded border px-1 py-0.5 text-center disabled:bg-slate-100 disabled:text-slate-600 ${
+                                attBad ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200'
+                              }`}
+                            />
+                          </td>
+                          <td
+                            className={`px-2 py-1 text-center font-medium ${attBad ? 'text-red-600' : ''}`}
+                            title={attBad ? 'No descriptor: the Attitude scale is 75–99.' : band?.label ?? ''}
+                          >
+                            {attBad ? 'out of range' : band?.letter ?? '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+                {roster.length === 0 && (
+                  <tr>
+                    <td colSpan={12} className="px-2 py-6 text-center text-slate-500">
+                      No learners in this section yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
+  );
+}
+
+// FINAL tab — Term summary per learner, sortable by ranking (default) or name.
+// Same layout as the portal sheet's Final tab.
+function FinalSummary({
+  roster,
+  periods,
+  gradeForPeriod,
+  sort,
+  setSort,
+  subjectName,
+}: {
+  roster: Student[];
+  periods: { key: string; label: string }[];
+  gradeForPeriod: (stu: Student, pk: string) => number | null;
+  sort: 'rank' | 'name';
+  setSort: (s: 'rank' | 'name') => void;
+  subjectName: string;
+}) {
+  const rows = roster.map((stu) => {
+    const terms = periods.map((p) => gradeForPeriod(stu, p.key));
+    const present = terms.filter((v): v is number => typeof v === 'number');
+    const final = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : null;
+    return { stu, terms, final };
+  });
+  const sorted = [...rows].sort((a, b) => {
+    if (sort === 'name') {
+      return a.stu.lastName.localeCompare(b.stu.lastName) || a.stu.firstName.localeCompare(b.stu.firstName);
+    }
+    if (a.final == null && b.final == null) return 0;
+    if (a.final == null) return 1;
+    if (b.final == null) return -1;
+    return b.final - a.final;
+  });
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <p className="text-xs text-ink-muted">
+          Final grades for {subjectName} — average of the terms below.
+        </p>
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs bg-panel">
+          <button
+            onClick={() => setSort('rank')}
+            className={`px-3 py-1.5 ${sort === 'rank' ? 'bg-nps-red text-white' : 'text-ink-secondary hover:bg-panel-alt'}`}
+          >
+            By ranking
+          </button>
+          <button
+            onClick={() => setSort('name')}
+            className={`px-3 py-1.5 border-l border-slate-300 ${sort === 'name' ? 'bg-nps-red text-white' : 'text-ink-secondary hover:bg-panel-alt'}`}
+          >
+            Alphabetical
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto border border-slate-200 rounded-lg bg-panel">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase">
+              <th className="px-3 py-2 text-left w-12">{sort === 'rank' ? 'Rank' : '#'}</th>
+              <th className="px-3 py-2 text-left min-w-[200px]">Learner</th>
+              {periods.map((p) => (
+                <th key={p.key} className="px-2 py-2 text-center">{p.label}</th>
+              ))}
+              <th className="px-3 py-2 text-center">Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r, i) => (
+              <tr key={r.stu.lrn} className="border-b border-slate-100 last:border-0">
+                <td className="px-3 py-1.5 text-slate-400 tabular-nums">{i + 1}</td>
+                <td className="px-3 py-1.5 text-ink-primary">{formatLastFirstMiddle(r.stu)}</td>
+                {r.terms.map((t, idx) => (
+                  <td key={idx} className="px-2 py-1.5 text-center tabular-nums text-ink-secondary">{t ?? '—'}</td>
+                ))}
+                <td className="px-3 py-1.5 text-center font-semibold tabular-nums">{r.final ?? '—'}</td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={periods.length + 3} className="px-3 py-6 text-center text-slate-500">
+                  No learners in this section yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
