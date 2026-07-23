@@ -9,7 +9,7 @@ import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Letterhead } from '@/components/print/parts';
 import { listAllClassSubjects, listClasses, listTeachers, listSubjects, listGradeSubjectKeys } from '@/lib/db';
-import { gradeLabel } from '@/lib/forms';
+import { gradeLabel, gradeRank } from '@/lib/forms';
 import { isAllTime } from '@/types';
 import type { SchoolYear, ClassRecord, Teacher, Subject } from '@/types';
 
@@ -109,7 +109,7 @@ export default function TeachingAssignments() {
         sy: list[0].sy,
         subjects: list.slice().sort((a, b) => a.subjectName.localeCompare(b.subjectName)),
       }))
-      .sort((a, b) => a.gradeLevel.localeCompare(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName));
+      .sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName));
   }, [filtered]);
 
   const gaps = filtered.filter((r) => r.teacher === '').length;
@@ -174,7 +174,7 @@ export default function TeachingAssignments() {
             <Printer className="w-3.5 h-3.5" /> Print
           </Button>
           <ExportCsvButton
-            rows={filtered.slice().sort((a, b) => a.gradeLevel.localeCompare(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName) || a.subjectName.localeCompare(b.subjectName))}
+            rows={filtered.slice().sort((a, b) => gradeRank(a.gradeLevel) - gradeRank(b.gradeLevel) || a.sectionName.localeCompare(b.sectionName) || a.subjectName.localeCompare(b.subjectName))}
             columns={[
               { header: 'Grade', value: (r) => gradeLabel(r.gradeLevel) },
               { header: 'Section', value: (r) => r.sectionName },
