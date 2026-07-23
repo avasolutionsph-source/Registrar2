@@ -90,10 +90,18 @@ export default function SetupTransmutation() {
   const valid = problems.length === 0;
 
   const rows = sortByMin(draft);
+  // Boundary step between adjacent bands: whole-number tables run in steps of
+  // 1; the official DepEd decimal table (99.50-100.00 -> 100, ...) runs in
+  // steps of 0.01. Derived from the data so both table styles display right.
+  const step = rows.some((r) => r.min > 0 && !Number.isInteger(r.min)) ? 0.01 : 1;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const upToOf = (i: number) => round2(rows[i - 1].min - step);
   const setRow = (min: number, patch: Partial<TransmuteRow>) =>
     setDraft((rs) => rs.map((r) => (r.min === min ? { ...r, ...patch } : r)));
+  // -1 = new, registrar sets it. One unset row at a time: rows are keyed by
+  // their minimum, so two rows both at -1 would edit (and render) as one.
   const addRow = () =>
-    setDraft((rs) => [...rs, { min: -1, grade: 60 }]); // -1 = new, registrar sets it
+    setDraft((rs) => (rs.some((r) => r.min === -1) ? rs : [...rs, { min: -1, grade: 60 }]));
   const removeRow = (min: number) => setDraft((rs) => rs.filter((r) => r.min !== min));
 
   function cancel() {
@@ -190,15 +198,34 @@ export default function SetupTransmutation() {
                 <tr key={r.min} className="border-b border-border-soft last:border-0">
                   <td className="py-1.5 pr-3">
                     {editing ? (
-                      <Input type="number" min={0} max={100} value={r.min < 0 ? '' : r.min}
+                      <Input type="number" min={0} max={100} step="any" value={r.min < 0 ? '' : r.min}
                         className="w-24 text-center tabular-nums"
-                        onChange={(e) => setRow(r.min, { min: Number(e.target.value) || 0 })} />
+                        onChange={(e) => setRow(r.min, { min: round2(Number(e.target.value) || 0) })} />
                     ) : (
                       <span className="tabular-nums">{r.min}</span>
                     )}
                   </td>
                   <td className="py-1.5 pr-3 tabular-nums text-ink-secondary">
-                    {i === 0 ? 100 : rows[i - 1].min - 1}
+                    {/* "Up to" and the NEXT band's minimum are the same boundary,
+                        so editing this moves that band's minimum with it — the
+                        table can never end up with a gap or an overlap. The top
+                        band always ends at the scale ceiling (100). */}
+                    {editing && i > 0 ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="any"
+                        value={rows[i - 1].min < 0 ? '' : upToOf(i)}
+                        title="Editing this also moves the band above — they share this boundary."
+                        className="w-24 text-center tabular-nums"
+                        onChange={(e) => setRow(rows[i - 1].min, { min: round2((Number(e.target.value) || 0) + step) })}
+                      />
+                    ) : i === 0 ? (
+                      100
+                    ) : (
+                      upToOf(i)
+                    )}
                   </td>
                   <td className="py-1.5 pr-3">
                     {editing ? (
