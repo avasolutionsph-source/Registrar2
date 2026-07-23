@@ -29,14 +29,15 @@ create function public.acad_teacher_loads()
 returns table(
   teacher_id bigint, teacher_name text,
   class_id uuid, sy text, grade_level text, section_name text,
-  subject_code text, subject_name text
+  subject_code text, subject_name text, term text
 )
 language sql stable security definer set search_path to 'public'
 as $$
   select cs.teacher_id,
          nullif(trim(coalesce(t.first_name,'') || ' ' || coalesce(t.family_name,'')), '') as teacher_name,
          c.id, c.sy, c.grade_level, c.section_name,
-         cs.subject_code, coalesce(s.full_name, cs.subject_code) as subject_name
+         cs.subject_code, coalesce(s.full_name, cs.subject_code) as subject_name,
+         cs.term  -- term coverage ('q1,q2' comma keys or null = all year), for the load badges
   from reg_class_subjects cs
   join reg_classes c on c.id = cs.class_id
   join reg_teachers t on t.id = cs.teacher_id
