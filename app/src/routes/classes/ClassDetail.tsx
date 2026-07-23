@@ -968,11 +968,11 @@ export default function ClassDetail() {
                                 }
                               }}
                               onChange={(e) => toggleAllOffered(e.target.checked)}
-                              title="Tick all subjects — teachers stay unassigned"
+                              title="Select all subjects — teachers stay unassigned"
                               className="h-3.5 w-3.5 accent-nps-red align-middle"
                             />
                           )}
-                          Taken
+                          Select All
                         </span>
                       </th>
                       <th className="py-1.5 pr-3">Subject</th>
