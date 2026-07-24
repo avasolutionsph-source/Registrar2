@@ -436,7 +436,7 @@ export default function SetupSubjects() {
                 </Field>
               </div>
               <div className="col-span-4">
-                <Field label="Full name">
+                <Field label="Subject name">
                   <Input name="fullName" placeholder="e.g. Science 7" required />
                 </Field>
               </div>
@@ -540,7 +540,7 @@ export default function SetupSubjects() {
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                 <th className="py-1.5 pr-3 w-[8%]">Code</th>
-                <th className="py-1.5 pr-3">Full name</th>
+                <th className="py-1.5 pr-3">Subject name</th>
                 <th className="py-1.5 pr-3 w-[10%]">Abbrev.</th>
                 <th className="py-1.5 pr-3 w-[15%]">Level</th>
                 <th className="py-1.5 pr-3 w-[12%]">Category</th>
