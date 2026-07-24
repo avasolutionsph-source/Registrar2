@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listSubjects, addSubject, updateSubject, listGradeSubjects, saveGradeSubjects } from '@/lib/db';
+import { listSubjects, addSubject, updateSubject, listGradeSubjects, saveGradeSubjects, listGradeSubjectKeys } from '@/lib/db';
 import type { SubjectCategory, SubjectLevel, Subject } from '@/types';
 
 const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
@@ -54,6 +54,9 @@ const GRADE_GROUPS: { label: string; items: { v: string; l: string }[] }[] = [
 
 export default function SetupSubjects() {
   const [catalog, setCatalog] = useState<Subject[]>([]);
+  // Every `${gradeLevel}|${CODE}` pair across ALL grades' order lists — this is
+  // what splits the catalog into "in the current curriculum" vs legacy/unused.
+  const [usedKeys, setUsedKeys] = useState<Set<string>>(new Set());
   const [gradeLevel, setGradeLevel] = useState<string>('VII');
   const [codes, setCodes] = useState<string[]>([]); // ordered subject codes for the grade
   const [loading, setLoading] = useState(true);
@@ -149,12 +152,63 @@ export default function SetupSubjects() {
     return m;
   }, [catalog]);
 
+  // code → the grade/strand keys whose order lists carry it.
+  const usedBy = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const k of usedKeys) {
+      const [gl, code] = k.split('|');
+      if (!code) continue;
+      const list = m.get(code) ?? [];
+      list.push(gl);
+      m.set(code, list);
+    }
+    return m;
+  }, [usedKeys]);
+
+  // The catalog table, split in two: subjects some grade's order actually uses
+  // (on top), then everything else — the legacy / unused tail of the catalog.
+  type CatalogRow =
+    | { kind: 'row'; s: Subject }
+    | { kind: 'head'; key: string; label: string; tone?: 'ok' };
+  const catalogRows = useMemo(() => {
+    const used = catalogShown.filter((s) => usedBy.has(s.code.toUpperCase()));
+    const unused = catalogShown.filter((s) => !usedBy.has(s.code.toUpperCase()));
+    const rows: CatalogRow[] = [];
+    if (used.length) {
+      rows.push(
+        {
+          kind: 'head',
+          key: 'h-used',
+          label: `In the current curriculum — ${used.length} subject${used.length === 1 ? '' : 's'}`,
+          tone: 'ok',
+        },
+        ...used.map((s) => ({ kind: 'row' as const, s })),
+      );
+    }
+    if (unused.length) {
+      rows.push(
+        {
+          kind: 'head',
+          key: 'h-unused',
+          label: `Not in any grade's order — ${unused.length} (legacy / unused)`,
+        },
+        ...unused.map((s) => ({ kind: 'row' as const, s })),
+      );
+    }
+    return rows;
+  }, [catalogShown, usedBy]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const subs = await listSubjects();
-        if (!cancelled) setCatalog(subs);
+        const [subs, keys] = await Promise.all([
+          listSubjects(),
+          listGradeSubjectKeys().catch(() => new Set<string>()),
+        ]);
+        if (cancelled) return;
+        setCatalog(subs);
+        setUsedKeys(keys);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load subjects.');
       } finally {
@@ -556,8 +610,23 @@ export default function SetupSubjects() {
                   </td>
                 </tr>
               ) : (
-                catalogShown.map((s) =>
-                  editCode === s.code ? (
+                catalogRows.map((item) => {
+                  if (item.kind === 'head') {
+                    return (
+                      <tr key={item.key}>
+                        <td
+                          colSpan={7}
+                          className={`px-1 pt-4 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] ${
+                            item.tone === 'ok' ? 'text-ok-fg' : 'text-ink-muted'
+                          }`}
+                        >
+                          {item.label}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const s = item.s;
+                  return editCode === s.code ? (
                     <tr key={s.code} className="border-b border-border-soft bg-panel-alt">
                       <td className="py-2 pr-3 font-mono text-ink-secondary align-top pt-3.5">{s.code}</td>
                       <td className="py-2 pr-3 align-top">
@@ -641,7 +710,18 @@ export default function SetupSubjects() {
                   ) : (
                     <tr key={s.code} className="border-b border-border-soft last:border-0 hover:bg-app">
                       <td className="py-1.5 pr-3 font-mono">{s.code}</td>
-                      <td className="py-1.5 pr-3 text-ink-primary">{s.fullName}</td>
+                      <td className="py-1.5 pr-3 text-ink-primary">
+                        {s.fullName}
+                        {usedBy.has(s.code.toUpperCase()) && (
+                          <span
+                            className="ml-2 text-[11px] text-ink-muted"
+                            title={`In the order of: ${usedBy.get(s.code.toUpperCase())?.join(', ')}`}
+                          >
+                            in {usedBy.get(s.code.toUpperCase())?.length} grade
+                            {(usedBy.get(s.code.toUpperCase())?.length ?? 0) === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1.5 pr-3 text-ink-secondary">{s.abbreviation}</td>
                       <td className="py-1.5 pr-3 text-ink-secondary">
                         {LEVELS.find((l) => l.key === s.level)?.label ?? '—'}
@@ -674,8 +754,8 @@ export default function SetupSubjects() {
                         </button>
                       </td>
                     </tr>
-                  ),
-                )
+                  );
+                })
               )}
             </tbody>
           </table>
