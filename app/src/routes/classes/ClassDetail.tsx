@@ -132,6 +132,9 @@ export default function ClassDetail() {
   // Registrar-curated subject codes for this grade/strand, in curriculum order
   // (Setup ▸ Subjects — Order per Grade). Drives which subjects the load tab lists.
   const [gradeOrder, setGradeOrder] = useState<string[]>([]);
+  // Subject codes as SAVED for this section — off-curriculum rows list from
+  // this (not the live draft), so an unticked one stays visible until Save.
+  const [savedCodes, setSavedCodes] = useState<string[]>([]);
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadSaved, setLoadSaved] = useState(false);
   const [removingLrn, setRemovingLrn] = useState<string | null>(null);
@@ -161,6 +164,7 @@ export default function ClassDetail() {
         setTeachers(tchs);
         listAttitudeScale(c?.sy).then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
         setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
+        setSavedCodes(classSubs.map((a) => a.subjectCode));
         if (c) {
           listGradeSubjects(c.gradeLevel)
             .then((codes) => { if (!cancelled) setGradeOrder(codes); })
@@ -204,14 +208,14 @@ export default function ClassDetail() {
       seen.add(code.toUpperCase());
       rows.push({ subject, inCurriculum: true });
     }
-    for (const code of Object.keys(load)) {
+    for (const code of savedCodes) {
       const subject = byCode.get(code.toUpperCase());
       if (!subject || seen.has(code.toUpperCase())) continue;
       seen.add(code.toUpperCase());
       rows.push({ subject, inCurriculum: false });
     }
     return rows;
-  }, [klass, subjects, gradeOrder, load]);
+  }, [klass, subjects, gradeOrder, savedCodes]);
 
   if (klass === undefined) {
     return (
@@ -309,14 +313,17 @@ export default function ClassDetail() {
     });
     setLoadSaved(false);
   };
-  // Select-all for the Taken column: ticks every listed subject at once but
+  // Select-all for the Taken column: ticks every CURRICULUM subject at once but
   // never touches the teacher — existing assignments stay, new ticks open as
-  // "Not assigned yet". Unticking clears the whole load list.
+  // "Not assigned yet". Off-curriculum rows are never (re)added — removal is
+  // their only direction. Unticking clears the whole load list.
   const toggleAllOffered = (offered: boolean) => {
     setLoad((l) => {
       if (!offered) return {};
       const next = { ...l };
-      for (const { subject } of loadSubjects) next[subject.code] = next[subject.code] ?? null;
+      for (const { subject, inCurriculum } of loadSubjects) {
+        if (inCurriculum) next[subject.code] = next[subject.code] ?? null;
+      }
       return next;
     });
     setLoadSaved(false);
@@ -334,6 +341,8 @@ export default function ClassDetail() {
         Object.entries(load).map(([subjectCode, teacherId]) => ({ subjectCode, teacherId })),
       );
       setLoadSaved(true);
+      // Removed off-curriculum rows are gone for real now — drop them from view.
+      setSavedCodes(Object.keys(load));
     } catch {
       // ignore — keep edits for retry
     } finally {
@@ -1019,11 +1028,22 @@ export default function ClassDetail() {
                         return (
                           <tr key={s.code} className="border-b border-border-soft last:border-0">
                             <td className="py-1.5 pr-3 text-center">
+                              {/* Off-curriculum subjects can only be REMOVED:
+                                  the box unticks while it is still saved, but a
+                                  removed one can never be ticked back on. */}
                               <input
                                 type="checkbox"
                                 checked={offered}
+                                disabled={!inCurriculum && !offered}
+                                title={
+                                  !inCurriculum
+                                    ? offered
+                                      ? "Not in this grade's curriculum — untick and Save load to remove it."
+                                      : "Not in this grade's curriculum — it can no longer be added."
+                                    : undefined
+                                }
                                 onChange={(e) => toggleOffered(s.code, e.target.checked)}
-                                className="h-3.5 w-3.5 accent-nps-red align-middle"
+                                className="h-3.5 w-3.5 accent-nps-red align-middle disabled:opacity-40"
                               />
                             </td>
                             <td className="py-1.5 pr-3">
