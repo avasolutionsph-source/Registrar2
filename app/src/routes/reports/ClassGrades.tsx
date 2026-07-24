@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Printer } from 'lucide-react';
+import { Printer, ExternalLink } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { Button } from '@/components/ui/button';
@@ -27,10 +27,6 @@ export default function ClassGrades() {
   const [gradeOrder, setGradeOrder] = useState<string[]>([]);
   const [period, setPeriod] = useState<HonorPeriod>('q1');
   const [showAttitude, setShowAttitude] = useState(false);
-  // 'matrix' = one number per subject for the picked term; 'sheets' = the FULL
-  // gradesheet of every subject — all terms, final, and attitude — stacked one
-  // subject after another (the printable counter-checking bundle).
-  const [view, setView] = useState<'matrix' | 'sheets'>('matrix');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -176,25 +172,15 @@ export default function ClassGrades() {
         </select>
         {cls && (
           <>
-            <div className="inline-flex rounded-md border border-border overflow-hidden">
-              {[
-                { key: 'matrix' as const, label: 'Summary matrix' },
-                { key: 'sheets' as const, label: 'Full gradesheets' },
-              ].map((v) => (
-                <button
-                  key={v.key}
-                  type="button"
-                  onClick={() => setView(v.key)}
-                  className={`px-3 py-1.5 text-[12.5px] ${
-                    view === v.key ? 'bg-ink-primary text-surface font-semibold' : 'text-ink-secondary hover:bg-panel-alt'
-                  }`}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </div>
-            {view === 'matrix' && (
-            <>
+            {/* Opens the DETAILED sheets (portal format, per-activity) in their
+                own full-screen tab, where the wide table has room to fit. */}
+            <Button
+              variant="outline"
+              className="gap-1.5 shrink-0"
+              onClick={() => window.open(`/reports/class-grades/${classId}/sheets`, '_blank')}
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Full gradesheets
+            </Button>
             <div className="inline-flex rounded-md border border-border overflow-hidden">
               {[...periods.map((p) => ({ key: p.key as HonorPeriod, label: p.label })), { key: 'final' as HonorPeriod, label: 'Final' }].map(
                 (t) => (
@@ -203,7 +189,7 @@ export default function ClassGrades() {
                     type="button"
                     onClick={() => setPeriod(t.key)}
                     className={`px-3 py-1.5 text-[12.5px] ${
-                      period === t.key ? 'bg-ink-primary text-surface font-semibold' : 'text-ink-secondary hover:bg-panel-alt'
+                      period === t.key ? 'bg-nps-red text-white font-semibold' : 'text-ink-secondary hover:bg-panel-alt'
                     }`}
                   >
                     {t.label}
@@ -225,8 +211,6 @@ export default function ClassGrades() {
               />
               Show Attitude
             </label>
-            </>
-            )}
           </>
         )}
       </div>
@@ -237,7 +221,7 @@ export default function ClassGrades() {
         <p className="text-[13px] text-ink-secondary">Loading…</p>
       ) : roster.length === 0 ? (
         <p className="text-[13px] text-ink-secondary">No learners in this section.</p>
-      ) : view === 'matrix' ? (
+      ) : (
         <SectionCard
           heading={`${gradeLabel(cls.gradeLevel)} · ${cls.sectionName} — ${roster.length} learner${roster.length === 1 ? '' : 's'} · ${columns.length} subject${columns.length === 1 ? '' : 's'}${showAttitude && period !== 'final' ? ' · ATTITUDE' : ''}`}
         >
@@ -307,80 +291,6 @@ export default function ClassGrades() {
             </table>
           </div>
         </SectionCard>
-      ) : (
-        // Full gradesheets — one complete table per subject: every term, the
-        // final, and the attitude per term. Stacked in curriculum order, so
-        // printing this view yields the whole counter-checking bundle at once.
-        <div className="space-y-4">
-          {columns.map((code) => {
-            const l = colLabel(code);
-            return (
-              <SectionCard key={code} heading={`${l.full} (${l.short})`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[12.5px] whitespace-nowrap">
-                    <thead>
-                      <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                        <th className="py-2 pr-2 pl-1 w-8 text-right">#</th>
-                        <th className="py-2 pr-3 min-w-[180px]">Learner</th>
-                        {periods.map((p) => (
-                          <th key={p.key} className="py-2 px-2 text-center">{p.label}</th>
-                        ))}
-                        <th className="py-2 px-2 text-center border-l border-border">Final</th>
-                        {periods.map((p) => (
-                          <th
-                            key={`a-${p.key}`}
-                            className="py-2 px-2 text-center text-ink-muted"
-                            title={`Attitude — ${p.label}`}
-                          >
-                            Att {p.label.replace('Term ', 'T').replace('Quarter ', 'Q')}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {roster.map((s, i) => {
-                        const g = entryOf(s, code);
-                        return (
-                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                            <td className="py-1.5 pr-2 pl-1 text-right tabular-nums text-ink-muted">{i + 1}</td>
-                            <td className="py-1.5 pr-3 text-ink-primary">{formatLastFirstMiddle(s)}</td>
-                            {periods.map((p) => {
-                              const v = g?.[p.key as TermKey] ?? null;
-                              const low = v != null && v < HONOR_GRADE_FLOOR;
-                              return (
-                                <td
-                                  key={p.key}
-                                  className={`py-1.5 px-2 text-center tabular-nums ${
-                                    low ? 'text-nps-red font-semibold' : 'text-ink-primary'
-                                  }`}
-                                  title={low ? `Below the ${HONOR_GRADE_FLOOR} floor` : undefined}
-                                >
-                                  {v ?? '—'}
-                                </td>
-                              );
-                            })}
-                            <td
-                              className={`py-1.5 px-2 text-center tabular-nums font-semibold border-l border-border-soft ${
-                                g?.final != null && g.final < HONOR_GRADE_FLOOR ? 'text-nps-red' : 'text-ink-primary'
-                              }`}
-                            >
-                              {g?.final ?? '—'}
-                            </td>
-                            {periods.map((p) => (
-                              <td key={`a-${p.key}`} className="py-1.5 px-2 text-center tabular-nums text-ink-secondary">
-                                {attOf(g, p.key as TermKey) ?? '—'}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </SectionCard>
-            );
-          })}
-        </div>
       )}
     </>
   );

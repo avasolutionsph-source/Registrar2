@@ -50,6 +50,7 @@ import Tracking from '@/routes/reports/Tracking';
 import Birthdays from '@/routes/reports/Birthdays';
 import TeachingAssignments from '@/routes/reports/TeachingAssignments';
 import ClassGrades from '@/routes/reports/ClassGrades';
+import ClassGradesheetsFull from '@/routes/reports/ClassGradesheetsFull';
 import ComingSoon from '@/routes/ComingSoon';
 import Login from '@/routes/Login';
 
@@ -79,6 +80,9 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route element={<RequireRegistrar />}>
+            {/* Full-screen pages — open in their own tab, no sidebar shell,
+                so a wide detailed grade sheet has the whole screen. */}
+            <Route path="/reports/class-grades/:classId/sheets" element={<ClassGradesheetsFull />} />
             <Route path="/" element={<AppShell />}>
           <Route index element={<Navigate to="/students" replace />} />
           <Route path="students" element={<StudentsList />} />
