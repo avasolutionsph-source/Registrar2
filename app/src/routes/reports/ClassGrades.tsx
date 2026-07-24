@@ -234,8 +234,23 @@ export default function ClassGrades() {
                   {columns.map((code) => {
                     const l = colLabel(code);
                     return (
-                      <th key={code} className="py-2 px-2 text-center" title={l.full}>
-                        {l.short}
+                      <th key={code} className="py-2 px-2 text-center">
+                        {/* Straight to THIS subject's full sheet — the path for
+                            "may papabago ng grade dito": open, Edit grades,
+                            done, without walking through the other sheets. */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            window.open(
+                              `/reports/class-grades/${classId}/sheets?subject=${encodeURIComponent(code)}`,
+                              '_blank',
+                            )
+                          }
+                          title={`${l.full} — open the full grade sheet (view / edit)`}
+                          className="uppercase tracking-[0.04em] text-ink-muted underline decoration-dotted underline-offset-2 hover:text-nps-red"
+                        >
+                          {l.short}
+                        </button>
                       </th>
                     );
                   })}

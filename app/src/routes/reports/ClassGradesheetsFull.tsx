@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { FullSheet } from '@/components/gradesheet/FullSheet';
 import { listClasses, listSubjects, listStudentsByClass, listGradeSubjects } from '@/lib/db';
@@ -13,11 +13,14 @@ import type { ClassRecord, Student, Subject } from '@/types';
 // Edit grades on top.
 export default function ClassGradesheetsFull() {
   const { classId } = useParams<{ classId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [cls, setCls] = useState<ClassRecord | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [codes, setCodes] = useState<string[] | null>(null); // null = loading
-  const [selected, setSelected] = useState('');
+  // ?subject=CODE deep-links straight to ONE sheet — the "someone asked for a
+  // correction on THIS gradesheet" path, no need to walk through the others.
+  const [selected, setSelected] = useState(() => (searchParams.get('subject') ?? '').toUpperCase());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,7 +55,8 @@ export default function ClassGradesheetsFull() {
         }
         const all = [...ordered, ...[...present].sort()];
         setCodes(all);
-        setSelected((cur) => cur || all[0] || '');
+        // Keep a valid ?subject= deep link; otherwise start on the first one.
+        setSelected((cur) => (cur && all.includes(cur) ? cur : all[0] || ''));
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Failed to load the section.');
@@ -104,7 +108,12 @@ export default function ClassGradesheetsFull() {
               return (
                 <button
                   key={c}
-                  onClick={() => setSelected(c)}
+                  onClick={() => {
+                    setSelected(c);
+                    // Keep the URL pointing at the open sheet, so the tab can
+                    // be refreshed or its link shared without losing the spot.
+                    setSearchParams({ subject: c }, { replace: true });
+                  }}
                   title={s?.fullName || c}
                   className={`h-8 rounded-md border px-3 text-[12.5px] font-medium transition-colors ${
                     selected === c
