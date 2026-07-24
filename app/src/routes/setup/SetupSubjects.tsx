@@ -356,68 +356,64 @@ export default function SetupSubjects() {
 
       <div className="mt-3.5">
         <SectionCard heading="Add a new subject to the catalog">
-          <form onSubmit={handleAdd} className="grid grid-cols-12 gap-x-3 gap-y-2 px-1 items-end">
-            <div className="col-span-2">
-              <Field label="Code">
-                <Input name="code" placeholder="e.g. SCI7" required />
-              </Field>
-            </div>
-            <div className="col-span-3">
-              <Field label="Full name">
-                <Input name="fullName" placeholder="e.g. Science 7" required />
-              </Field>
-            </div>
-            <div className="col-span-2">
-              <Field label="Abbrev.">
-                <Input name="abbreviation" placeholder="e.g. Sci" />
-              </Field>
-            </div>
-            <div className="col-span-2">
-              <Field label="Level">
-                <Select name="level" defaultValue="">
-                  <option value="">— Uncategorized</option>
-                  {LEVELS.map((l) => (
-                    <option key={l.key} value={l.key}>
-                      {l.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <div className="col-span-2">
-              <Field label="Category" hint="SHS only">
-                <Select name="category" defaultValue="">
-                  <option value="">— None</option>
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <div className="col-span-1">
-              <Button type="submit" disabled={adding} className="gap-1 w-full px-2">
-                <Plus className="w-3.5 h-3.5" /> {adding ? '…' : 'Add'}
-              </Button>
+          <form onSubmit={handleAdd} className="px-1">
+            {/* Row 1 — the subject's identity. */}
+            <div className="grid grid-cols-12 gap-x-3 gap-y-2 items-start">
+              <div className="col-span-2">
+                <Field label="Code">
+                  <Input name="code" placeholder="e.g. SCI7" required />
+                </Field>
+              </div>
+              <div className="col-span-4">
+                <Field label="Full name">
+                  <Input name="fullName" placeholder="e.g. Science 7" required />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Abbrev.">
+                  <Input name="abbreviation" placeholder="e.g. Sci" />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Level">
+                  <Select name="level" defaultValue="">
+                    <option value="">— Uncategorized</option>
+                    {LEVELS.map((l) => (
+                      <option key={l.key} value={l.key}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Category" hint="SHS only">
+                  <Select name="category" defaultValue="">
+                    <option value="">— None</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
             </div>
 
-            {/* Combination subject (EPP-ICT / TLE-ICT): different content per
-                term. Checking reveals the per-term boxes; coordinators later
-                assign a TEACHER per term for these. */}
-            <div className="col-span-12">
-              <label className="flex items-center gap-2 text-[12.5px] text-ink-secondary cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isCombo}
-                  onChange={(e) => setIsCombo(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-nps-red"
-                />
-                Combination subject — iba ang itinuturo bawat term (hal. EPP-ICT, TLE-ICT)
-              </label>
-            </div>
+            {/* Row 2 — combination subject (EPP-ICT / TLE-ICT): different
+                content per term. Checking reveals the per-term boxes;
+                coordinators later assign a TEACHER per term for these. */}
+            <label className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isCombo}
+                onChange={(e) => setIsCombo(e.target.checked)}
+                className="h-3.5 w-3.5 accent-nps-red"
+              />
+              Combination subject — iba ang itinuturo bawat term (hal. EPP-ICT, TLE-ICT)
+            </label>
             {isCombo && (
-              <div className="col-span-12 grid grid-cols-12 gap-x-3">
+              <div className="mt-2 grid grid-cols-12 gap-x-3 rounded-md border border-border-soft bg-panel-alt p-3">
                 <div className="col-span-4">
                   <Field label="Term 1 — ano ang laman">
                     <Input name="termLabel1" placeholder="e.g. EPP" />
@@ -435,6 +431,13 @@ export default function SetupSubjects() {
                 </div>
               </div>
             )}
+
+            {/* The action sits on its own row, so nothing squeezes it. */}
+            <div className="mt-3 flex justify-end">
+              <Button type="submit" disabled={adding} className="gap-1 px-4">
+                <Plus className="w-3.5 h-3.5" /> {adding ? 'Adding…' : 'Add subject'}
+              </Button>
+            </div>
           </form>
           {addError && <p className="mt-2 px-1 text-[12.5px] text-nps-red">{addError}</p>}
           <p className="mt-2 px-1 text-[11.5px] text-ink-muted">
