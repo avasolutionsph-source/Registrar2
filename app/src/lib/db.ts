@@ -1017,6 +1017,32 @@ export async function addSubject(input: SubjectInput): Promise<void> {
   if (error) throw error;
 }
 
+// Edit an existing catalog subject (Setup ▸ Subjects — Subject Catalog). The
+// CODE is the primary key and every grade order / class load / grade entry
+// references it, so it is deliberately NOT editable here.
+export async function updateSubject(
+  code: string,
+  patch: {
+    fullName: string;
+    abbreviation: string;
+    category?: SubjectCategory | null;
+    level?: string | null;
+    termLabels?: Record<string, string> | null;
+  },
+): Promise<void> {
+  const { error } = await client()
+    .from('reg_subjects')
+    .update({
+      full_name: patch.fullName,
+      abbreviation: patch.abbreviation,
+      category: patch.category ?? null,
+      level: patch.level ?? null,
+      term_labels: patch.termLabels ?? null,
+    })
+    .eq('code', code);
+  if (error) throw error;
+}
+
 // ── per-grade / per-strand ordered subject list (reg_grade_subjects) ──
 // Drives the report card + grade-encoding subject order. Curated in Setup ▸
 // Subjects by picking a grade/strand and dragging to reorder / add / remove.

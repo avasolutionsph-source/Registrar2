@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Save, Plus, GripVertical, X } from 'lucide-react';
+import { Save, Plus, GripVertical, X, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listSubjects, addSubject, listGradeSubjects, saveGradeSubjects } from '@/lib/db';
+import { listSubjects, addSubject, updateSubject, listGradeSubjects, saveGradeSubjects } from '@/lib/db';
 import type { SubjectCategory, SubjectLevel, Subject } from '@/types';
 
 const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
@@ -71,6 +71,77 @@ export default function SetupSubjects() {
   const [isCombo, setIsCombo] = useState(false);
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overCode, setOverCode] = useState<string | null>(null);
+
+  // Subject Catalog editor: search + one row in inline-edit at a time. The
+  // CODE stays fixed (it is the PK every load and grade entry points at).
+  const [catSearch, setCatSearch] = useState('');
+  const [editCode, setEditCode] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: '', abbreviation: '', level: '', category: '',
+    combo: false, t1: '', t2: '', t3: '',
+  });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEdit(s: Subject) {
+    setEditCode(s.code);
+    setEditError(null);
+    setEditForm({
+      fullName: s.fullName,
+      abbreviation: s.abbreviation,
+      level: s.level ?? '',
+      category: s.category ?? '',
+      combo: !!s.termLabels,
+      t1: s.termLabels?.q1 ?? '',
+      t2: s.termLabels?.q2 ?? '',
+      t3: s.termLabels?.q3 ?? '',
+    });
+  }
+
+  async function saveEdit() {
+    if (!editCode) return;
+    if (!editForm.fullName.trim()) {
+      setEditError('Full name is required.');
+      return;
+    }
+    if (editForm.combo && (!editForm.t1.trim() || !editForm.t2.trim() || !editForm.t3.trim())) {
+      setEditError('Fill in what is taught in each term (e.g. EPP / EPP / ICT).');
+      return;
+    }
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      await updateSubject(editCode, {
+        fullName: editForm.fullName.trim(),
+        abbreviation: editForm.abbreviation.trim() || editCode,
+        category: (editForm.category as SubjectCategory) || null,
+        level: editForm.level || null,
+        termLabels: editForm.combo
+          ? { q1: editForm.t1.trim(), q2: editForm.t2.trim(), q3: editForm.t3.trim() }
+          : null,
+      });
+      setCatalog(await listSubjects());
+      setEditCode(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save the subject.');
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  const catalogShown = useMemo(() => {
+    const q = catSearch.trim().toLowerCase();
+    const rows = q
+      ? catalog.filter((s) => `${s.code} ${s.fullName} ${s.abbreviation}`.toLowerCase().includes(q))
+      : catalog;
+    // Group by level in the LEVELS order, uncategorized last.
+    const order = new Map<string, number>(LEVELS.map((l, i) => [l.key, i]));
+    return [...rows].sort(
+      (a, b) =>
+        (order.get(a.level ?? '') ?? 99) - (order.get(b.level ?? '') ?? 99) ||
+        a.fullName.localeCompare(b.fullName),
+    );
+  }, [catalog, catSearch]);
 
   const byCode = useMemo(() => {
     const m = new Map<string, Subject>();
@@ -443,6 +514,171 @@ export default function SetupSubjects() {
           <p className="mt-2 px-1 text-[11.5px] text-ink-muted">
             New subjects join the catalog; add them to a grade above to place them in its order.
           </p>
+        </SectionCard>
+      </div>
+
+      {/* ── Subject Catalog — the WHOLE list, viewable and editable. One row
+          edits at a time; the CODE never changes (every load, order, and grade
+          entry points at it). ── */}
+      <div className="mt-3.5">
+        <SectionCard heading={`Subject Catalog — ${catalog.length} subject${catalog.length === 1 ? '' : 's'}`}>
+          <div className="px-1 mb-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[11.5px] text-ink-muted max-w-[560px]">
+              Every subject in the system. Edit the name, abbreviation, level, category, or the
+              combination labels — the code is permanent. Removing a subject from a grade is done
+              in the order list above, not here.
+            </p>
+            <Input
+              value={catSearch}
+              onChange={(e) => setCatSearch(e.target.value)}
+              placeholder="Search code or name…"
+              className="max-w-[240px]"
+            />
+          </div>
+          {editError && <p className="mb-2 px-1 text-[12.5px] text-nps-red">{editError}</p>}
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                <th className="py-1.5 pr-3 w-[8%]">Code</th>
+                <th className="py-1.5 pr-3">Full name</th>
+                <th className="py-1.5 pr-3 w-[10%]">Abbrev.</th>
+                <th className="py-1.5 pr-3 w-[15%]">Level</th>
+                <th className="py-1.5 pr-3 w-[12%]">Category</th>
+                <th className="py-1.5 pr-3 w-[22%]">Combination (per term)</th>
+                <th className="py-1.5 w-[8%] text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {catalogShown.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-ink-secondary">
+                    {catSearch ? 'No subject matches the search.' : 'The catalog is empty.'}
+                  </td>
+                </tr>
+              ) : (
+                catalogShown.map((s) =>
+                  editCode === s.code ? (
+                    <tr key={s.code} className="border-b border-border-soft bg-panel-alt">
+                      <td className="py-2 pr-3 font-mono text-ink-secondary align-top pt-3.5">{s.code}</td>
+                      <td className="py-2 pr-3 align-top">
+                        <Input
+                          value={editForm.fullName}
+                          onChange={(e) => setEditForm((f) => ({ ...f, fullName: e.target.value }))}
+                        />
+                      </td>
+                      <td className="py-2 pr-3 align-top">
+                        <Input
+                          value={editForm.abbreviation}
+                          onChange={(e) => setEditForm((f) => ({ ...f, abbreviation: e.target.value }))}
+                        />
+                      </td>
+                      <td className="py-2 pr-3 align-top">
+                        <Select
+                          value={editForm.level}
+                          onChange={(e) => setEditForm((f) => ({ ...f, level: e.target.value }))}
+                        >
+                          <option value="">— Uncategorized</option>
+                          {LEVELS.map((l) => (
+                            <option key={l.key} value={l.key}>{l.label}</option>
+                          ))}
+                        </Select>
+                      </td>
+                      <td className="py-2 pr-3 align-top">
+                        <Select
+                          value={editForm.category}
+                          onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+                        >
+                          <option value="">— None</option>
+                          {CATEGORIES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </Select>
+                      </td>
+                      <td className="py-2 pr-3 align-top">
+                        <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer mb-1.5">
+                          <input
+                            type="checkbox"
+                            checked={editForm.combo}
+                            onChange={(e) => setEditForm((f) => ({ ...f, combo: e.target.checked }))}
+                            className="h-3.5 w-3.5 accent-nps-red"
+                          />
+                          Combination
+                        </label>
+                        {editForm.combo && (
+                          <div className="flex gap-1.5">
+                            <Input
+                              value={editForm.t1}
+                              onChange={(e) => setEditForm((f) => ({ ...f, t1: e.target.value }))}
+                              placeholder="T1"
+                              className="w-full"
+                            />
+                            <Input
+                              value={editForm.t2}
+                              onChange={(e) => setEditForm((f) => ({ ...f, t2: e.target.value }))}
+                              placeholder="T2"
+                              className="w-full"
+                            />
+                            <Input
+                              value={editForm.t3}
+                              onChange={(e) => setEditForm((f) => ({ ...f, t3: e.target.value }))}
+                              placeholder="T3"
+                              className="w-full"
+                            />
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 text-right align-top">
+                        <div className="inline-flex gap-1.5">
+                          <Button variant="outline" size="sm" disabled={editBusy} onClick={() => setEditCode(null)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" disabled={editBusy} onClick={() => void saveEdit()}>
+                            {editBusy ? '…' : 'Save'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={s.code} className="border-b border-border-soft last:border-0 hover:bg-app">
+                      <td className="py-1.5 pr-3 font-mono">{s.code}</td>
+                      <td className="py-1.5 pr-3 text-ink-primary">{s.fullName}</td>
+                      <td className="py-1.5 pr-3 text-ink-secondary">{s.abbreviation}</td>
+                      <td className="py-1.5 pr-3 text-ink-secondary">
+                        {LEVELS.find((l) => l.key === s.level)?.label ?? '—'}
+                      </td>
+                      <td className="py-1.5 pr-3 text-ink-secondary">{s.category ?? '—'}</td>
+                      <td className="py-1.5 pr-3">
+                        {s.termLabels ? (
+                          <span className="inline-flex flex-wrap gap-1">
+                            {['q1', 'q2', 'q3'].map((k, i) => (
+                              <span
+                                key={k}
+                                className="rounded-full bg-nps-red/10 text-nps-red text-[11px] font-semibold px-2 py-0.5"
+                              >
+                                T{i + 1}: {s.termLabels?.[k] ?? '—'}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="text-ink-muted">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(s)}
+                          className="inline-flex items-center gap-1 text-[12px] text-ink-secondary hover:text-nps-red"
+                          title={`Edit ${s.fullName}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ),
+                )
+              )}
+            </tbody>
+          </table>
         </SectionCard>
       </div>
     </>
