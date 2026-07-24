@@ -8,6 +8,11 @@ export default {
         app: '#f8f8f5',
         sidebar: '#f1efea',
         panel: '#ffffff',
+        // Alias of `panel` — ~20 call sites (selects, modals, sticky bars) say
+        // bg-surface; without this token the class silently generated NOTHING,
+        // leaving them transparent (overlapping sticky headers, see-through
+        // dialogs). Defined once here so every existing usage just works.
+        surface: '#ffffff',
         'panel-alt': '#fafaf6',
         border: { DEFAULT: '#e7e3da', soft: '#f0ede4' },
         ink: {
