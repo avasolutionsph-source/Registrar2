@@ -947,6 +947,10 @@ export async function listSubjects(): Promise<Subject[]> {
         category: (str(r.category) || undefined) as SubjectCategory | undefined,
         level: (str(r.level) || undefined) as Subject['level'],
         order: r.sort_order == null ? 9000 + i : Number(r.sort_order),
+        termLabels:
+          r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
+            ? (r.term_labels as Record<string, string>)
+            : undefined,
       }));
     },
     async () => idbGet<Subject[]>(SNAP.subjects),
@@ -987,6 +991,9 @@ export interface SubjectInput {
   abbreviation: string;
   category?: SubjectCategory; // SHS-only; omit for Elementary / JHS
   level?: string | null; // 'preschool' | 'elem' | 'jhs' | 'shs'
+  // Combination subject: per-term content labels keyed by period
+  // ({ q1: 'EPP', q2: 'EPP', q3: 'ICT' }). Null/omitted = ordinary subject.
+  termLabels?: Record<string, string> | null;
 }
 
 export async function addSubject(input: SubjectInput): Promise<void> {
@@ -1005,6 +1012,7 @@ export async function addSubject(input: SubjectInput): Promise<void> {
     category: input.category ?? null,
     level: input.level ?? null,
     sort_order: nextOrder,
+    term_labels: input.termLabels ?? null,
   });
   if (error) throw error;
 }
@@ -1102,7 +1110,7 @@ export async function saveClassSubjects(
   const c = client();
   const { data: prevRows, error: prevErr } = await c
     .from('reg_class_subjects')
-    .select('subject_code, teacher_id, subject_type, assigned_by')
+    .select('subject_code, teacher_id, subject_type, assigned_by, term, term_teachers')
     .eq('class_id', classId);
   if (prevErr) throw prevErr;
   const prev = new Map(
@@ -1112,29 +1120,61 @@ export async function saveClassSubjects(
         teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
         subjectType: r.subject_type ? str(r.subject_type) : null,
         assignedBy: r.assigned_by ? str(r.assigned_by) : null,
+        term: r.term ? str(r.term) : null,
+        termTeachers: (r.term_teachers ?? null) as Record<string, number> | null,
       },
     ]),
   );
   const me = (await c.auth.getSession()).data.session?.user?.email ?? null;
-  const del = await c.from('reg_class_subjects').delete().eq('class_id', classId);
+  // UPSERT + delete-stale instead of delete-then-insert: a failed write can no
+  // longer leave the class with ZERO rows (destroying subject types, term
+  // coverage, and the coordinators' per-term teacher maps).
+  if (rows.length) {
+    const { error } = await c.from('reg_class_subjects').upsert(
+      rows.map((r) => {
+        const p = prev.get(r.subjectCode);
+        // Term coverage + per-term teacher maps survive a re-save as long as
+        // the teacher is unchanged. A teacher-less row with a map (later terms
+        // assigned, first term still open) treats a picked teacher as the
+        // FILL for its earliest open term. Picking a genuinely DIFFERENT
+        // teacher resets to single-teacher — the registrar's explicit choice.
+        const sameTeacher = p && p.teacherId === r.teacherId;
+        const fill = !!p && p.teacherId == null && p.termTeachers != null && r.teacherId != null;
+        let term = sameTeacher ? p.term : null;
+        let termTeachers = sameTeacher ? p.termTeachers : null;
+        if (fill) {
+          const map = { ...(p.termTeachers as Record<string, number>) };
+          const openKey = ['q1', 'q2', 'q3', 'q4'].find((k) => map[k] == null);
+          if (openKey) map[openKey] = r.teacherId as number;
+          termTeachers = map;
+          term = Object.keys(map).sort().join(',');
+        }
+        return {
+          class_id: classId,
+          subject_code: r.subjectCode,
+          teacher_id: r.teacherId,
+          subject_type: p?.subjectType ?? null,
+          assigned_by:
+            r.teacherId == null ? null
+            : sameTeacher ? p.assignedBy
+            : me,
+          term,
+          term_teachers: termTeachers,
+        };
+      }),
+      { onConflict: 'class_id,subject_code' },
+    );
+    if (error) throw error;
+  }
+  const keep = rows.map((r) => r.subjectCode);
+  const del = keep.length
+    ? await c
+        .from('reg_class_subjects')
+        .delete()
+        .eq('class_id', classId)
+        .not('subject_code', 'in', `(${keep.map((k) => `"${k}"`).join(',')})`)
+    : await c.from('reg_class_subjects').delete().eq('class_id', classId);
   if (del.error) throw del.error;
-  if (!rows.length) return;
-  const { error } = await c.from('reg_class_subjects').insert(
-    rows.map((r) => {
-      const p = prev.get(r.subjectCode);
-      return {
-        class_id: classId,
-        subject_code: r.subjectCode,
-        teacher_id: r.teacherId,
-        subject_type: p?.subjectType ?? null,
-        assigned_by:
-          r.teacherId == null ? null
-          : p && p.teacherId === r.teacherId ? p.assignedBy
-          : me,
-      };
-    }),
-  );
-  if (error) throw error;
 }
 
 // Every (class, subject) this teacher teaches — across ALL sections. Backs the

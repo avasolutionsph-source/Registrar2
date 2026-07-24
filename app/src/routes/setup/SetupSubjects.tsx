@@ -66,6 +66,9 @@ export default function SetupSubjects() {
 
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  // Combination subject (EPP-ICT, TLE-ICT): the checkbox reveals per-term
+  // content boxes; the labels ride the FormData like the other fields.
+  const [isCombo, setIsCombo] = useState(false);
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overCode, setOverCode] = useState<string | null>(null);
 
@@ -182,6 +185,17 @@ export default function SetupSubjects() {
       setAddError(`A subject with code "${code}" already exists.`);
       return;
     }
+    // Combination subject: build the per-term label map ({ q1: 'EPP', ... }).
+    // Every term must be filled — a half-labeled combination has no meaning.
+    let termLabels: Record<string, string> | null = null;
+    if (isCombo) {
+      const labels = [get('termLabel1'), get('termLabel2'), get('termLabel3')];
+      if (labels.some((l) => !l)) {
+        setAddError('Fill in what is taught in each term (e.g. EPP / EPP / ICT).');
+        return;
+      }
+      termLabels = { q1: labels[0], q2: labels[1], q3: labels[2] };
+    }
     setAdding(true);
     try {
       await addSubject({
@@ -190,11 +204,18 @@ export default function SetupSubjects() {
         abbreviation: get('abbreviation') || code,
         category: (get('category') as SubjectCategory) || undefined,
         level: (get('level') as SubjectLevel) || null,
+        termLabels,
       });
       setCatalog(await listSubjects());
       form.reset();
+      setIsCombo(false);
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed to add the subject.');
+      // 23505 = unique violation: someone else added the code since our load.
+      if ((err as { code?: string })?.code === '23505') {
+        setAddError(`A subject with code "${code}" already exists.`);
+      } else {
+        setAddError(err instanceof Error ? err.message : 'Failed to add the subject.');
+      }
     } finally {
       setAdding(false);
     }
@@ -380,6 +401,40 @@ export default function SetupSubjects() {
                 <Plus className="w-3.5 h-3.5" /> {adding ? '…' : 'Add'}
               </Button>
             </div>
+
+            {/* Combination subject (EPP-ICT / TLE-ICT): different content per
+                term. Checking reveals the per-term boxes; coordinators later
+                assign a TEACHER per term for these. */}
+            <div className="col-span-12">
+              <label className="flex items-center gap-2 text-[12.5px] text-ink-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isCombo}
+                  onChange={(e) => setIsCombo(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-nps-red"
+                />
+                Combination subject — iba ang itinuturo bawat term (hal. EPP-ICT, TLE-ICT)
+              </label>
+            </div>
+            {isCombo && (
+              <div className="col-span-12 grid grid-cols-12 gap-x-3">
+                <div className="col-span-4">
+                  <Field label="Term 1 — ano ang laman">
+                    <Input name="termLabel1" placeholder="e.g. EPP" />
+                  </Field>
+                </div>
+                <div className="col-span-4">
+                  <Field label="Term 2 — ano ang laman">
+                    <Input name="termLabel2" placeholder="e.g. EPP" />
+                  </Field>
+                </div>
+                <div className="col-span-4">
+                  <Field label="Term 3 — ano ang laman">
+                    <Input name="termLabel3" placeholder="e.g. ICT" />
+                  </Field>
+                </div>
+              </div>
+            )}
           </form>
           {addError && <p className="mt-2 px-1 text-[12.5px] text-nps-red">{addError}</p>}
           <p className="mt-2 px-1 text-[11.5px] text-ink-muted">
