@@ -1167,12 +1167,15 @@ export async function saveClassSubjects(
     if (error) throw error;
   }
   const keep = rows.map((r) => r.subjectCode);
+  // Escape embedded quotes/backslashes so a quirky subject code cannot break
+  // the PostgREST filter.
+  const quoted = keep.map((k) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
   const del = keep.length
     ? await c
         .from('reg_class_subjects')
         .delete()
         .eq('class_id', classId)
-        .not('subject_code', 'in', `(${keep.map((k) => `"${k}"`).join(',')})`)
+        .not('subject_code', 'in', `(${quoted.join(',')})`)
     : await c.from('reg_class_subjects').delete().eq('class_id', classId);
   if (del.error) throw del.error;
 }

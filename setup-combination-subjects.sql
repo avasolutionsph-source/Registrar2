@@ -714,9 +714,11 @@ begin
 
   v_grades := coalesce(v_grades, '{}'::jsonb);
   v_arr := coalesce(v_grades -> p_sy, '[]'::jsonb);
+  -- IS DISTINCT FROM: an entry with no subjectCode key (legacy/malformed) must
+  -- be KEPT, not silently dropped by a NULL comparison.
   select coalesce(jsonb_agg(e), '[]'::jsonb) into v_arr
   from jsonb_array_elements(v_arr) e
-  where e->>'subjectCode' <> p_subject_code;
+  where e->>'subjectCode' is distinct from p_subject_code;
   v_arr := v_arr || jsonb_build_array(v_entry);
   v_grades := jsonb_set(v_grades, array[p_sy], v_arr, true);
   update reg_students_data set grades = v_grades where lrn = p_lrn;
