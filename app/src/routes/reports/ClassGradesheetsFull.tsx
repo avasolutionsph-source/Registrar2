@@ -71,16 +71,17 @@ export default function ClassGradesheetsFull() {
 
   return (
     <div className="min-h-screen bg-app text-ink-primary">
-      <div className="px-6 py-5">
-        <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+      {/* ── Zone 1: the PICKER — a sticky control bar, visually its own band.
+          Everything here only CHOOSES what to open; nothing here is the sheet. ── */}
+      <div className="sticky top-0 z-10 border-b border-border bg-surface px-6 py-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold">
+            <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+              Full Grade Sheets · Pick a subject
+            </div>
+            <h1 className="text-lg font-bold mt-0.5">
               {cls ? `${gradeLabel(cls.gradeLevel)} · ${cls.sectionName} · SY ${cls.sy}` : 'Full Grade Sheets'}
             </h1>
-            <p className="text-[13px] text-ink-secondary mt-1">
-              Full grade sheets of the section — every activity score, computation, and attitude,
-              exactly as encoded in the teacher portal. Pick a subject below.
-            </p>
           </div>
           <button
             onClick={() => window.close()}
@@ -92,17 +93,14 @@ export default function ClassGradesheetsFull() {
         </div>
 
         {error && (
-          <p className="mb-3 text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+          <p className="mt-3 text-[13px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
             {error}
           </p>
         )}
 
-        {codes === null ? (
-          <p className="text-[13px] text-ink-secondary">Loading…</p>
-        ) : codes.length === 0 ? (
-          !error && <p className="text-[13px] text-ink-secondary">No subjects found for this section.</p>
-        ) : (
-          <div className="mb-4 flex flex-wrap gap-1.5">
+        {codes !== null && codes.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[12px] font-semibold text-ink-secondary mr-1">Subject:</span>
             {codes.map((c) => {
               const s = subjIndex.get(c);
               return (
@@ -127,11 +125,24 @@ export default function ClassGradesheetsFull() {
             })}
           </div>
         )}
+      </div>
 
-        {classId && selected && (
-          // Remount per subject so each sheet seeds cleanly from its own data.
-          <FullSheet key={selected} classId={classId} subjectCode={selected} />
-        )}
+      {/* ── Zone 2: the SHEET itself — a separate document card on the page
+          background, clearly distinct from the picker bar above. ── */}
+      <div className="px-6 py-5">
+        {codes === null ? (
+          <p className="text-[13px] text-ink-secondary">Loading…</p>
+        ) : codes.length === 0 ? (
+          !error && <p className="text-[13px] text-ink-secondary">No subjects found for this section.</p>
+        ) : classId && selected ? (
+          <div className="rounded-xl border border-border bg-panel p-4 sm:p-5 shadow-sm">
+            <div className="mb-4 pb-3 border-b border-border-soft text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+              Grade Sheet — {subjIndex.get(selected)?.fullName || selected}
+            </div>
+            {/* Remount per subject so each sheet seeds cleanly from its own data. */}
+            <FullSheet key={selected} classId={classId} subjectCode={selected} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

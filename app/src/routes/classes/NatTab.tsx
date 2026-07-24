@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { Input } from '@/components/ui/input';
 import { formatLastFirstMiddle } from '@/lib/format';
+import { groupRosterBySex } from '@/lib/roster';
 import { listNatScores, saveNatRow, NAT_SUBJECTS, type NatRow, type NatSubjectKey } from '@/lib/db';
 import type { ClassRecord, Student } from '@/types';
 
@@ -102,26 +103,40 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
               const lrn = (e.target as HTMLElement).closest('tr')?.dataset.lrn;
               if (lrn) saveRow(lrn);
             }}>
-              {roster.map((s) => (
-                <tr key={s.lrn} data-lrn={s.lrn} className="border-b border-border-soft last:border-0">
-                  <td className="py-1.5 pr-3">
-                    {formatLastFirstMiddle(s)}
-                    {savingLrn === s.lrn && <span className="ml-2 text-[11px] text-ink-muted">saving…</span>}
-                  </td>
-                  <td className="py-1.5 pr-3 font-mono text-ink-secondary">{s.lrn}</td>
-                  {NAT_SUBJECTS.map((sub) => (
-                    <td key={sub.key} className="py-1 px-1 text-center">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={scores[s.lrn]?.[sub.key] ?? ''}
-                        onChange={(e) => setCell(s.lrn, sub.key, e.target.value)}
-                        className={cell}
-                      />
+              {groupRosterBySex(roster).map((grp) => (
+                <Fragment key={grp.key}>
+                  <tr>
+                    <td
+                      colSpan={2 + NAT_SUBJECTS.length}
+                      className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+                        grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'
+                      }`}
+                    >
+                      {grp.label} · {grp.students.length}
                     </td>
+                  </tr>
+                  {grp.students.map((s) => (
+                    <tr key={s.lrn} data-lrn={s.lrn} className="border-b border-border-soft last:border-0">
+                      <td className="py-1.5 pr-3">
+                        {formatLastFirstMiddle(s)}
+                        {savingLrn === s.lrn && <span className="ml-2 text-[11px] text-ink-muted">saving…</span>}
+                      </td>
+                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">{s.lrn}</td>
+                      {NAT_SUBJECTS.map((sub) => (
+                        <td key={sub.key} className="py-1 px-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={scores[s.lrn]?.[sub.key] ?? ''}
+                            onChange={(e) => setCell(s.lrn, sub.key, e.target.value)}
+                            className={cell}
+                          />
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
+                </Fragment>
               ))}
               {roster.length === 0 && (
                 <tr>

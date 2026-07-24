@@ -34,6 +34,7 @@ import {
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
 import { periodsForSy, subjectFitsSection } from '@/lib/forms';
+import { groupRosterBySex } from '@/lib/roster';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
@@ -86,25 +87,25 @@ const CRED_KEYS: ['bc', 'bp', 'hc', 'pix', 'rf', 'f137', 'rc', 'gmc'] = [
   'gmc',
 ];
 
-// Standard DepEd class-list grouping: MALE then FEMALE, each alphabetical with
-// its own numbering; learners with no gender fall to an "Unspecified" group at
-// the end (never dropped). Returns only non-empty groups.
-function groupBySex(list: Student[]): { key: string; label: string; students: Student[] }[] {
-  const bucket = (g?: string) => {
-    const v = (g || '').trim().charAt(0).toUpperCase();
-    return v === 'M' ? 'Male' : v === 'F' ? 'Female' : 'Unspecified';
-  };
-  const buckets: Record<string, Student[]> = { Male: [], Female: [], Unspecified: [] };
-  for (const s of list) buckets[bucket(s.gender)].push(s);
-  const byName = (a: Student, b: Student) =>
-    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
-  return [
-    { key: 'Male', label: 'MALE' },
-    { key: 'Female', label: 'FEMALE' },
-    { key: 'Unspecified', label: 'UNSPECIFIED — needs gender data' },
-  ]
-    .map((g) => ({ ...g, students: buckets[g.key].slice().sort(byName) }))
-    .filter((g) => g.students.length > 0);
+// Standard DepEd class-list grouping (MALE → FEMALE → Unspecified) — the
+// shared system-wide helper, so every roster splits the same way.
+const groupBySex = groupRosterBySex;
+
+// Separator row for a grouped roster table: MALE / FEMALE / UNSPECIFIED header
+// spanning the whole table, matching the existing directory tabs.
+function SexRow({ grp, colSpan }: { grp: ReturnType<typeof groupBySex>[number]; colSpan: number }) {
+  return (
+    <tr>
+      <td
+        colSpan={colSpan}
+        className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+          grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'
+        }`}
+      >
+        {grp.label} · {grp.students.length}
+      </td>
+    </tr>
+  );
 }
 
 export default function ClassDetail() {
@@ -628,15 +629,20 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3">{s.gender.charAt(0)}</td>
-                        <td className="py-1.5 pr-3">{s.birthdate}</td>
-                        <td className="py-1.5 pr-3">{s.fatherName}</td>
-                        <td className="py-1.5">{s.motherMaidenName}</td>
-                      </tr>
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <SexRow grp={grp} colSpan={6} />
+                        {grp.students.map((s) => (
+                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3">{s.gender.charAt(0)}</td>
+                            <td className="py-1.5 pr-3">{s.birthdate}</td>
+                            <td className="py-1.5 pr-3">{s.fatherName}</td>
+                            <td className="py-1.5">{s.motherMaidenName}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -770,7 +776,10 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <SexRow grp={grp} colSpan={1 + CRED_KEYS.length} />
+                        {grp.students.map((s) => (
                       <tr key={s.lrn} className="border-b border-border-soft last:border-0">
                         <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
                         {CRED_KEYS.map((k) => {
@@ -788,6 +797,8 @@ export default function ClassDetail() {
                           );
                         })}
                       </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -807,15 +818,20 @@ export default function ClassDetail() {
                       </tr>
                     </thead>
                     <tbody>
-                      {roster.map((s) => (
-                        <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                          <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                          <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">—</td>
-                          <td className="py-1.5">
-                            <StatusBadge tone="ok">promoted</StatusBadge>
-                          </td>
-                        </tr>
+                      {groupBySex(roster).map((grp) => (
+                        <Fragment key={grp.key}>
+                          <SexRow grp={grp} colSpan={4} />
+                          {grp.students.map((s) => (
+                            <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                              <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                              <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                              <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">—</td>
+                              <td className="py-1.5">
+                                <StatusBadge tone="ok">promoted</StatusBadge>
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -870,15 +886,20 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                        <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                        <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                        <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                        <td className="py-1.5 text-right text-ink-muted">—</td>
-                      </tr>
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <SexRow grp={grp} colSpan={6} />
+                        {grp.students.map((s) => (
+                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
+                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
+                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
+                            <td className="py-1.5 text-right text-ink-muted">—</td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -906,23 +927,28 @@ export default function ClassDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roster.map((s) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                        <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                        <td className="py-1.5 pr-3">
-                          <StatusBadge tone="pending">awaiting {firstPeriodLabel}</StatusBadge>
-                        </td>
-                        <td className="py-1.5 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDoc({ kind: 'one', student: s })}
-                          >
-                            Print
-                          </Button>
-                        </td>
-                      </tr>
+                    {groupBySex(roster).map((grp) => (
+                      <Fragment key={grp.key}>
+                        <SexRow grp={grp} colSpan={4} />
+                        {grp.students.map((s) => (
+                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                            <td className="py-1.5 pr-3">
+                              <StatusBadge tone="pending">awaiting {firstPeriodLabel}</StatusBadge>
+                            </td>
+                            <td className="py-1.5 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDoc({ kind: 'one', student: s })}
+                              >
+                                Print
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1072,32 +1098,37 @@ export default function ClassDetail() {
                         </td>
                       </tr>
                     ) : (
-                      roster.map((s) => {
-                        const e = escState[s.lrn] ?? { grantee: false, escNo: '' };
-                        return (
-                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                            <td className="py-1.5 pr-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={e.grantee}
-                                onChange={(ev) => setEscGrantee(s.lrn, ev.target.checked)}
-                                className="h-3.5 w-3.5 accent-nps-red align-middle"
-                              />
-                            </td>
-                            <td className="py-1.5">
-                              <input
-                                value={e.escNo}
-                                onChange={(ev) => setEscNo(s.lrn, ev.target.value)}
-                                placeholder={e.grantee ? 'Certificate / QVR no.' : ''}
-                                disabled={!e.grantee}
-                                className="w-full max-w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })
+                      groupBySex(roster).map((grp) => (
+                        <Fragment key={grp.key}>
+                          <SexRow grp={grp} colSpan={4} />
+                          {grp.students.map((s) => {
+                            const e = escState[s.lrn] ?? { grantee: false, escNo: '' };
+                            return (
+                              <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                                <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                                <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                                <td className="py-1.5 pr-3 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={e.grantee}
+                                    onChange={(ev) => setEscGrantee(s.lrn, ev.target.checked)}
+                                    className="h-3.5 w-3.5 accent-nps-red align-middle"
+                                  />
+                                </td>
+                                <td className="py-1.5">
+                                  <input
+                                    value={e.escNo}
+                                    onChange={(ev) => setEscNo(s.lrn, ev.target.value)}
+                                    placeholder={e.grantee ? 'Certificate / QVR no.' : ''}
+                                    disabled={!e.grantee}
+                                    className="w-full max-w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      ))
                     )}
                   </tbody>
                 </table>

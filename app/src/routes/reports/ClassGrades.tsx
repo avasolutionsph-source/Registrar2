@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Printer, ExternalLink } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -8,6 +8,7 @@ import { listClasses, listStudentsByClass, listSubjects, listGradeSubjects } fro
 import { periodsForSy, gradeRank, gradeLabel } from '@/lib/forms';
 import { evaluateHonor, HONOR_GA_MIN, HONOR_GRADE_FLOOR, type HonorPeriod } from '@/lib/honors';
 import { formatLastFirstMiddle } from '@/lib/format';
+import { groupRosterBySex, sexRowCls } from '@/lib/roster';
 import { ALL_TIME_CODE, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
 
 // Reports ▸ Class Grades — the registrar's counter-checking sheet. One section,
@@ -258,7 +259,19 @@ export default function ClassGrades() {
                 </tr>
               </thead>
               <tbody>
-                {roster.map((s, i) => {
+                {/* Male first, then Female — same class-list convention as the
+                    grade sheets and SF forms, per-group numbering. */}
+                {groupRosterBySex(roster).map((grp) => (
+                  <Fragment key={grp.key}>
+                    <tr>
+                      <td
+                        colSpan={2 + columns.length + (showAttitude && period !== 'final' ? 0 : 1)}
+                        className={sexRowCls(grp.key)}
+                      >
+                        {grp.label} · {grp.students.length}
+                      </td>
+                    </tr>
+                    {grp.students.map((s, i) => {
                   const honor = showAttitude ? null : evaluateHonor(gradesOf(s), subjIndex, period);
                   return (
                     <tr key={s.lrn} className="border-b border-border-soft last:border-0">
@@ -301,7 +314,9 @@ export default function ClassGrades() {
                       )}
                     </tr>
                   );
-                })}
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>

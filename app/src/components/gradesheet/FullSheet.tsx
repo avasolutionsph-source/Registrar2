@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Pencil, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { periodsForSy } from '@/lib/forms';
+import { groupRosterBySex } from '@/lib/roster';
 import {
   computeGradeWith,
   initialGrade,
@@ -106,21 +108,6 @@ const qOf = (e: QuarterGrade | undefined, pk: string): number | null => {
   const v = (e as Record<string, unknown> | undefined)?.[pk];
   return typeof v === 'number' ? v : null;
 };
-
-// Standard class-list grouping (same as the portal sheet): MALE first, then
-// FEMALE, each alphabetical with its OWN numbering; learners with no gender
-// value go to an "Unspecified" group at the end instead of being dropped.
-function groupRosterBySex(roster: Student[]) {
-  const byName = (a: Student, b: Student) =>
-    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
-  const groups = [
-    { key: 'Male', label: 'Male', students: roster.filter((s) => s.gender === 'Male').sort(byName) },
-    { key: 'Female', label: 'Female', students: roster.filter((s) => s.gender === 'Female').sort(byName) },
-  ];
-  const other = roster.filter((s) => s.gender !== 'Male' && s.gender !== 'Female').sort(byName);
-  if (other.length) groups.push({ key: 'Unspecified', label: 'Unspecified', students: other });
-  return groups.filter((g) => g.students.length > 0);
-}
 
 export function FullSheet({
   classId,
@@ -520,6 +507,21 @@ export function FullSheet({
           Editing mode — you are correcting the teacher&rsquo;s encoded scores. Term grades and the
           Initial Grade recompute live as you type; nothing is stored until you press Save corrections.
         </p>
+      )}
+
+      {/* Why "Edit grades" is disabled: with no subject TYPE there are no
+          official weights, so nothing can be (re)computed — block rather than
+          guess, same as the teacher portal. Point straight at the fix. */}
+      {weights === null && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12.5px] text-amber-900">
+          <span className="font-bold">Edit grades is disabled</span> — this section &times; subject has
+          no <span className="font-semibold">subject type</span> yet, so there are no official weights
+          (WW/PT/{'EXs'}) to compute grades with. Set it in{' '}
+          <Link to="/setup/weight-components" className="font-semibold underline hover:text-nps-red">
+            Setup ▸ Weight Components
+          </Link>{' '}
+          first, then reload this sheet.
+        </div>
       )}
 
       {error && (
