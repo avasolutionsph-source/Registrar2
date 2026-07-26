@@ -69,9 +69,10 @@ export default function SetupSubjects() {
 
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  // Combination subject (EPP-ICT, TLE-ICT): the checkbox reveals per-term
-  // content boxes; the labels ride the FormData like the other fields.
-  const [isCombo, setIsCombo] = useState(false);
+  // Rotating subject (EPP-ICT, TLE-ICT): the checkbox only OPENS the feature.
+  // The actual term breakdown is set PER SECTION in Classes ▸ Subjects &
+  // Teachers, because sections may run the terms in different order.
+  const [isRotating, setIsRotating] = useState(false);
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overCode, setOverCode] = useState<string | null>(null);
 
@@ -80,8 +81,7 @@ export default function SetupSubjects() {
   const [catSearch, setCatSearch] = useState('');
   const [editCode, setEditCode] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
-    fullName: '', abbreviation: '', level: '', category: '',
-    combo: false, t1: '', t2: '', t3: '',
+    fullName: '', abbreviation: '', level: '', category: '', rotating: false,
   });
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -94,21 +94,14 @@ export default function SetupSubjects() {
       abbreviation: s.abbreviation,
       level: s.level ?? '',
       category: s.category ?? '',
-      combo: !!s.termLabels,
-      t1: s.termLabels?.q1 ?? '',
-      t2: s.termLabels?.q2 ?? '',
-      t3: s.termLabels?.q3 ?? '',
+      rotating: !!s.isRotating,
     });
   }
 
   async function saveEdit() {
     if (!editCode) return;
     if (!editForm.fullName.trim()) {
-      setEditError('Full name is required.');
-      return;
-    }
-    if (editForm.combo && (!editForm.t1.trim() || !editForm.t2.trim() || !editForm.t3.trim())) {
-      setEditError('Fill in what is taught in each term (e.g. EPP / EPP / ICT).');
+      setEditError('Subject name is required.');
       return;
     }
     setEditBusy(true);
@@ -119,9 +112,7 @@ export default function SetupSubjects() {
         abbreviation: editForm.abbreviation.trim() || editCode,
         category: (editForm.category as SubjectCategory) || null,
         level: editForm.level || null,
-        termLabels: editForm.combo
-          ? { q1: editForm.t1.trim(), q2: editForm.t2.trim(), q3: editForm.t3.trim() }
-          : null,
+        isRotating: editForm.rotating,
       });
       setCatalog(await listSubjects());
       setEditCode(null);
@@ -310,17 +301,6 @@ export default function SetupSubjects() {
       setAddError(`A subject with code "${code}" already exists.`);
       return;
     }
-    // Combination subject: build the per-term label map ({ q1: 'EPP', ... }).
-    // Every term must be filled — a half-labeled combination has no meaning.
-    let termLabels: Record<string, string> | null = null;
-    if (isCombo) {
-      const labels = [get('termLabel1'), get('termLabel2'), get('termLabel3')];
-      if (labels.some((l) => !l)) {
-        setAddError('Fill in what is taught in each term (e.g. EPP / EPP / ICT).');
-        return;
-      }
-      termLabels = { q1: labels[0], q2: labels[1], q3: labels[2] };
-    }
     setAdding(true);
     try {
       await addSubject({
@@ -329,11 +309,11 @@ export default function SetupSubjects() {
         abbreviation: get('abbreviation') || code,
         category: (get('category') as SubjectCategory) || undefined,
         level: (get('level') as SubjectLevel) || null,
-        termLabels,
+        isRotating,
       });
       setCatalog(await listSubjects());
       form.reset();
-      setIsCombo(false);
+      setIsRotating(false);
     } catch (err) {
       // 23505 = unique violation: someone else added the code since our load.
       if ((err as { code?: string })?.code === '23505') {
@@ -525,37 +505,23 @@ export default function SetupSubjects() {
               </div>
             </div>
 
-            {/* Row 2 — combination subject (EPP-ICT / TLE-ICT): different
-                content per term. Checking reveals the per-term boxes;
-                coordinators later assign a TEACHER per term for these. */}
+            {/* Row 2 — Rotating subject (EPP-ICT / TLE-ICT): the checkbox only
+                OPENS the feature. The term breakdown (ano ang itinuturo bawat
+                term) is set PER SECTION in Classes ▸ Subjects & Teachers,
+                since sections may run the terms in different order. */}
             <label className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-secondary cursor-pointer">
               <input
                 type="checkbox"
-                checked={isCombo}
-                onChange={(e) => setIsCombo(e.target.checked)}
+                checked={isRotating}
+                onChange={(e) => setIsRotating(e.target.checked)}
                 className="h-3.5 w-3.5 accent-nps-red"
               />
-              Combination subject — iba ang itinuturo bawat term (hal. EPP-ICT, TLE-ICT)
+              <span>
+                <span className="font-medium">Rotating subject</span> — iba ang itinuturo bawat term
+                (hal. EPP-ICT, TLE-ICT). Ang term breakdown ay ise-set per section sa{' '}
+                <span className="font-medium">Classes ▸ Subjects &amp; Teachers</span>.
+              </span>
             </label>
-            {isCombo && (
-              <div className="mt-2 grid grid-cols-12 gap-x-3 rounded-md border border-border-soft bg-panel-alt p-3">
-                <div className="col-span-4">
-                  <Field label="Term 1 — ano ang laman">
-                    <Input name="termLabel1" placeholder="e.g. EPP" />
-                  </Field>
-                </div>
-                <div className="col-span-4">
-                  <Field label="Term 2 — ano ang laman">
-                    <Input name="termLabel2" placeholder="e.g. EPP" />
-                  </Field>
-                </div>
-                <div className="col-span-4">
-                  <Field label="Term 3 — ano ang laman">
-                    <Input name="termLabel3" placeholder="e.g. ICT" />
-                  </Field>
-                </div>
-              </div>
-            )}
 
             {/* The action sits on its own row, so nothing squeezes it. */}
             <div className="mt-3 flex justify-end">
@@ -579,8 +545,9 @@ export default function SetupSubjects() {
           <div className="px-1 mb-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-[11.5px] text-ink-muted max-w-[560px]">
               Every subject in the system. Edit the name, abbreviation, level, category, or the
-              combination labels — the code is permanent. Removing a subject from a grade is done
-              in the order list above, not here.
+              Rotating flag — the code is permanent. Ang term breakdown ng rotating subjects ay
+              per section sa Classes ▸ Subjects &amp; Teachers; removing a subject from a grade is
+              done in the order list above, not here.
             </p>
             <Input
               value={catSearch}
@@ -598,7 +565,7 @@ export default function SetupSubjects() {
                 <th className="py-1.5 pr-3 w-[10%]">Abbrev.</th>
                 <th className="py-1.5 pr-3 w-[15%]">Level</th>
                 <th className="py-1.5 pr-3 w-[12%]">Category</th>
-                <th className="py-1.5 pr-3 w-[22%]">Combination (per term)</th>
+                <th className="py-1.5 pr-3 w-[22%]">Rotating (iba bawat term)</th>
                 <th className="py-1.5 w-[8%] text-right"></th>
               </tr>
             </thead>
@@ -663,38 +630,16 @@ export default function SetupSubjects() {
                           ))}
                         </Select>
                       </td>
-                      <td className="py-2 pr-3 align-top">
-                        <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer mb-1.5">
+                      <td className="py-2 pr-3 align-top pt-3.5">
+                        <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={editForm.combo}
-                            onChange={(e) => setEditForm((f) => ({ ...f, combo: e.target.checked }))}
+                            checked={editForm.rotating}
+                            onChange={(e) => setEditForm((f) => ({ ...f, rotating: e.target.checked }))}
                             className="h-3.5 w-3.5 accent-nps-red"
                           />
-                          Combination
+                          Rotating — breakdown per section
                         </label>
-                        {editForm.combo && (
-                          <div className="flex gap-1.5">
-                            <Input
-                              value={editForm.t1}
-                              onChange={(e) => setEditForm((f) => ({ ...f, t1: e.target.value }))}
-                              placeholder="T1"
-                              className="w-full"
-                            />
-                            <Input
-                              value={editForm.t2}
-                              onChange={(e) => setEditForm((f) => ({ ...f, t2: e.target.value }))}
-                              placeholder="T2"
-                              className="w-full"
-                            />
-                            <Input
-                              value={editForm.t3}
-                              onChange={(e) => setEditForm((f) => ({ ...f, t3: e.target.value }))}
-                              placeholder="T3"
-                              className="w-full"
-                            />
-                          </div>
-                        )}
                       </td>
                       <td className="py-2 text-right align-top">
                         <div className="inline-flex gap-1.5">
@@ -728,16 +673,9 @@ export default function SetupSubjects() {
                       </td>
                       <td className="py-1.5 pr-3 text-ink-secondary">{s.category ?? '—'}</td>
                       <td className="py-1.5 pr-3">
-                        {s.termLabels ? (
-                          <span className="inline-flex flex-wrap gap-1">
-                            {['q1', 'q2', 'q3'].map((k, i) => (
-                              <span
-                                key={k}
-                                className="rounded-full bg-nps-red/10 text-nps-red text-[11px] font-semibold px-2 py-0.5"
-                              >
-                                T{i + 1}: {s.termLabels?.[k] ?? '—'}
-                              </span>
-                            ))}
+                        {s.isRotating ? (
+                          <span className="rounded-full bg-nps-red/10 text-nps-red text-[11px] font-semibold px-2 py-0.5">
+                            Rotating · breakdown per section
                           </span>
                         ) : (
                           <span className="text-ink-muted">—</span>

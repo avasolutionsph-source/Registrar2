@@ -136,6 +136,13 @@ export default function ClassDetail() {
   // this (not the live draft), so an unticked one stays visible until Save.
   const [savedCodes, setSavedCodes] = useState<string[]>([]);
   const [loadBusy, setLoadBusy] = useState(false);
+  // Rotating subjects: THIS SECTION's term breakdown (ano ang itinuturo bawat
+  // term dito) — { [SUBJECTCODE]: { q1: 'EPP', … } }, keys UPPERCASED so a
+  // stored code and its catalog entry always meet. KAILANGAN kumpleto (bawat
+  // period ng SY) bago ma-save ang load; sections may run the terms in
+  // different order.
+  const [termNames, setTermNames] = useState<Record<string, Record<string, string>>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadSaved, setLoadSaved] = useState(false);
   const [removingLrn, setRemovingLrn] = useState<string | null>(null);
 
@@ -163,8 +170,15 @@ export default function ClassDetail() {
         setRoster(rosterList);
         setTeachers(tchs);
         listAttitudeScale(c?.sy).then((s) => { if (!cancelled) setAttitudeScale(s); }).catch(() => {});
-        setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode, a.teacherId])));
+        // Keys UPPERCASED so stored-vs-catalog code casing can never split a
+        // subject into two entries.
+        setLoad(Object.fromEntries(classSubs.map((a) => [a.subjectCode.toUpperCase(), a.teacherId])));
         setSavedCodes(classSubs.map((a) => a.subjectCode));
+        setTermNames(Object.fromEntries(
+          classSubs
+            .filter((a) => a.termLabels)
+            .map((a) => [a.subjectCode.toUpperCase(), { ...(a.termLabels as Record<string, string>) }]),
+        ));
         if (c) {
           listGradeSubjects(c.gradeLevel)
             .then((codes) => { if (!cancelled) setGradeOrder(codes); })
@@ -303,12 +317,14 @@ export default function ClassDetail() {
   const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
   const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
 
-  const isOffered = (code: string) => Object.prototype.hasOwnProperty.call(load, code);
+  const isOffered = (code: string) =>
+    Object.prototype.hasOwnProperty.call(load, code.toUpperCase());
   const toggleOffered = (code: string, offered: boolean) => {
+    const k = code.toUpperCase();
     setLoad((l) => {
       const next = { ...l };
-      if (offered) next[code] = next[code] ?? null;
-      else delete next[code];
+      if (offered) next[k] = next[k] ?? null;
+      else delete next[k];
       return next;
     });
     setLoadSaved(false);
@@ -322,29 +338,72 @@ export default function ClassDetail() {
       if (!offered) return {};
       const next = { ...l };
       for (const { subject, inCurriculum } of loadSubjects) {
-        if (inCurriculum) next[subject.code] = next[subject.code] ?? null;
+        const k = subject.code.toUpperCase();
+        if (inCurriculum) next[k] = next[k] ?? null;
       }
       return next;
     });
     setLoadSaved(false);
   };
   const setSubjectTeacher = (code: string, teacherId: number | null) => {
-    setLoad((l) => ({ ...l, [code]: teacherId }));
+    setLoad((l) => ({ ...l, [code.toUpperCase()]: teacherId }));
     setLoadSaved(false);
   };
+  // The current breakdown of one rotating subject (UPPERCASED code), or null
+  // while ANY period of this class's SY is still unnamed.
+  const breakdownOf = (codeUpper: string) => {
+    const t = termNames[codeUpper];
+    if (!t) return null;
+    const out: Record<string, string> = {};
+    for (const p of periodsForSy(klass?.sy)) {
+      const v = (t[p.key] ?? '').trim();
+      if (!v) return null;
+      out[p.key] = v;
+    }
+    return out;
+  };
+
   async function saveLoad() {
     if (!klass) return;
+    setLoadError(null);
+    // KAILANGAN: every ticked rotating subject must state what is taught in
+    // each term of THIS section — an unset breakdown blocks the save.
+    // (Everything keyed UPPERCASE; the canonical catalog code is emitted.)
+    const rotatingByCode = new Map(
+      loadSubjects
+        .filter(({ subject }) => subject.isRotating)
+        .map(({ subject }) => [subject.code.toUpperCase(), subject]),
+    );
+    const canonical = new Map(
+      loadSubjects.map(({ subject }) => [subject.code.toUpperCase(), subject.code]),
+    );
+    const missing = Object.keys(load)
+      .filter((k) => rotatingByCode.has(k) && breakdownOf(k) == null)
+      .map((k) => rotatingByCode.get(k)?.fullName ?? k);
+    if (missing.length) {
+      setLoadError(
+        `Kulang ang Term breakdown ng rotating subject: ${missing.join(', ')}. ` +
+        'Ilagay kung ano ang itinuturo sa bawat term ng section na ito bago i-save.',
+      );
+      return;
+    }
     setLoadBusy(true);
     try {
       await saveClassSubjects(
         klass.id,
-        Object.entries(load).map(([subjectCode, teacherId]) => ({ subjectCode, teacherId })),
+        Object.entries(load).map(([k, teacherId]) => ({
+          subjectCode: canonical.get(k) ?? k,
+          teacherId,
+          // Rotating subjects carry their breakdown; others keep what is stored.
+          termLabels: rotatingByCode.has(k) ? breakdownOf(k) : undefined,
+        })),
       );
       setLoadSaved(true);
       // Removed off-curriculum rows are gone for real now — drop them from view.
       setSavedCodes(Object.keys(load));
     } catch {
-      // ignore — keep edits for retry
+      setLoadError('Hindi na-save ang load — pakisubukan ulit.');
+      // keep edits for retry
     } finally {
       setLoadBusy(false);
     }
@@ -986,6 +1045,11 @@ export default function ClassDetail() {
                     </Button>
                   </div>
                 </div>
+                {loadError && (
+                  <p className="mb-3 px-1 text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md py-2">
+                    {loadError}
+                  </p>
+                )}
                 <table className="w-full text-[12.5px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
@@ -1024,9 +1088,13 @@ export default function ClassDetail() {
                       </tr>
                     ) : (
                       loadSubjects.map(({ subject: s, inCurriculum }) => {
+                        const codeUpper = s.code.toUpperCase();
                         const offered = isOffered(s.code);
+                        const rotating = !!s.isRotating;
+                        const breakdownDone = breakdownOf(codeUpper) != null;
                         return (
-                          <tr key={s.code} className="border-b border-border-soft last:border-0">
+                          <Fragment key={s.code}>
+                          <tr className={rotating && offered ? '' : 'border-b border-border-soft last:border-0'}>
                             <td className="py-1.5 pr-3 text-center">
                               {/* Off-curriculum subjects can only be REMOVED:
                                   the box unticks while it is still saved, but a
@@ -1057,7 +1125,7 @@ export default function ClassDetail() {
                             </td>
                             <td className="py-1.5">
                               <select
-                                value={load[s.code] ?? ''}
+                                value={load[codeUpper] ?? ''}
                                 disabled={!offered}
                                 onChange={(e) =>
                                   setSubjectTeacher(s.code, e.target.value ? Number(e.target.value) : null)
@@ -1073,6 +1141,48 @@ export default function ClassDetail() {
                               </select>
                             </td>
                           </tr>
+                          {/* Rotating subject: THIS SECTION's term breakdown —
+                              ano ang itinuturo bawat term dito. KAILANGAN
+                              kumpleto bago ma-save ang load; sections may run
+                              the terms in a different order. */}
+                          {rotating && offered && (
+                            <tr className="border-b border-border-soft last:border-0">
+                              <td />
+                              <td colSpan={2} className="pb-2.5 pt-0.5">
+                                <div className={`rounded-md border p-2.5 ${
+                                  breakdownDone ? 'border-border-soft bg-panel-alt' : 'border-amber-200 bg-amber-50'
+                                }`}>
+                                  <p className={`text-[11px] font-semibold mb-1.5 ${
+                                    breakdownDone ? 'text-ink-secondary' : 'text-amber-900'
+                                  }`}>
+                                    {periodWord} breakdown — ano ang itinuturo bawat {periodWord.toLowerCase()} SA SECTION NA ITO
+                                    {!breakdownDone && <span className="ml-1 font-bold">· kailangan bago ma-save</span>}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {periods.map((p, i) => (
+                                      <label key={p.key} className="flex items-center gap-1.5 text-[12px] text-ink-secondary">
+                                        {p.label}
+                                        <input
+                                          value={termNames[codeUpper]?.[p.key] ?? ''}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setTermNames((cur) => ({
+                                              ...cur,
+                                              [codeUpper]: { ...(cur[codeUpper] ?? {}), [p.key]: v },
+                                            }));
+                                            setLoadSaved(false);
+                                          }}
+                                          placeholder={i === periods.length - 1 ? 'e.g. ICT' : 'e.g. EPP'}
+                                          className="w-28 rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         );
                       })
                     )}

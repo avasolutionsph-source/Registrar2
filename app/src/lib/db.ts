@@ -947,6 +947,7 @@ export async function listSubjects(): Promise<Subject[]> {
         category: (str(r.category) || undefined) as SubjectCategory | undefined,
         level: (str(r.level) || undefined) as Subject['level'],
         order: r.sort_order == null ? 9000 + i : Number(r.sort_order),
+        isRotating: !!r.is_rotating,
         termLabels:
           r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
             ? (r.term_labels as Record<string, string>)
@@ -991,9 +992,9 @@ export interface SubjectInput {
   abbreviation: string;
   category?: SubjectCategory; // SHS-only; omit for Elementary / JHS
   level?: string | null; // 'preschool' | 'elem' | 'jhs' | 'shs'
-  // Combination subject: per-term content labels keyed by period
-  // ({ q1: 'EPP', q2: 'EPP', q3: 'ICT' }). Null/omitted = ordinary subject.
-  termLabels?: Record<string, string> | null;
+  // Rotating subject (EPP-ICT): opens the per-term feature; the term breakdown
+  // itself is set PER SECTION in Classes ▸ Subjects & Teachers.
+  isRotating?: boolean;
 }
 
 export async function addSubject(input: SubjectInput): Promise<void> {
@@ -1012,7 +1013,7 @@ export async function addSubject(input: SubjectInput): Promise<void> {
     category: input.category ?? null,
     level: input.level ?? null,
     sort_order: nextOrder,
-    term_labels: input.termLabels ?? null,
+    is_rotating: input.isRotating ?? false,
   });
   if (error) throw error;
 }
@@ -1027,7 +1028,7 @@ export async function updateSubject(
     abbreviation: string;
     category?: SubjectCategory | null;
     level?: string | null;
-    termLabels?: Record<string, string> | null;
+    isRotating?: boolean;
   },
 ): Promise<void> {
   const { error } = await client()
@@ -1037,7 +1038,7 @@ export async function updateSubject(
       abbreviation: patch.abbreviation,
       category: patch.category ?? null,
       level: patch.level ?? null,
-      term_labels: patch.termLabels ?? null,
+      is_rotating: patch.isRotating ?? false,
     })
     .eq('code', code);
   if (error) throw error;
@@ -1075,6 +1076,9 @@ export async function saveGradeSubjects(gradeLevel: string, orderedCodes: string
 export interface ClassSubjectAssignment {
   subjectCode: string;
   teacherId: number | null;
+  // Rotating subject: THIS SECTION's term breakdown ({ q1: 'EPP', ... }).
+  // undefined on save = keep whatever the row already stores.
+  termLabels?: Record<string, string> | null;
 }
 
 export async function listClassSubjects(classId: string): Promise<ClassSubjectAssignment[]> {
@@ -1086,6 +1090,10 @@ export async function listClassSubjects(classId: string): Promise<ClassSubjectAs
   return (data ?? []).map((r) => ({
     subjectCode: str(r.subject_code),
     teacherId: r.teacher_id == null ? null : Number(r.teacher_id),
+    termLabels:
+      r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
+        ? (r.term_labels as Record<string, string>)
+        : null,
   }));
 }
 
@@ -1136,7 +1144,7 @@ export async function saveClassSubjects(
   const c = client();
   const { data: prevRows, error: prevErr } = await c
     .from('reg_class_subjects')
-    .select('subject_code, teacher_id, subject_type, assigned_by, term, term_teachers')
+    .select('subject_code, teacher_id, subject_type, assigned_by, term, term_teachers, term_labels')
     .eq('class_id', classId);
   if (prevErr) throw prevErr;
   const prev = new Map(
@@ -1148,6 +1156,7 @@ export async function saveClassSubjects(
         assignedBy: r.assigned_by ? str(r.assigned_by) : null,
         term: r.term ? str(r.term) : null,
         termTeachers: (r.term_teachers ?? null) as Record<string, number> | null,
+        termLabels: (r.term_labels ?? null) as Record<string, string> | null,
       },
     ]),
   );
@@ -1186,6 +1195,9 @@ export async function saveClassSubjects(
             : me,
           term,
           term_teachers: termTeachers,
+          // The section's rotating-subject term breakdown always persists;
+          // undefined from the caller means "keep what is stored".
+          term_labels: r.termLabels !== undefined ? r.termLabels : p?.termLabels ?? null,
         };
       }),
       { onConflict: 'class_id,subject_code' },

@@ -18,6 +18,11 @@
 --  (3) ang review/approval actions ay tumatama sa guro ng TERM na iyon,
 --  (4) hindi mabago ng ibang guro ang term na hindi kanya, at hindi
 --  malusutan ang lock ng naipasa nang term.
+--
+--  ⚠ ORDERING: ang acad_section_subjects sa PART 3 dito ay SUPERSEDED na ng
+--  setup-rotating-subjects.sql (per-section term breakdown + is_combo).
+--  Kapag muling pinatakbo ang file na ito, patakbuhin ULIT pagkatapos ang
+--  setup-rotating-subjects.sql.
 -- ============================================================================
 
 

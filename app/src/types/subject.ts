@@ -12,9 +12,12 @@ export interface Subject {
   category?: SubjectCategory;
   level?: SubjectLevel; // Pre-School / Elementary / JHS / SHS (registrar-assigned)
   order: number; // registrar-defined display order (lower = earlier)
-  // Combination subject (EPP-ICT, TLE-ICT): what is taught each term, keyed by
-  // period ({ q1: 'EPP', q2: 'EPP', q3: 'ICT' }). Null/undefined = ordinary
-  // subject. Presence of this map is what marks a subject as a combination —
-  // coordinators then assign a teacher PER TERM instead of one for the year.
+  // Rotating subject (EPP-ICT, TLE-ICT): different content per term. The flag
+  // only OPENS the feature — the actual term breakdown (what is taught each
+  // term) is set PER SECTION in Classes ▸ Subjects & Teachers, because
+  // sections may run the terms in a different order.
+  isRotating?: boolean;
+  // LEGACY: the old per-subject breakdown ({ q1: 'EPP', ... }); superseded by
+  // the per-section reg_class_subjects.term_labels. Read-only, never written.
   termLabels?: Record<string, string> | null;
 }
