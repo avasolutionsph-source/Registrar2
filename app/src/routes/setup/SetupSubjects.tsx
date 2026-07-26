@@ -695,6 +695,17 @@ export default function SetupSubjects() {
                   );
                 })
               )}
+              {/* The save error shows right under the table where the eyes
+                  are while editing — not only above it. */}
+              {editCode && editError && (
+                <tr>
+                  <td colSpan={7} className="pb-2">
+                    <p className="text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
+                      {editError}
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </SectionCard>
