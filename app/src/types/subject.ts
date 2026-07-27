@@ -20,4 +20,9 @@ export interface Subject {
   // LEGACY: the old per-subject breakdown ({ q1: 'EPP', ... }); superseded by
   // the per-section reg_class_subjects.term_labels. Read-only, never written.
   termLabels?: Record<string, string> | null;
+  // Rotating pair (MAPEH GS): code of the partner subject (MUA ↔ PEH). The two
+  // render as ONE MAPEH block in a section's load — one teacher for both,
+  // rotated per term; WHICH term each is taught in is set PER SECTION and
+  // stored in reg_class_subjects.term ('q1,q2' / 'q2,q3').
+  pairedWith?: string | null;
 }

@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { listSubjects, addSubject, updateSubject, listGradeSubjects, saveGradeSubjects, listGradeSubjectKeys } from '@/lib/db';
+import { listSubjects, addSubject, updateSubject, setSubjectPairedWith, listGradeSubjects, saveGradeSubjects, listGradeSubjectKeys } from '@/lib/db';
 import type { SubjectCategory, SubjectLevel, Subject } from '@/types';
 
 const CATEGORIES: SubjectCategory[] = ['Core', 'Specialized', 'Applied', 'Elective'];
@@ -73,6 +73,11 @@ export default function SetupSubjects() {
   // The actual term breakdown is set PER SECTION in Classes ▸ Subjects &
   // Teachers, because sections may run the terms in different order.
   const [isRotating, setIsRotating] = useState(false);
+  // Rotating pair (MAPEH GS): the new subject and its partner (MUA ↔ PEH) are
+  // taught by ONE teacher, rotated per term — WHICH term each takes is set per
+  // section in Classes ▸ Subjects & Teachers. Needs setup-mapeh-pair.sql.
+  const [pairChecked, setPairChecked] = useState(false);
+  const [pairWith, setPairWith] = useState('');
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overCode, setOverCode] = useState<string | null>(null);
 
@@ -81,7 +86,7 @@ export default function SetupSubjects() {
   const [catSearch, setCatSearch] = useState('');
   const [editCode, setEditCode] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
-    fullName: '', abbreviation: '', level: '', category: '', rotating: false,
+    fullName: '', abbreviation: '', level: '', category: '', rotating: false, paired: '',
   });
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -95,7 +100,26 @@ export default function SetupSubjects() {
       level: s.level ?? '',
       category: s.category ?? '',
       rotating: !!s.isRotating,
+      paired: s.pairedWith ?? '',
     });
+  }
+
+  // Keep a rotating pair SYMMETRIC across its two subjects: point both at each
+  // other, release the old partner (and the new partner's old partner) so no
+  // subject is left pointing at someone who no longer points back. (Looks up
+  // via `catalog` directly — not the byCode memo — so the React Compiler can
+  // keep that memo intact.)
+  async function syncPair(code: string, before: string | null, after: string | null) {
+    if ((before ?? '') === (after ?? '')) return;
+    if (before) await setSubjectPairedWith(before, null);
+    await setSubjectPairedWith(code, after);
+    if (after) {
+      const third = catalog.find((x) => x.code.toUpperCase() === after.toUpperCase())?.pairedWith;
+      if (third && third.toUpperCase() !== code.toUpperCase()) {
+        await setSubjectPairedWith(third, null);
+      }
+      await setSubjectPairedWith(after, code);
+    }
   }
 
   async function saveEdit() {
@@ -114,10 +138,20 @@ export default function SetupSubjects() {
         level: editForm.level || null,
         isRotating: editForm.rotating,
       });
+      await syncPair(
+        editCode,
+        catalog.find((x) => x.code === editCode)?.pairedWith ?? null,
+        editForm.paired || null,
+      );
       setCatalog(await listSubjects());
       setEditCode(null);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to save the subject.');
+      const msg = err instanceof Error ? err.message : 'Failed to save the subject.';
+      // The pair column arrives with setup-mapeh-pair.sql — say so instead of
+      // surfacing a bare Postgres "column does not exist".
+      setEditError(/paired_with/.test(msg)
+        ? 'Hindi pa naka-apply ang setup-mapeh-pair.sql sa Supabase — patakbuhin muna ito bago mag-set ng rotating pair.'
+        : msg);
     } finally {
       setEditBusy(false);
     }
@@ -311,9 +345,12 @@ export default function SetupSubjects() {
         level: (get('level') as SubjectLevel) || null,
         isRotating,
       });
+      if (pairChecked && pairWith) await syncPair(code, null, pairWith);
       setCatalog(await listSubjects());
       form.reset();
       setIsRotating(false);
+      setPairChecked(false);
+      setPairWith('');
     } catch (err) {
       // 23505 = unique violation: someone else added the code since our load.
       if ((err as { code?: string })?.code === '23505') {
@@ -523,6 +560,39 @@ export default function SetupSubjects() {
               </span>
             </label>
 
+            {/* Row 3 — Rotating pair (MAPEH GS): dalawang subject, isang
+                teacher, naka-rotate per term (isa sa Term 1, isa sa Term 3,
+                PAREHO sa Term 2 — ang average nila ang MAPEH). Alin ang mauuna
+                ay ise-set per section sa Classes ▸ Subjects & Teachers. */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-ink-secondary">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pairChecked}
+                  onChange={(e) => { setPairChecked(e.target.checked); if (!e.target.checked) setPairWith(''); }}
+                  className="h-3.5 w-3.5 accent-nps-red"
+                />
+                <span>
+                  <span className="font-medium">Rotating pair — MAPEH (GS)</span> — may kaparehang
+                  subject, iisa ang teacher, at pinagsasama sa gitnang term (average = MAPEH).
+                </span>
+              </label>
+              {pairChecked && (
+                <Select
+                  value={pairWith}
+                  onChange={(e) => setPairWith(e.target.value)}
+                  className="w-[280px] text-[12.5px]"
+                >
+                  <option value="">— Piliin ang kapareha</option>
+                  {catalog.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.fullName} ({s.code})
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </div>
+
             {/* The action sits on its own row, so nothing squeezes it. */}
             <div className="mt-3 flex justify-end">
               <Button type="submit" disabled={adding} className="gap-1 px-4">
@@ -565,7 +635,7 @@ export default function SetupSubjects() {
                 <th className="py-1.5 pr-3 w-[10%]">Abbrev.</th>
                 <th className="py-1.5 pr-3 w-[15%]">Level</th>
                 <th className="py-1.5 pr-3 w-[12%]">Category</th>
-                <th className="py-1.5 pr-3 w-[22%]">Rotating (iba bawat term)</th>
+                <th className="py-1.5 pr-3 w-[22%]">Rotating / MAPEH pair</th>
                 <th className="py-1.5 w-[8%] text-right"></th>
               </tr>
             </thead>
@@ -640,6 +710,22 @@ export default function SetupSubjects() {
                           />
                           Rotating — breakdown per section
                         </label>
+                        {/* Rotating pair (MAPEH GS): the partner subject. */}
+                        <Select
+                          value={editForm.paired}
+                          onChange={(e) => setEditForm((f) => ({ ...f, paired: e.target.value }))}
+                          className="mt-1.5 w-full text-[12px]"
+                          title="Rotating pair (MAPEH GS) — kapareha; isang teacher, average = MAPEH"
+                        >
+                          <option value="">— Walang kapareha (pair)</option>
+                          {catalog
+                            .filter((x) => x.code !== s.code)
+                            .map((x) => (
+                              <option key={x.code} value={x.code}>
+                                Pair: {x.fullName} ({x.code})
+                              </option>
+                            ))}
+                        </Select>
                       </td>
                       <td className="py-2 text-right align-top">
                         <div className="inline-flex gap-1.5">
@@ -673,9 +759,21 @@ export default function SetupSubjects() {
                       </td>
                       <td className="py-1.5 pr-3 text-ink-secondary">{s.category ?? '—'}</td>
                       <td className="py-1.5 pr-3">
-                        {s.isRotating ? (
-                          <span className="rounded-full bg-nps-red/10 text-nps-red text-[11px] font-semibold px-2 py-0.5">
-                            Rotating · breakdown per section
+                        {s.isRotating || s.pairedWith ? (
+                          <span className="inline-flex flex-wrap gap-1">
+                            {s.isRotating && (
+                              <span className="rounded-full bg-nps-red/10 text-nps-red text-[11px] font-semibold px-2 py-0.5">
+                                Rotating · breakdown per section
+                              </span>
+                            )}
+                            {s.pairedWith && (
+                              <span
+                                className="rounded-full bg-ok-fg/10 text-ok-fg text-[11px] font-semibold px-2 py-0.5"
+                                title="Rotating pair (MAPEH GS): isang teacher para sa dalawa; ang schedule per term ay nasa Classes ▸ Subjects & Teachers"
+                              >
+                                MAPEH pair · {s.pairedWith}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span className="text-ink-muted">—</span>

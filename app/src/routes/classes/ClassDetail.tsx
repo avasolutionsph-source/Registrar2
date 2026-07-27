@@ -33,7 +33,7 @@ import {
   type Transfer,
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
-import { periodsForSy, subjectFitsSection } from '@/lib/forms';
+import { periodsForSy, subjectFitsSection, MAPEH_COMPONENT_CODES } from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
@@ -142,6 +142,11 @@ export default function ClassDetail() {
   // period ng SY) bago ma-save ang load; sections may run the terms in
   // different order.
   const [termNames, setTermNames] = useState<Record<string, Record<string, string>>>({});
+  // MAPEH pair (GS): schedule NG SECTION NA ITO per pares (key = sorted UPPER
+  // codes joined '|'). rotate=true → si `first` ang Term 1 (coverage q1,q2),
+  // ang kapareha ang Term 3 (q2,q3), at PAREHO sila sa Term 2 — ang average
+  // nila ang MAPEH ng Term 2. rotate=false → buong taon ang dalawa.
+  const [pairSched, setPairSched] = useState<Record<string, { rotate: boolean; first: string }>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadSaved, setLoadSaved] = useState(false);
   const [removingLrn, setRemovingLrn] = useState<string | null>(null);
@@ -179,6 +184,31 @@ export default function ClassDetail() {
             .filter((a) => a.termLabels)
             .map((a) => [a.subjectCode.toUpperCase(), { ...(a.termLabels as Record<string, string>) }]),
         ));
+        // MAPEH pair: buuin ang schedule mula sa naka-store na term coverage ng
+        // dalawang row — first-two keys ('q1,q2') + last-two ('q2,q3') =
+        // rotation; anupaman (kasama ang null) = buong taon.
+        {
+          const pk = periodsForSy(c?.sy).map((p) => p.key);
+          const covFirst = pk.slice(0, 2).join(',');
+          const covSecond = pk.slice(-2).join(',');
+          const subByCode = new Map(subs.map((s) => [s.code.toUpperCase(), s]));
+          const termByCode = new Map(classSubs.map((a) => [a.subjectCode.toUpperCase(), a.term ?? null]));
+          const sched: Record<string, { rotate: boolean; first: string }> = {};
+          for (const s of subs) {
+            const partner = s.pairedWith ? subByCode.get(s.pairedWith.toUpperCase()) : undefined;
+            if (!partner) continue;
+            const a = s.code.toUpperCase();
+            const b = partner.code.toUpperCase();
+            const key = [a, b].sort().join('|');
+            if (sched[key] || pk.length !== 3) continue;
+            const ta = termByCode.get(a);
+            const tb = termByCode.get(b);
+            if (ta === covFirst && tb === covSecond) sched[key] = { rotate: true, first: a };
+            else if (tb === covFirst && ta === covSecond) sched[key] = { rotate: true, first: b };
+            else sched[key] = { rotate: false, first: a };
+          }
+          setPairSched(sched);
+        }
         if (c) {
           listGradeSubjects(c.gradeLevel)
             .then((codes) => { if (!cancelled) setGradeOrder(codes); })
@@ -230,6 +260,24 @@ export default function ClassDetail() {
     }
     return rows;
   }, [klass, subjects, gradeOrder, savedCodes]);
+
+  // MAPEH pair (GS): pares na PAREHONG nasa listahan ng section — iisang
+  // "MAPEH" block sila sa table (isang checkbox, isang teacher, schedule per
+  // term). Ang unang miyembro sa curriculum order ang nagre-render ng block
+  // (primary); nilalaktawan ang kapareha. MUST stay above the early returns
+  // below (React #310).
+  const pairOf = useMemo(() => {
+    const present = new Set(loadSubjects.map((r) => r.subject.code.toUpperCase()));
+    const m = new Map<string, { partner: string; primary: boolean }>();
+    for (const { subject } of loadSubjects) {
+      const code = subject.code.toUpperCase();
+      const partner = subject.pairedWith?.toUpperCase();
+      if (!partner || !present.has(partner) || m.has(code) || m.has(partner)) continue;
+      m.set(code, { partner, primary: true });
+      m.set(partner, { partner: code, primary: false });
+    }
+    return m;
+  }, [loadSubjects]);
 
   if (klass === undefined) {
     return (
@@ -362,6 +410,18 @@ export default function ClassDetail() {
     }
     return out;
   };
+  // MAPEH pair: ang schedule entry ng isang pares ('|'-joined sorted key) at
+  // ang term coverage ng isang miyembro ayon dito. null = buong taon. Rotation
+  // ay para lang sa 3-period SY (Term 1 / 2 / 3).
+  const pairKeyOf = (aUpper: string, bUpper: string) => [aUpper, bUpper].sort().join('|');
+  const pairSchedOf = (key: string, fallbackFirst: string) =>
+    pairSched[key] ?? { rotate: false, first: fallbackFirst };
+  const pairCoverage = (key: string, codeUpper: string): string | null => {
+    const s = pairSched[key];
+    if (!s || !s.rotate || periods.length !== 3) return null;
+    const pk = periods.map((p) => p.key);
+    return s.first === codeUpper ? `${pk[0]},${pk[1]}` : `${pk[1]},${pk[2]}`;
+  };
 
   async function saveLoad() {
     if (!klass) return;
@@ -391,12 +451,19 @@ export default function ClassDetail() {
     try {
       await saveClassSubjects(
         klass.id,
-        Object.entries(load).map(([k, teacherId]) => ({
-          subjectCode: canonical.get(k) ?? k,
-          teacherId,
-          // Rotating subjects carry their breakdown; others keep what is stored.
-          termLabels: rotatingByCode.has(k) ? breakdownOf(k) : undefined,
-        })),
+        Object.entries(load).map(([k, teacherId]) => {
+          // MAPEH pair member: isulat ang term coverage ayon sa napiling
+          // schedule (rotation → 'q1,q2'/'q2,q3'; buong taon → null). Ang mga
+          // hindi pares ay hindi ginagalaw (undefined = keep stored).
+          const pr = pairOf.get(k);
+          return {
+            subjectCode: canonical.get(k) ?? k,
+            teacherId,
+            // Rotating subjects carry their breakdown; others keep what is stored.
+            termLabels: rotatingByCode.has(k) ? breakdownOf(k) : undefined,
+            ...(pr ? { term: pairCoverage(pairKeyOf(k, pr.partner), k) } : {}),
+          };
+        }),
       );
       setLoadSaved(true);
       // Removed off-curriculum rows are gone for real now — drop them from view.
@@ -1092,6 +1159,190 @@ export default function ClassDetail() {
                         const offered = isOffered(s.code);
                         const rotating = !!s.isRotating;
                         const breakdownDone = breakdownOf(codeUpper) != null;
+                        // ── MAPEH pair (GS): ang dalawang kapareha ay IISANG
+                        // block — isang checkbox, isang teacher, at schedule
+                        // per term. Ang kapareha (non-primary) ay hindi na
+                        // hiwalay na row. ──
+                        const pairInfo = pairOf.get(codeUpper);
+                        if (pairInfo && !pairInfo.primary) return null;
+                        const partnerRow = pairInfo
+                          ? loadSubjects.find((r) => r.subject.code.toUpperCase() === pairInfo.partner)
+                          : undefined;
+                        if (pairInfo && partnerRow) {
+                          const b = partnerRow.subject;
+                          const bUpper = b.code.toUpperCase();
+                          const key = pairKeyOf(codeUpper, bUpper);
+                          const sched = pairSchedOf(key, codeUpper);
+                          const offeredB = isOffered(b.code);
+                          const bothOffered = offered && offeredB;
+                          const someOffered = offered || offeredB;
+                          const canTick =
+                            (inCurriculum || offered) && (partnerRow.inCurriculum || offeredB);
+                          const isMapehPair =
+                            MAPEH_COMPONENT_CODES.has(codeUpper) && MAPEH_COMPONENT_CODES.has(bUpper);
+                          const pairName = isMapehPair ? 'MAPEH' : `${s.abbreviation} + ${b.abbreviation}`;
+                          const tA = load[codeUpper] ?? null;
+                          const tB = load[bUpper] ?? null;
+                          const mismatch = tA != null && tB != null && tA !== tB;
+                          const commonTeacher = mismatch ? '' : String(tA ?? tB ?? '');
+                          const secondSubject = sched.first === codeUpper ? b : s;
+                          const setSched = (patch: Partial<{ rotate: boolean; first: string }>) => {
+                            setPairSched((cur) => ({ ...cur, [key]: { ...pairSchedOf(key, codeUpper), ...patch } }));
+                            setLoadSaved(false);
+                          };
+                          const setBothTeachers = (v: number | null) => {
+                            setSubjectTeacher(s.code, v);
+                            setSubjectTeacher(b.code, v);
+                          };
+                          return (
+                            <Fragment key={s.code}>
+                              <tr>
+                                <td className="py-1.5 pr-3 text-center align-top pt-2.5">
+                                  {/* Isang check para sa DALAWA — sabay silang
+                                      naidaragdag/naaalis sa load. */}
+                                  <input
+                                    type="checkbox"
+                                    checked={bothOffered}
+                                    ref={(el) => { if (el) el.indeterminate = someOffered && !bothOffered; }}
+                                    disabled={!canTick && !someOffered}
+                                    onChange={(e) => {
+                                      toggleOffered(s.code, e.target.checked);
+                                      toggleOffered(b.code, e.target.checked);
+                                    }}
+                                    title={`Isang tick para sa pares — kasama ang ${s.fullName} at ${b.fullName}`}
+                                    className="h-3.5 w-3.5 accent-nps-red align-middle disabled:opacity-40"
+                                  />
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                  <span className="inline-flex items-center gap-2 flex-wrap">
+                                    <span className="rounded-full bg-ok-fg/10 text-ok-fg text-[11px] font-bold px-2 py-0.5">
+                                      {pairName} · pares
+                                    </span>
+                                    <span>
+                                      <span className="font-mono text-ink-secondary mr-1.5">{s.code}</span>
+                                      {s.fullName}
+                                      <span className="text-ink-muted mx-1.5">+</span>
+                                      <span className="font-mono text-ink-secondary mr-1.5">{b.code}</span>
+                                      {b.fullName}
+                                    </span>
+                                  </span>
+                                  <span className="block text-[11px] text-ink-muted mt-0.5">
+                                    Isang teacher para sa dalawa; ang average nila bawat term ang {pairName} grade.
+                                  </span>
+                                </td>
+                                <td className="py-1.5">
+                                  <select
+                                    value={commonTeacher}
+                                    disabled={!someOffered}
+                                    onChange={(e) => setBothTeachers(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full max-w-[320px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                                  >
+                                    <option value="">— Not assigned yet</option>
+                                    {activeTeachers.map((t) => (
+                                      <option key={t.id} value={t.id}>
+                                        {teacherLabel(t)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {mismatch && (
+                                    <span className="block text-[11px] text-nps-red mt-0.5">
+                                      Magkaiba pa ang teacher ng dalawa — pumili sa itaas para maging iisa.
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                              {/* Schedule NG SECTION NA ITO — alin ang mauuna.
+                                  Ang gitnang term ay laging PAREHO (average =
+                                  MAPEH), kaya Term 1 at Term 3 lang ang
+                                  pinipili. */}
+                              {someOffered && (
+                                <tr className="border-b border-border-soft last:border-0">
+                                  <td />
+                                  <td colSpan={2} className="pb-2.5 pt-0.5">
+                                    <div className="rounded-md border border-border-soft bg-panel-alt p-2.5">
+                                      <p className="text-[11px] font-semibold text-ink-secondary mb-1.5">
+                                        {periodWord} schedule — alin ang mauuna SA SECTION NA ITO
+                                      </p>
+                                      {periods.length === 3 ? (
+                                        <>
+                                          <div className="flex flex-wrap gap-4 mb-2">
+                                            <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer">
+                                              <input
+                                                type="radio"
+                                                checked={sched.rotate}
+                                                onChange={() => setSched({ rotate: true })}
+                                                className="h-3.5 w-3.5 accent-nps-red"
+                                              />
+                                              Naka-rotate per term (GS)
+                                            </label>
+                                            <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer">
+                                              <input
+                                                type="radio"
+                                                checked={!sched.rotate}
+                                                onChange={() => setSched({ rotate: false })}
+                                                className="h-3.5 w-3.5 accent-nps-red"
+                                              />
+                                              Buong taon ang dalawa
+                                            </label>
+                                          </div>
+                                          {sched.rotate && (
+                                            <div className="flex flex-wrap items-end gap-3">
+                                              <label className="text-[12px] text-ink-secondary">
+                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                                  {periods[0]?.label}
+                                                </span>
+                                                <select
+                                                  value={sched.first}
+                                                  onChange={(e) => setSched({ first: e.target.value, rotate: true })}
+                                                  className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                                >
+                                                  <option value={codeUpper}>{s.fullName}</option>
+                                                  <option value={bUpper}>{b.fullName}</option>
+                                                </select>
+                                              </label>
+                                              <div className="text-[12px] text-ink-secondary">
+                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                                  {periods[1]?.label}
+                                                </span>
+                                                <span className="inline-block rounded border border-border-soft bg-panel px-2 py-1">
+                                                  PAREHO — {s.abbreviation} + {b.abbreviation}{' '}
+                                                  <span className="text-ink-muted">(average = {pairName})</span>
+                                                </span>
+                                              </div>
+                                              <label className="text-[12px] text-ink-secondary">
+                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                                  {periods[2]?.label}
+                                                </span>
+                                                <select
+                                                  value={secondSubject.code.toUpperCase()}
+                                                  onChange={(e) =>
+                                                    setSched({
+                                                      first: e.target.value === codeUpper ? bUpper : codeUpper,
+                                                      rotate: true,
+                                                    })
+                                                  }
+                                                  className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                                >
+                                                  <option value={codeUpper}>{s.fullName}</option>
+                                                  <option value={bUpper}>{b.fullName}</option>
+                                                </select>
+                                              </label>
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <p className="text-[12px] text-ink-muted">
+                                          Ang rotation ay para sa 3-{periodWord.toLowerCase()} na SY — buong
+                                          taon ang dalawa sa SY na ito.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        }
                         return (
                           <Fragment key={s.code}>
                           <tr className={rotating && offered ? '' : 'border-b border-border-soft last:border-0'}>

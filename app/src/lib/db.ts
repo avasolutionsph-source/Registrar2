@@ -952,6 +952,9 @@ export async function listSubjects(): Promise<Subject[]> {
           r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
             ? (r.term_labels as Record<string, string>)
             : undefined,
+        // Missing column (setup-mapeh-pair.sql not applied yet) reads as
+        // undefined — the pair feature simply stays dormant.
+        pairedWith: r.paired_with ? str(r.paired_with) : undefined,
       }));
     },
     async () => idbGet<Subject[]>(SNAP.subjects),
@@ -1044,6 +1047,18 @@ export async function updateSubject(
   if (error) throw error;
 }
 
+// Set / clear one side of a rotating pair (MAPEH GS). Called twice by the UI —
+// once per direction — so the pairing stays symmetric. A separate helper (not
+// part of add/updateSubject) so those writes keep working before
+// setup-mapeh-pair.sql adds the paired_with column.
+export async function setSubjectPairedWith(code: string, partner: string | null): Promise<void> {
+  const { error } = await client()
+    .from('reg_subjects')
+    .update({ paired_with: partner })
+    .eq('code', code);
+  if (error) throw error;
+}
+
 // ── per-grade / per-strand ordered subject list (reg_grade_subjects) ──
 // Drives the report card + grade-encoding subject order. Curated in Setup ▸
 // Subjects by picking a grade/strand and dragging to reorder / add / remove.
@@ -1079,6 +1094,10 @@ export interface ClassSubjectAssignment {
   // Rotating subject: THIS SECTION's term breakdown ({ q1: 'EPP', ... }).
   // undefined on save = keep whatever the row already stores.
   termLabels?: Record<string, string> | null;
+  // Term coverage, comma-joined period keys ('q1,q2'); null = all year. The
+  // MAPEH pair schedule lives here. undefined on save = keep what is stored
+  // (or reset with the teacher, matching the old behavior).
+  term?: string | null;
 }
 
 export async function listClassSubjects(classId: string): Promise<ClassSubjectAssignment[]> {
@@ -1094,6 +1113,7 @@ export async function listClassSubjects(classId: string): Promise<ClassSubjectAs
       r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
         ? (r.term_labels as Record<string, string>)
         : null,
+    term: r.term == null ? null : str(r.term),
   }));
 }
 
@@ -1184,6 +1204,9 @@ export async function saveClassSubjects(
           termTeachers = map;
           term = Object.keys(map).sort().join(',');
         }
+        // An explicitly passed coverage (the MAPEH pair schedule) wins over
+        // the carry-over; undefined keeps the derived value above.
+        if (r.term !== undefined) term = r.term;
         return {
           class_id: classId,
           subject_code: r.subjectCode,
