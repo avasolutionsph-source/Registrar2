@@ -1190,6 +1190,7 @@ export default function ClassDetail() {
                           const tB = load[bUpper] ?? null;
                           const mismatch = tA != null && tB != null && tA !== tB;
                           const commonTeacher = mismatch ? '' : String(tA ?? tB ?? '');
+                          const firstSubject = first === codeUpper ? s : b;
                           const secondSubject = first === codeUpper ? b : s;
                           const setFirst = (v: string) => {
                             setPairFirst((cur) => ({ ...cur, [key]: v }));
@@ -1287,8 +1288,12 @@ export default function ClassDetail() {
                                             <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
                                               {periods[1]?.label}
                                             </span>
+                                            {/* Sumusunod sa Term 1 order ang banggit para hindi
+                                                nakalilito; sa computation ay walang order — average
+                                                lang ng dalawa. */}
                                             <span className="inline-block rounded border border-border-soft bg-panel px-2 py-1">
-                                              PAREHO — {s.abbreviation || s.code} + {b.abbreviation || b.code}{' '}
+                                              PAREHO — {firstSubject.abbreviation || firstSubject.code} +{' '}
+                                              {secondSubject.abbreviation || secondSubject.code}{' '}
                                               <span className="text-ink-muted">(average = {pairName})</span>
                                             </span>
                                           </div>
