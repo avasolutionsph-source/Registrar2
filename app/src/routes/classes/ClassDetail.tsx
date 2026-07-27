@@ -1186,19 +1186,11 @@ export default function ClassDetail() {
                           const pairName = isMapehPair
                             ? 'MAPEH'
                             : `${s.abbreviation || s.code} + ${b.abbreviation || b.code}`;
-                          const tA = load[codeUpper] ?? null;
-                          const tB = load[bUpper] ?? null;
-                          const mismatch = tA != null && tB != null && tA !== tB;
-                          const commonTeacher = mismatch ? '' : String(tA ?? tB ?? '');
                           const firstSubject = first === codeUpper ? s : b;
                           const secondSubject = first === codeUpper ? b : s;
                           const setFirst = (v: string) => {
                             setPairFirst((cur) => ({ ...cur, [key]: v }));
                             setLoadSaved(false);
-                          };
-                          const setBothTeachers = (v: number | null) => {
-                            setSubjectTeacher(s.code, v);
-                            setSubjectTeacher(b.code, v);
                           };
                           return (
                             <Fragment key={s.code}>
@@ -1233,28 +1225,49 @@ export default function ClassDetail() {
                                     </span>
                                   </span>
                                   <span className="block text-[11px] text-ink-muted mt-0.5">
-                                    Isang teacher para sa dalawa; ang average nila bawat term ang {pairName} grade.
+                                    Iisang teacher (GS) o tig-isang teacher bawat subject (JHS); ang
+                                    average nila bawat term ang {pairName} grade.
                                   </span>
                                 </td>
                                 <td className="py-1.5">
-                                  <select
-                                    value={commonTeacher}
-                                    disabled={!someOffered}
-                                    onChange={(e) => setBothTeachers(e.target.value ? Number(e.target.value) : null)}
-                                    className="w-full max-w-[320px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
-                                  >
-                                    <option value="">— Not assigned yet</option>
-                                    {activeTeachers.map((t) => (
-                                      <option key={t.id} value={t.id}>
-                                        {teacherLabel(t)}
-                                      </option>
+                                  {/* Tig-isang teacher select bawat subject. GS
+                                      convenience: kapag blangko pa ang kabila,
+                                      kinokopya ang pinili — palitan na lang ang
+                                      isa para sa JHS na magkaibang teacher. */}
+                                  <div className="flex flex-col gap-1">
+                                    {[
+                                      { subj: s, upper: codeUpper, other: b, otherUpper: bUpper },
+                                      { subj: b, upper: bUpper, other: s, otherUpper: codeUpper },
+                                    ].map(({ subj, upper, other, otherUpper }) => (
+                                      <label key={upper} className="flex items-center gap-1.5">
+                                        <span
+                                          className="w-14 shrink-0 text-[11px] font-mono text-ink-muted"
+                                          title={subj.fullName}
+                                        >
+                                          {subj.code}
+                                        </span>
+                                        <select
+                                          value={load[upper] ?? ''}
+                                          disabled={!someOffered}
+                                          onChange={(e) => {
+                                            const v = e.target.value ? Number(e.target.value) : null;
+                                            setSubjectTeacher(subj.code, v);
+                                            if (v != null && (load[otherUpper] ?? null) == null) {
+                                              setSubjectTeacher(other.code, v);
+                                            }
+                                          }}
+                                          className="w-full max-w-[260px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                                        >
+                                          <option value="">— Not assigned yet</option>
+                                          {activeTeachers.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                              {teacherLabel(t)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
                                     ))}
-                                  </select>
-                                  {mismatch && (
-                                    <span className="block text-[11px] text-nps-red mt-0.5">
-                                      Magkaiba pa ang teacher ng dalawa — pumili sa itaas para maging iisa.
-                                    </span>
-                                  )}
+                                  </div>
                                 </td>
                               </tr>
                               {/* Schedule NG SECTION NA ITO — alin ang mauuna.
