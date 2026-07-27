@@ -142,11 +142,12 @@ export default function ClassDetail() {
   // period ng SY) bago ma-save ang load; sections may run the terms in
   // different order.
   const [termNames, setTermNames] = useState<Record<string, Record<string, string>>>({});
-  // MAPEH pair (GS): schedule NG SECTION NA ITO per pares (key = sorted UPPER
-  // codes joined '|'). rotate=true → si `first` ang Term 1 (coverage q1,q2),
-  // ang kapareha ang Term 3 (q2,q3), at PAREHO sila sa Term 2 — ang average
-  // nila ang MAPEH ng Term 2. rotate=false → buong taon ang dalawa.
-  const [pairSched, setPairSched] = useState<Record<string, { rotate: boolean; first: string }>>({});
+  // MAPEH pair (GS): sino ang MAUUNA sa section na ito, per pares (key =
+  // sorted UPPER codes joined '|', value = UPPER code ng Term 1 subject).
+  // LAGING naka-rotate ang pares — ang una ay Term 1+2 ('q1,q2'), ang kapareha
+  // ay Term 2+3 ('q2,q3'), at PAREHO sila sa Term 2 kung saan ang average ng
+  // dalawa ang MAPEH grade. Walang entry = default sa curriculum order.
+  const [pairFirst, setPairFirst] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadSaved, setLoadSaved] = useState(false);
   const [removingLrn, setRemovingLrn] = useState<string | null>(null);
@@ -184,30 +185,30 @@ export default function ClassDetail() {
             .filter((a) => a.termLabels)
             .map((a) => [a.subjectCode.toUpperCase(), { ...(a.termLabels as Record<string, string>) }]),
         ));
-        // MAPEH pair: buuin ang schedule mula sa naka-store na term coverage ng
-        // dalawang row — first-two keys ('q1,q2') + last-two ('q2,q3') =
-        // rotation; anupaman (kasama ang null) = buong taon.
+        // MAPEH pair: basahin kung sino ang naunang na-save mula sa term
+        // coverage ng dalawang row ('q1,q2' ang una, 'q2,q3' ang pangalawa).
+        // Walang naka-store na rotation = walang entry — ang render ang
+        // magde-default sa curriculum order.
         {
           const pk = periodsForSy(c?.sy).map((p) => p.key);
           const covFirst = pk.slice(0, 2).join(',');
           const covSecond = pk.slice(-2).join(',');
           const subByCode = new Map(subs.map((s) => [s.code.toUpperCase(), s]));
           const termByCode = new Map(classSubs.map((a) => [a.subjectCode.toUpperCase(), a.term ?? null]));
-          const sched: Record<string, { rotate: boolean; first: string }> = {};
+          const firsts: Record<string, string> = {};
           for (const s of subs) {
             const partner = s.pairedWith ? subByCode.get(s.pairedWith.toUpperCase()) : undefined;
             if (!partner) continue;
             const a = s.code.toUpperCase();
             const b = partner.code.toUpperCase();
             const key = [a, b].sort().join('|');
-            if (sched[key] || pk.length !== 3) continue;
+            if (firsts[key] || pk.length !== 3) continue;
             const ta = termByCode.get(a);
             const tb = termByCode.get(b);
-            if (ta === covFirst && tb === covSecond) sched[key] = { rotate: true, first: a };
-            else if (tb === covFirst && ta === covSecond) sched[key] = { rotate: true, first: b };
-            else sched[key] = { rotate: false, first: a };
+            if (ta === covFirst && tb === covSecond) firsts[key] = a;
+            else if (tb === covFirst && ta === covSecond) firsts[key] = b;
           }
-          setPairSched(sched);
+          setPairFirst(firsts);
         }
         if (c) {
           listGradeSubjects(c.gradeLevel)
@@ -410,17 +411,17 @@ export default function ClassDetail() {
     }
     return out;
   };
-  // MAPEH pair: ang schedule entry ng isang pares ('|'-joined sorted key) at
-  // ang term coverage ng isang miyembro ayon dito. null = buong taon. Rotation
-  // ay para lang sa 3-period SY (Term 1 / 2 / 3).
+  // MAPEH pair: sino ang mauuna sa pares ('|'-joined sorted key) at ang term
+  // coverage ng isang miyembro ayon dito. LAGING naka-rotate sa 3-period SY;
+  // sa iba (4-quarter legacy) ay null (buong taon) ang coverage.
   const pairKeyOf = (aUpper: string, bUpper: string) => [aUpper, bUpper].sort().join('|');
-  const pairSchedOf = (key: string, fallbackFirst: string) =>
-    pairSched[key] ?? { rotate: false, first: fallbackFirst };
-  const pairCoverage = (key: string, codeUpper: string): string | null => {
-    const s = pairSched[key];
-    if (!s || !s.rotate || periods.length !== 3) return null;
+  const pairFirstOf = (key: string, fallbackFirst: string) => pairFirst[key] ?? fallbackFirst;
+  const pairCoverage = (key: string, codeUpper: string, primaryUpper: string): string | null => {
+    if (periods.length !== 3) return null;
     const pk = periods.map((p) => p.key);
-    return s.first === codeUpper ? `${pk[0]},${pk[1]}` : `${pk[1]},${pk[2]}`;
+    return pairFirstOf(key, primaryUpper) === codeUpper
+      ? `${pk[0]},${pk[1]}`
+      : `${pk[1]},${pk[2]}`;
   };
 
   async function saveLoad() {
@@ -452,16 +453,18 @@ export default function ClassDetail() {
       await saveClassSubjects(
         klass.id,
         Object.entries(load).map(([k, teacherId]) => {
-          // MAPEH pair member: isulat ang term coverage ayon sa napiling
-          // schedule (rotation → 'q1,q2'/'q2,q3'; buong taon → null). Ang mga
-          // hindi pares ay hindi ginagalaw (undefined = keep stored).
+          // MAPEH pair member: isulat ang term coverage ayon sa rotation
+          // (una → 'q1,q2', pangalawa → 'q2,q3'). Ang mga hindi pares ay
+          // hindi ginagalaw (undefined = keep stored).
           const pr = pairOf.get(k);
           return {
             subjectCode: canonical.get(k) ?? k,
             teacherId,
             // Rotating subjects carry their breakdown; others keep what is stored.
             termLabels: rotatingByCode.has(k) ? breakdownOf(k) : undefined,
-            ...(pr ? { term: pairCoverage(pairKeyOf(k, pr.partner), k) } : {}),
+            ...(pr
+              ? { term: pairCoverage(pairKeyOf(k, pr.partner), k, pr.primary ? k : pr.partner) }
+              : {}),
           };
         }),
       );
@@ -1172,7 +1175,7 @@ export default function ClassDetail() {
                           const b = partnerRow.subject;
                           const bUpper = b.code.toUpperCase();
                           const key = pairKeyOf(codeUpper, bUpper);
-                          const sched = pairSchedOf(key, codeUpper);
+                          const first = pairFirstOf(key, codeUpper);
                           const offeredB = isOffered(b.code);
                           const bothOffered = offered && offeredB;
                           const someOffered = offered || offeredB;
@@ -1180,14 +1183,16 @@ export default function ClassDetail() {
                             (inCurriculum || offered) && (partnerRow.inCurriculum || offeredB);
                           const isMapehPair =
                             MAPEH_COMPONENT_CODES.has(codeUpper) && MAPEH_COMPONENT_CODES.has(bUpper);
-                          const pairName = isMapehPair ? 'MAPEH' : `${s.abbreviation} + ${b.abbreviation}`;
+                          const pairName = isMapehPair
+                            ? 'MAPEH'
+                            : `${s.abbreviation || s.code} + ${b.abbreviation || b.code}`;
                           const tA = load[codeUpper] ?? null;
                           const tB = load[bUpper] ?? null;
                           const mismatch = tA != null && tB != null && tA !== tB;
                           const commonTeacher = mismatch ? '' : String(tA ?? tB ?? '');
-                          const secondSubject = sched.first === codeUpper ? b : s;
-                          const setSched = (patch: Partial<{ rotate: boolean; first: string }>) => {
-                            setPairSched((cur) => ({ ...cur, [key]: { ...pairSchedOf(key, codeUpper), ...patch } }));
+                          const secondSubject = first === codeUpper ? b : s;
+                          const setFirst = (v: string) => {
+                            setPairFirst((cur) => ({ ...cur, [key]: v }));
                             setLoadSaved(false);
                           };
                           const setBothTeachers = (v: number | null) => {
@@ -1261,75 +1266,46 @@ export default function ClassDetail() {
                                   <td colSpan={2} className="pb-2.5 pt-0.5">
                                     <div className="rounded-md border border-border-soft bg-panel-alt p-2.5">
                                       <p className="text-[11px] font-semibold text-ink-secondary mb-1.5">
-                                        {periodWord} schedule — alin ang mauuna SA SECTION NA ITO
+                                        {periodWord} rotation — alin ang mauuna SA SECTION NA ITO
                                       </p>
                                       {periods.length === 3 ? (
-                                        <>
-                                          <div className="flex flex-wrap gap-4 mb-2">
-                                            <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer">
-                                              <input
-                                                type="radio"
-                                                checked={sched.rotate}
-                                                onChange={() => setSched({ rotate: true })}
-                                                className="h-3.5 w-3.5 accent-nps-red"
-                                              />
-                                              Naka-rotate per term (GS)
-                                            </label>
-                                            <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary cursor-pointer">
-                                              <input
-                                                type="radio"
-                                                checked={!sched.rotate}
-                                                onChange={() => setSched({ rotate: false })}
-                                                className="h-3.5 w-3.5 accent-nps-red"
-                                              />
-                                              Buong taon ang dalawa
-                                            </label>
+                                        <div className="flex flex-wrap items-end gap-3">
+                                          <label className="text-[12px] text-ink-secondary">
+                                            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                              {periods[0]?.label}
+                                            </span>
+                                            <select
+                                              value={first}
+                                              onChange={(e) => setFirst(e.target.value)}
+                                              className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                            >
+                                              <option value={codeUpper}>{s.fullName}</option>
+                                              <option value={bUpper}>{b.fullName}</option>
+                                            </select>
+                                          </label>
+                                          <div className="text-[12px] text-ink-secondary">
+                                            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                              {periods[1]?.label}
+                                            </span>
+                                            <span className="inline-block rounded border border-border-soft bg-panel px-2 py-1">
+                                              PAREHO — {s.abbreviation || s.code} + {b.abbreviation || b.code}{' '}
+                                              <span className="text-ink-muted">(average = {pairName})</span>
+                                            </span>
                                           </div>
-                                          {sched.rotate && (
-                                            <div className="flex flex-wrap items-end gap-3">
-                                              <label className="text-[12px] text-ink-secondary">
-                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
-                                                  {periods[0]?.label}
-                                                </span>
-                                                <select
-                                                  value={sched.first}
-                                                  onChange={(e) => setSched({ first: e.target.value, rotate: true })}
-                                                  className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
-                                                >
-                                                  <option value={codeUpper}>{s.fullName}</option>
-                                                  <option value={bUpper}>{b.fullName}</option>
-                                                </select>
-                                              </label>
-                                              <div className="text-[12px] text-ink-secondary">
-                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
-                                                  {periods[1]?.label}
-                                                </span>
-                                                <span className="inline-block rounded border border-border-soft bg-panel px-2 py-1">
-                                                  PAREHO — {s.abbreviation} + {b.abbreviation}{' '}
-                                                  <span className="text-ink-muted">(average = {pairName})</span>
-                                                </span>
-                                              </div>
-                                              <label className="text-[12px] text-ink-secondary">
-                                                <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
-                                                  {periods[2]?.label}
-                                                </span>
-                                                <select
-                                                  value={secondSubject.code.toUpperCase()}
-                                                  onChange={(e) =>
-                                                    setSched({
-                                                      first: e.target.value === codeUpper ? bUpper : codeUpper,
-                                                      rotate: true,
-                                                    })
-                                                  }
-                                                  className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
-                                                >
-                                                  <option value={codeUpper}>{s.fullName}</option>
-                                                  <option value={bUpper}>{b.fullName}</option>
-                                                </select>
-                                              </label>
-                                            </div>
-                                          )}
-                                        </>
+                                          <label className="text-[12px] text-ink-secondary">
+                                            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-ink-muted mb-0.5">
+                                              {periods[2]?.label}
+                                            </span>
+                                            <select
+                                              value={secondSubject.code.toUpperCase()}
+                                              onChange={(e) => setFirst(e.target.value === codeUpper ? bUpper : codeUpper)}
+                                              className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                            >
+                                              <option value={codeUpper}>{s.fullName}</option>
+                                              <option value={bUpper}>{b.fullName}</option>
+                                            </select>
+                                          </label>
+                                        </div>
                                       ) : (
                                         <p className="text-[12px] text-ink-muted">
                                           Ang rotation ay para sa 3-{periodWord.toLowerCase()} na SY — buong

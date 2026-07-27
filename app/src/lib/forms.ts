@@ -249,7 +249,10 @@ export function buildSubjectRows(
 // The single source of truth for MAPEH component subject codes (grouped MUA/PEH
 // this year + the four classic MUS/ART/PED/HEA for legacy data). Imported by the
 // grade encoder so the set is never duplicated / out of sync.
-export const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'MUS', 'ART', 'PED', 'HEA']);
+// PDA = the NPS catalog's live code for "Physical Edu. & Health" (the grade
+// curricula carry PDA, not PEH — both are recognized so legacy PEH data still
+// derives).
+export const MAPEH_COMPONENT_CODES = new Set(['MUA', 'PEH', 'PDA', 'MUS', 'ART', 'PED', 'HEA']);
 const ALL_PERIOD_KEYS: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
 
 // Readable names for the standard learning areas (incl. MAPEH components), so a
@@ -267,6 +270,7 @@ export const FALLBACK_SUBJECT_NAMES: Record<string, string> = {
   MAPEH: 'MAPEH',
   MUA: 'Music & Arts',
   PEH: 'Physical Education & Health',
+  PDA: 'Physical Education & Health',
   MUS: 'Music',
   ART: 'Arts',
   PED: 'Physical Education',
