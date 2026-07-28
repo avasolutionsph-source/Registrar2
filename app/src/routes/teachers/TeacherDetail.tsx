@@ -141,8 +141,8 @@ export default function TeacherDetail() {
     const subj = subjectByCode.get(selSubject.toUpperCase());
     if (subj?.isRotating) {
       setTaErr(
-        `${subj.fullName} ay rotating subject — tig-isang teacher bawat term. ` +
-        'Italaga ito sa Classes ▸ Subjects & Teachers ng section (may teacher select bawat term doon).',
+        `${subj.fullName} is a rotating subject with one teacher per term. ` +
+        "Assign it in the section's Classes ▸ Subjects & Teachers tab, which has a teacher selector for each term.",
       );
       return;
     }
@@ -479,7 +479,7 @@ export default function TeacherDetail() {
                                   className="px-2 py-1 text-ink-muted hover:text-nps-red border-l border-border-soft"
                                   aria-label="Remove assignment"
                                   title={row.terms && row.terms.length
-                                    ? 'Alisin ang teacher na ito sa kanilang term(s) — hindi magagalaw ang co-teachers'
+                                    ? 'Remove this teacher from their term(s) only — co-teachers are not affected'
                                     : 'Remove'}
                                 >
                                   ×

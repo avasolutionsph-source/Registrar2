@@ -476,8 +476,8 @@ export default function ClassDetail() {
       .map((k) => rotatingByCode.get(k)?.fullName ?? k);
     if (missing.length) {
       setLoadError(
-        `Kulang ang Term breakdown ng rotating subject: ${missing.join(', ')}. ` +
-        'Ilagay kung ano ang itinuturo sa bawat term ng section na ito bago i-save.',
+        `Incomplete ${periodWord} breakdown for rotating subject: ${missing.join(', ')}. ` +
+        `Enter what is taught in each ${periodWord.toLowerCase()} of this section before saving.`,
       );
       return;
     }
@@ -525,7 +525,7 @@ export default function ClassDetail() {
       // Removed off-curriculum rows are gone for real now — drop them from view.
       setSavedCodes(Object.keys(load));
     } catch {
-      setLoadError('Hindi na-save ang load — pakisubukan ulit.');
+      setLoadError('The load could not be saved — please try again.');
       // keep edits for retry
     } finally {
       setLoadBusy(false);
@@ -1269,14 +1269,14 @@ export default function ClassDetail() {
                                       toggleOffered(s.code, e.target.checked);
                                       toggleOffered(b.code, e.target.checked);
                                     }}
-                                    title={`Isang tick para sa pares — kasama ang ${s.fullName} at ${b.fullName}`}
+                                    title={`One tick covers the pair — ${s.fullName} and ${b.fullName}`}
                                     className="h-3.5 w-3.5 accent-nps-red align-middle disabled:opacity-40"
                                   />
                                 </td>
                                 <td className="py-1.5 pr-3">
                                   <span className="inline-flex items-center gap-2 flex-wrap">
                                     <span className="rounded-full bg-ok-fg/10 text-ok-fg text-[11px] font-bold px-2 py-0.5">
-                                      {pairName} · pares
+                                      {pairName} · paired
                                     </span>
                                     <span>
                                       <span className="font-mono text-ink-secondary mr-1.5">{s.code}</span>
@@ -1287,8 +1287,8 @@ export default function ClassDetail() {
                                     </span>
                                   </span>
                                   <span className="block text-[11px] text-ink-muted mt-0.5">
-                                    Iisang teacher (GS) o tig-isang teacher bawat subject (JHS); ang
-                                    average nila bawat term ang {pairName} grade.
+                                    One teacher for both subjects (Grade School) or one per subject (JHS);
+                                    the {pairName} grade is the average of the two each {periodWord.toLowerCase()}.
                                   </span>
                                 </td>
                                 <td className="py-1.5">
@@ -1342,7 +1342,7 @@ export default function ClassDetail() {
                                   <td colSpan={2} className="pb-2.5 pt-0.5">
                                     <div className="rounded-md border border-border-soft bg-panel-alt p-2.5">
                                       <p className="text-[11px] font-semibold text-ink-secondary mb-1.5">
-                                        {periodWord} rotation — alin ang mauuna SA SECTION NA ITO
+                                        {periodWord} rotation — which subject comes first in this section
                                       </p>
                                       {periods.length === 3 ? (
                                         <div className="flex flex-wrap items-end gap-3">
@@ -1367,7 +1367,7 @@ export default function ClassDetail() {
                                                 nakalilito; sa computation ay walang order — average
                                                 lang ng dalawa. */}
                                             <span className="inline-block rounded border border-border-soft bg-panel px-2 py-1">
-                                              PAREHO — {firstSubject.abbreviation || firstSubject.code} +{' '}
+                                              Both — {firstSubject.abbreviation || firstSubject.code} +{' '}
                                               {secondSubject.abbreviation || secondSubject.code}{' '}
                                               <span className="text-ink-muted">(average = {pairName})</span>
                                             </span>
@@ -1388,8 +1388,8 @@ export default function ClassDetail() {
                                         </div>
                                       ) : (
                                         <p className="text-[12px] text-ink-muted">
-                                          Ang rotation ay para sa 3-{periodWord.toLowerCase()} na SY — buong
-                                          taon ang dalawa sa SY na ito.
+                                          Rotation applies to a 3-{periodWord.toLowerCase()} school year —
+                                          both subjects run all year in this SY.
                                         </p>
                                       )}
                                     </div>
@@ -1438,7 +1438,7 @@ export default function ClassDetail() {
                                   {offered
                                     ? rotSummary.length
                                       ? rotSummary.join(' · ')
-                                      : `Tig-isang teacher bawat ${periodWord.toLowerCase()} — piliin sa breakdown sa ibaba.`
+                                      : `One teacher per ${periodWord.toLowerCase()} — assign in the ${periodWord} breakdown below.`
                                     : '—'}
                                 </span>
                               ) : (
@@ -1474,9 +1474,9 @@ export default function ClassDetail() {
                                   <p className={`text-[11px] font-semibold mb-1.5 ${
                                     breakdownDone ? 'text-ink-secondary' : 'text-amber-900'
                                   }`}>
-                                    {periodWord} breakdown — ano ang itinuturo at SINO ang guro bawat {periodWord.toLowerCase()} SA SECTION NA ITO
-                                    {!breakdownDone && <span className="ml-1 font-bold">· kailangan ang breakdown bago ma-save</span>}
-                                    <span className="ml-1 font-normal text-ink-muted">· pwedeng maulit ang teacher; blangko = walang guro pa sa term</span>
+                                    {periodWord} breakdown — subject taught and assigned teacher for each {periodWord.toLowerCase()} in this section
+                                    {!breakdownDone && <span className="ml-1 font-bold">· required before the load can be saved</span>}
+                                    <span className="ml-1 font-normal text-ink-muted">· the same teacher may handle more than one {periodWord.toLowerCase()}; leave blank if not yet assigned</span>
                                   </p>
                                   <div className="flex flex-wrap gap-3">
                                     {periods.map((p, i) => (
@@ -1505,10 +1505,10 @@ export default function ClassDetail() {
                                           onChange={(e) =>
                                             setTermTeacher(s.code, p.key, e.target.value ? Number(e.target.value) : null)
                                           }
-                                          title={`Sino ang magtuturo sa ${p.label}`}
+                                          title={`Teacher for ${p.label}`}
                                           className="w-full max-w-[230px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
                                         >
-                                          <option value="">— Walang guro pa</option>
+                                          <option value="">— No teacher assigned yet</option>
                                           {activeTeachers.map((t) => (
                                             <option key={t.id} value={t.id}>
                                               {teacherLabel(t)}
