@@ -1094,6 +1094,10 @@ export interface ClassSubjectAssignment {
   // Rotating subject: THIS SECTION's term breakdown ({ q1: 'EPP', ... }).
   // undefined on save = keep whatever the row already stores.
   termLabels?: Record<string, string> | null;
+  // Rotating subject: teacher PER TERM ({ q1: 160, q3: 161 } — keys present
+  // only for terms WITH a teacher; same shape acad_assign_combo stores).
+  // undefined on save = keep the carried-over map; an explicit value wins.
+  termTeachers?: Record<string, number> | null;
   // Term coverage, comma-joined period keys ('q1,q2'); null = all year. The
   // MAPEH pair schedule lives here. undefined on save = keep what is stored
   // (or reset with the teacher, matching the old behavior).
@@ -1112,6 +1116,10 @@ export async function listClassSubjects(classId: string): Promise<ClassSubjectAs
     termLabels:
       r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
         ? (r.term_labels as Record<string, string>)
+        : null,
+    termTeachers:
+      r.term_teachers && typeof r.term_teachers === 'object' && !Array.isArray(r.term_teachers)
+        ? (r.term_teachers as Record<string, number>)
         : null,
     term: r.term == null ? null : str(r.term),
   }));
@@ -1204,9 +1212,17 @@ export async function saveClassSubjects(
           termTeachers = map;
           term = Object.keys(map).sort().join(',');
         }
-        // An explicitly passed coverage (the MAPEH pair schedule) wins over
-        // the carry-over; undefined keeps the derived value above.
+        // An explicitly passed coverage (the MAPEH pair schedule / a rotating
+        // subject's assigned terms) wins over the carry-over; undefined keeps
+        // the derived value above. Same rule for the per-term teacher map.
         if (r.term !== undefined) term = r.term;
+        if (r.termTeachers !== undefined) termTeachers = r.termTeachers;
+        // A per-term map edit re-stamps the assigner even when the first-term
+        // teacher (teacher_id) is unchanged — matching acad_assign_combo's
+        // audit behavior for the coordinators.
+        const mapChanged =
+          r.termTeachers !== undefined &&
+          JSON.stringify(r.termTeachers ?? null) !== JSON.stringify(p?.termTeachers ?? null);
         return {
           class_id: classId,
           subject_code: r.subjectCode,
@@ -1214,7 +1230,7 @@ export async function saveClassSubjects(
           subject_type: p?.subjectType ?? null,
           assigned_by:
             r.teacherId == null ? null
-            : sameTeacher ? p.assignedBy
+            : sameTeacher && !mapChanged ? p.assignedBy
             : me,
           term,
           term_teachers: termTeachers,
@@ -1242,16 +1258,81 @@ export async function saveClassSubjects(
 }
 
 // Every (class, subject) this teacher teaches — across ALL sections. Backs the
-// teacher-centric "Subjects Taught" assignment on the teacher page.
-export async function listTeacherLoad(
-  teacherId: number,
-): Promise<{ classId: string; subjectCode: string }[]> {
+// teacher-centric "Subjects Taught" assignment on the teacher page. Includes
+// rotating subjects where they are only a PER-TERM teacher (term_teachers map):
+// terms = the period keys THIS teacher owns there (null on a plain row), and
+// termLabels = the section's breakdown so the UI can label WHAT they teach.
+export interface TeacherLoadRow {
+  classId: string;
+  subjectCode: string;
+  terms: string[] | null;
+  termLabels: Record<string, string> | null;
+}
+export async function listTeacherLoad(teacherId: number): Promise<TeacherLoadRow[]> {
   const { data, error } = await client()
     .from('reg_class_subjects')
-    .select('class_id, subject_code')
-    .eq('teacher_id', teacherId);
+    .select('class_id, subject_code, teacher_id, term_teachers, term_labels')
+    .or(`teacher_id.eq.${teacherId},term_teachers.not.is.null`);
   if (error) throw error;
-  return (data ?? []).map((r) => ({ classId: str(r.class_id), subjectCode: str(r.subject_code) }));
+  const out: TeacherLoadRow[] = [];
+  for (const r of data ?? []) {
+    const map =
+      r.term_teachers && typeof r.term_teachers === 'object' && !Array.isArray(r.term_teachers)
+        ? (r.term_teachers as Record<string, number>)
+        : null;
+    // A mapped (rotating) row lists by the terms this teacher owns — the map is
+    // the truth there, teacher_id is just the first-term owner. A plain row
+    // lists by teacher_id.
+    const owned = map ? Object.keys(map).filter((k) => Number(map[k]) === teacherId).sort() : null;
+    if (map ? owned!.length === 0 : !(r.teacher_id != null && Number(r.teacher_id) === teacherId)) continue;
+    out.push({
+      classId: str(r.class_id),
+      subjectCode: str(r.subject_code),
+      terms: map ? owned : null,
+      termLabels:
+        r.term_labels && typeof r.term_labels === 'object' && !Array.isArray(r.term_labels)
+          ? (r.term_labels as Record<string, string>)
+          : null,
+    });
+  }
+  return out;
+}
+
+// Alisin ang isang teacher sa BAWAT term na pagmamay-ari nila sa isang rotating
+// row — ang mga co-teacher sa ibang term ay hindi ginagalaw. Ang teacher_id ng
+// row ay napupunta sa unang natitirang term owner (o null kapag wala nang
+// natira), at ang term coverage ay ang mga natitirang term.
+export async function removeTeacherTerms(
+  classId: string,
+  subjectCode: string,
+  teacherId: number,
+): Promise<void> {
+  const c = client();
+  const { data, error } = await c
+    .from('reg_class_subjects')
+    .select('term_teachers')
+    .eq('class_id', classId)
+    .eq('subject_code', subjectCode)
+    .maybeSingle();
+  if (error) throw error;
+  const map =
+    data?.term_teachers && typeof data.term_teachers === 'object' && !Array.isArray(data.term_teachers)
+      ? { ...(data.term_teachers as Record<string, number>) }
+      : {};
+  for (const k of Object.keys(map)) if (Number(map[k]) === teacherId) delete map[k];
+  const left = Object.keys(map).sort();
+  const patch: Record<string, unknown> = {
+    term_teachers: left.length ? map : null,
+    term: left.length ? left.join(',') : null,
+    teacher_id: left.length ? map[left[0]] : null,
+  };
+  if (!left.length) patch.assigned_by = null;
+  const { error: upErr } = await c
+    .from('reg_class_subjects')
+    .update(patch)
+    .eq('class_id', classId)
+    .eq('subject_code', subjectCode);
+  if (upErr) throw upErr;
 }
 
 // Assign (or clear) ONE subject in ONE section to a teacher without touching the
@@ -1273,6 +1354,12 @@ export async function assignTeacherSubject(
         class_id: classId,
         subject_code: subjectCode,
         teacher_id: teacherId,
+        // A plain (non-rotating) assign owns the row's whole teaching: any
+        // leftover per-term map (a subject formerly flagged rotating) is
+        // cleared so a stale map can never hide this assignment from
+        // listTeacherLoad. Rotating subjects never reach this path — the
+        // teacher page blocks them toward the Classes tab.
+        term_teachers: null,
         assigned_by: teacherId == null ? null : me,
       },
       { onConflict: 'class_id,subject_code' },

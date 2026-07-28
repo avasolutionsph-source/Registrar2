@@ -142,6 +142,12 @@ export default function ClassDetail() {
   // period ng SY) bago ma-save ang load; sections may run the terms in
   // different order.
   const [termNames, setTermNames] = useState<Record<string, Record<string, string>>>({});
+  // Rotating subjects: tig-isang TEACHER bawat term ng section na ito —
+  // { [SUBJECTCODE]: { q1: 160, … } }, null/wala = walang guro pa sa term.
+  // Kapareho ng shape ng reg_class_subjects.term_teachers (na siya ring
+  // binabasa ng coordinator at ng teacher gradebook), kaya ang dito i-set ay
+  // agad na lalabas sa kabilang system.
+  const [loadTermTeachers, setLoadTermTeachers] = useState<Record<string, Record<string, number | null>>>({});
   // MAPEH pair (GS): sino ang MAUUNA sa section na ito, per pares (key =
   // sorted UPPER codes joined '|', value = UPPER code ng Term 1 subject).
   // LAGING naka-rotate ang pares — ang una ay Term 1+2 ('q1,q2'), ang kapareha
@@ -185,6 +191,23 @@ export default function ClassDetail() {
             .filter((a) => a.termLabels)
             .map((a) => [a.subjectCode.toUpperCase(), { ...(a.termLabels as Record<string, string>) }]),
         ));
+        // Per-term teachers ng rotating subjects. Legacy na rotating row na
+        // isahang teacher pa (walang map): i-prefill ang BAWAT term ng
+        // teacher na iyon para walang tahimik na maaalis sa susunod na save.
+        {
+          const rotatingCodes = new Set(
+            subs.filter((s) => s.isRotating).map((s) => s.code.toUpperCase()),
+          );
+          const seeded: Record<string, Record<string, number | null>> = {};
+          for (const a of classSubs) {
+            const k = a.subjectCode.toUpperCase();
+            if (a.termTeachers) seeded[k] = { ...a.termTeachers };
+            else if (rotatingCodes.has(k) && a.teacherId != null) {
+              seeded[k] = Object.fromEntries(periodsForSy(c?.sy).map((p) => [p.key, a.teacherId]));
+            }
+          }
+          setLoadTermTeachers(seeded);
+        }
         // MAPEH pair: basahin kung sino ang naunang na-save mula sa term
         // coverage ng dalawang row ('q1,q2' ang una, 'q2,q3' ang pangalawa).
         // Walang naka-store na rotation = walang entry — ang render ang
@@ -398,6 +421,13 @@ export default function ClassDetail() {
     setLoad((l) => ({ ...l, [code.toUpperCase()]: teacherId }));
     setLoadSaved(false);
   };
+  // Rotating subject: itakda ang guro ng ISANG term (pwedeng maulit ang
+  // teacher sa ibang term; null = walang guro sa term na iyon).
+  const setTermTeacher = (code: string, periodKey: string, teacherId: number | null) => {
+    const k = code.toUpperCase();
+    setLoadTermTeachers((cur) => ({ ...cur, [k]: { ...(cur[k] ?? {}), [periodKey]: teacherId } }));
+    setLoadSaved(false);
+  };
   // The current breakdown of one rotating subject (UPPERCASED code), or null
   // while ANY period of this class's SY is still unnamed.
   const breakdownOf = (codeUpper: string) => {
@@ -438,8 +468,11 @@ export default function ClassDetail() {
     const canonical = new Map(
       loadSubjects.map(({ subject }) => [subject.code.toUpperCase(), subject.code]),
     );
+    // Ang pair membership ang nananaig sa isang subject na sabay na naka-flag
+    // na rotating AT paired — pair block ang nakikita ng registrar, kaya ang
+    // pair path din ang sine-save (hindi hinihingi ang breakdown).
     const missing = Object.keys(load)
-      .filter((k) => rotatingByCode.has(k) && breakdownOf(k) == null)
+      .filter((k) => rotatingByCode.has(k) && !pairOf.has(k) && breakdownOf(k) == null)
       .map((k) => rotatingByCode.get(k)?.fullName ?? k);
     if (missing.length) {
       setLoadError(
@@ -457,11 +490,31 @@ export default function ClassDetail() {
           // (una → 'q1,q2', pangalawa → 'q2,q3'). Ang mga hindi pares ay
           // hindi ginagalaw (undefined = keep stored).
           const pr = pairOf.get(k);
+          // Rotating subject: tig-isang teacher bawat term. Ang teacher_id ng
+          // row ay ang guro ng UNANG term na may nakatalaga (kapareho ng
+          // acad_assign_combo), ang term ay ang mga term na may guro. Ang pair
+          // member ay HINDI dadaan dito kahit naka-flag ding rotating — ang
+          // pair select (load[k]) ang pinananaig, tugma sa nakikitang UI.
+          const rot = rotatingByCode.has(k) && !pr;
+          const rotMap = rot ? loadTermTeachers[k] ?? {} : {};
+          const rotAssigned = rot
+            ? periodsForSy(klass.sy).map((p) => p.key).filter((pk) => rotMap[pk] != null)
+            : [];
           return {
             subjectCode: canonical.get(k) ?? k,
-            teacherId,
+            teacherId: rot
+              ? (rotAssigned.length ? (rotMap[rotAssigned[0]] as number) : null)
+              : teacherId,
             // Rotating subjects carry their breakdown; others keep what is stored.
-            termLabels: rotatingByCode.has(k) ? breakdownOf(k) : undefined,
+            termLabels: rot ? breakdownOf(k) : undefined,
+            ...(rot
+              ? {
+                  termTeachers: rotAssigned.length
+                    ? Object.fromEntries(rotAssigned.map((pk) => [pk, rotMap[pk] as number]))
+                    : null,
+                  term: rotAssigned.length ? rotAssigned.join(',') : null,
+                }
+              : {}),
             ...(pr
               ? { term: pairCoverage(pairKeyOf(k, pr.partner), k, pr.primary ? k : pr.partner) }
               : {}),
@@ -1162,6 +1215,15 @@ export default function ClassDetail() {
                         const offered = isOffered(s.code);
                         const rotating = !!s.isRotating;
                         const breakdownDone = breakdownOf(codeUpper) != null;
+                        // Rotating: buod ng mga napiling guro bawat term para
+                        // sa Teacher column (ang pagpili ay sa breakdown box).
+                        const rotTeachers = loadTermTeachers[codeUpper] ?? {};
+                        const rotSummary = periods
+                          .filter((p) => rotTeachers[p.key] != null)
+                          .map((p) => {
+                            const t = teachers.find((x) => x.id === rotTeachers[p.key]);
+                            return `${p.label}: ${t ? t.familyName : `#${rotTeachers[p.key]}`}`;
+                          });
                         // ── MAPEH pair (GS): ang dalawang kapareha ay IISANG
                         // block — isang checkbox, isang teacher, at schedule
                         // per term. Ang kapareha (non-primary) ay hindi na
@@ -1369,6 +1431,17 @@ export default function ClassDetail() {
                               )}
                             </td>
                             <td className="py-1.5">
+                              {rotating ? (
+                                // Tig-isang teacher BAWAT TERM — ang pagpili ay
+                                // nasa breakdown box sa ibaba; buod lang dito.
+                                <span className={`text-[12px] ${rotSummary.length ? 'text-ink-secondary' : 'text-ink-muted'}`}>
+                                  {offered
+                                    ? rotSummary.length
+                                      ? rotSummary.join(' · ')
+                                      : `Tig-isang teacher bawat ${periodWord.toLowerCase()} — piliin sa breakdown sa ibaba.`
+                                    : '—'}
+                                </span>
+                              ) : (
                               <select
                                 value={load[codeUpper] ?? ''}
                                 disabled={!offered}
@@ -1384,6 +1457,7 @@ export default function ClassDetail() {
                                   </option>
                                 ))}
                               </select>
+                              )}
                             </td>
                           </tr>
                           {/* Rotating subject: THIS SECTION's term breakdown —
@@ -1400,27 +1474,48 @@ export default function ClassDetail() {
                                   <p className={`text-[11px] font-semibold mb-1.5 ${
                                     breakdownDone ? 'text-ink-secondary' : 'text-amber-900'
                                   }`}>
-                                    {periodWord} breakdown — ano ang itinuturo bawat {periodWord.toLowerCase()} SA SECTION NA ITO
-                                    {!breakdownDone && <span className="ml-1 font-bold">· kailangan bago ma-save</span>}
+                                    {periodWord} breakdown — ano ang itinuturo at SINO ang guro bawat {periodWord.toLowerCase()} SA SECTION NA ITO
+                                    {!breakdownDone && <span className="ml-1 font-bold">· kailangan ang breakdown bago ma-save</span>}
+                                    <span className="ml-1 font-normal text-ink-muted">· pwedeng maulit ang teacher; blangko = walang guro pa sa term</span>
                                   </p>
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="flex flex-wrap gap-3">
                                     {periods.map((p, i) => (
-                                      <label key={p.key} className="flex items-center gap-1.5 text-[12px] text-ink-secondary">
-                                        {p.label}
-                                        <input
-                                          value={termNames[codeUpper]?.[p.key] ?? ''}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setTermNames((cur) => ({
-                                              ...cur,
-                                              [codeUpper]: { ...(cur[codeUpper] ?? {}), [p.key]: v },
-                                            }));
-                                            setLoadSaved(false);
-                                          }}
-                                          placeholder={i === periods.length - 1 ? 'e.g. ICT' : 'e.g. EPP'}
-                                          className="w-28 rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
-                                        />
-                                      </label>
+                                      <div key={p.key} className="flex flex-col gap-1">
+                                        <label className="flex items-center gap-1.5 text-[12px] text-ink-secondary">
+                                          {p.label}
+                                          <input
+                                            value={termNames[codeUpper]?.[p.key] ?? ''}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              setTermNames((cur) => ({
+                                                ...cur,
+                                                [codeUpper]: { ...(cur[codeUpper] ?? {}), [p.key]: v },
+                                              }));
+                                              setLoadSaved(false);
+                                            }}
+                                            placeholder={i === periods.length - 1 ? 'e.g. ICT' : 'e.g. EPP'}
+                                            className="w-28 rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                          />
+                                        </label>
+                                        {/* Ang guro ng term na ito — lalabas ang
+                                            load sa gradebook ng bawat napiling
+                                            guro, sa kanilang term lang. */}
+                                        <select
+                                          value={loadTermTeachers[codeUpper]?.[p.key] ?? ''}
+                                          onChange={(e) =>
+                                            setTermTeacher(s.code, p.key, e.target.value ? Number(e.target.value) : null)
+                                          }
+                                          title={`Sino ang magtuturo sa ${p.label}`}
+                                          className="w-full max-w-[230px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
+                                        >
+                                          <option value="">— Walang guro pa</option>
+                                          {activeTeachers.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                              {teacherLabel(t)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
                                     ))}
                                   </div>
                                 </div>

@@ -15,9 +15,11 @@ import {
   listSubjects,
   listTeacherLoad,
   assignTeacherSubject,
+  removeTeacherTerms,
   listGradeSubjects,
+  type TeacherLoadRow,
 } from '@/lib/db';
-import { subjectFitsSection } from '@/lib/forms';
+import { subjectFitsSection, periodsForSy } from '@/lib/forms';
 import { ALL_TIME_CODE, type Teacher, type ClassRecord, type SchoolYear, type Student, type Subject } from '@/types';
 
 export default function TeacherDetail() {
@@ -32,8 +34,10 @@ export default function TeacherDetail() {
   const [assignErr, setAssignErr] = useState<string | null>(null);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  // This teacher's teaching assignments (which subject in which section).
-  const [myLoad, setMyLoad] = useState<{ classId: string; subjectCode: string }[]>([]);
+  // This teacher's teaching assignments (which subject in which section) —
+  // kasama ang rotating subjects kung saan PER-TERM teacher lang sila (may
+  // terms + termLabels para malabel kung anong term at ano ang itinuturo).
+  const [myLoad, setMyLoad] = useState<TeacherLoadRow[]>([]);
   const [sectionText, setSectionText] = useState('');
   const [selSection, setSelSection] = useState(''); // classId
   const [subjectText, setSubjectText] = useState('');
@@ -131,6 +135,17 @@ export default function TeacherDetail() {
 
   async function addAssignment() {
     if (!selSection || !selSubject) return;
+    // Rotating subject (EPP-ICT / TLE-ICT): tig-isang teacher BAWAT TERM — ang
+    // isahang assign dito ay magpapalito sa per-term na mapa, kaya sa Classes
+    // tab ito itinatalaga.
+    const subj = subjectByCode.get(selSubject.toUpperCase());
+    if (subj?.isRotating) {
+      setTaErr(
+        `${subj.fullName} ay rotating subject — tig-isang teacher bawat term. ` +
+        'Italaga ito sa Classes ▸ Subjects & Teachers ng section (may teacher select bawat term doon).',
+      );
+      return;
+    }
     setTaBusy(true);
     setTaErr(null);
     try {
@@ -138,7 +153,7 @@ export default function TeacherDetail() {
       setMyLoad((prev) =>
         prev.some((x) => x.classId === selSection && x.subjectCode === selSubject)
           ? prev
-          : [...prev, { classId: selSection, subjectCode: selSubject }],
+          : [...prev, { classId: selSection, subjectCode: selSubject, terms: null, termLabels: null }],
       );
       setSelSubject('');
       setSubjectText('');
@@ -149,11 +164,16 @@ export default function TeacherDetail() {
     }
   }
 
-  async function removeAssignment(classId: string, subjectCode: string) {
+  async function removeAssignment(row: TeacherLoadRow) {
     setTaErr(null);
     try {
-      await assignTeacherSubject(classId, subjectCode, null);
-      setMyLoad((prev) => prev.filter((x) => !(x.classId === classId && x.subjectCode === subjectCode)));
+      // Rotating (per-term) row: ang tanggalin ay ANG TEACHER NA ITO lang sa
+      // kanilang mga term — hindi ginagalaw ang co-teachers sa ibang term.
+      if (row.terms && row.terms.length) await removeTeacherTerms(row.classId, row.subjectCode, numId);
+      else await assignTeacherSubject(row.classId, row.subjectCode, null);
+      setMyLoad((prev) =>
+        prev.filter((x) => !(x.classId === row.classId && x.subjectCode === row.subjectCode)),
+      );
     } catch (e) {
       setTaErr(e instanceof Error ? e.message : 'Could not remove the assignment.');
     }
@@ -161,10 +181,10 @@ export default function TeacherDetail() {
 
   // Assignments grouped by section for display.
   const loadBySection = useMemo(() => {
-    const m = new Map<string, string[]>();
+    const m = new Map<string, TeacherLoadRow[]>();
     for (const a of myLoad) {
       if (!m.has(a.classId)) m.set(a.classId, []);
-      m.get(a.classId)!.push(a.subjectCode);
+      m.get(a.classId)!.push(a);
     }
     return m;
   }, [myLoad]);
@@ -409,8 +429,9 @@ export default function TeacherDetail() {
                     const cb = classById.get(b[0]);
                     return (ca && cb ? ca.gradeLevel.localeCompare(cb.gradeLevel) || ca.sectionName.localeCompare(cb.sectionName) : 0);
                   })
-                  .map(([cid, codes]) => {
+                  .map(([cid, rows]) => {
                     const cls = classById.get(cid);
+                    const clsPeriods = periodsForSy(cls?.sy);
                     return (
                       <div key={cid} className="rounded-lg border border-border-soft bg-app/40 px-3 py-2.5">
                         <div className="text-[12.5px] font-semibold text-ink-primary mb-2">
@@ -423,7 +444,8 @@ export default function TeacherDetail() {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {codes.map((code) => {
+                          {rows.map((row) => {
+                            const code = row.subjectCode;
                             const s = subjectByCode.get(code.toUpperCase());
                             return (
                               <span
@@ -432,16 +454,33 @@ export default function TeacherDetail() {
                               >
                                 <button
                                   onClick={() => navigate(`/teachers/${id}/sheet/${cid}/${encodeURIComponent(code)}`)}
-                                  className="pl-3 pr-2 py-1 hover:text-accent"
+                                  className="pl-3 pr-2 py-1 hover:text-accent inline-flex items-center gap-1.5"
                                   title="Open this class's grade sheet"
                                 >
                                   {s?.fullName ?? code}
+                                  {/* Rotating subject: ANONG TERM sila nakatalaga
+                                      at ano ang itinuturo doon (hal. Term 3 · ICT). */}
+                                  {row.terms?.map((k) => {
+                                    const pLabel = clsPeriods.find((p) => p.key === k)?.label ?? k.toUpperCase();
+                                    const content = row.termLabels?.[k];
+                                    return (
+                                      <span
+                                        key={k}
+                                        className="rounded-full bg-nps-red/10 text-nps-red text-[10.5px] font-semibold px-1.5 py-0.5"
+                                      >
+                                        {pLabel}
+                                        {content ? ` · ${content}` : ''}
+                                      </span>
+                                    );
+                                  })}
                                 </button>
                                 <button
-                                  onClick={() => removeAssignment(cid, code)}
+                                  onClick={() => removeAssignment(row)}
                                   className="px-2 py-1 text-ink-muted hover:text-nps-red border-l border-border-soft"
                                   aria-label="Remove assignment"
-                                  title="Remove"
+                                  title={row.terms && row.terms.length
+                                    ? 'Alisin ang teacher na ito sa kanilang term(s) — hindi magagalaw ang co-teachers'
+                                    : 'Remove'}
                                 >
                                   ×
                                 </button>
