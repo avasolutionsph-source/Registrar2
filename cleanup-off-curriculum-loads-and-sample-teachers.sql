@@ -150,9 +150,11 @@ begin
   -- (c) review states
   delete from sas_grade_reviews where teacher_id = any(v_ids);
 
-  -- (d) coordinator level rosters
-  if to_regclass('public.acad_added_teachers') is not null then
-    execute 'delete from public.acad_added_teachers where teacher_id = any($1)' using v_ids;
+  -- (d) coordinator level rosters — acad_level_teachers ang TABLE
+  --     (ang acad_added_teachers ay FUNCTION, hindi relation, kaya laging
+  --     null ang to_regclass dito noon at hindi tumatakbo ang delete).
+  if to_regclass('public.acad_level_teachers') is not null then
+    execute 'delete from public.acad_level_teachers where teacher_id = any($1)' using v_ids;
   end if;
 
   -- (e) MAPEH pair-switch pointer
