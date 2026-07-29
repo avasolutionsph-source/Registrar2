@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Pencil, Save, X, History, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -29,6 +29,9 @@ const SOURCE_LABEL: Record<string, string> = {
   acad_gs: 'Academic Coordinator — Grade School',
   acad_jhs: 'Academic Coordinator — Junior High',
   acad_shs: 'Academic Coordinator — Senior High',
+  // Named as a FIXED approver (never as a source row) — without this entry the
+  // table and the picker fell back to the raw role key and read "principal".
+  principal: 'Principal',
 };
 const SCOPE_LABEL: Record<string, string> = {
   preschool: 'Preschool',
@@ -36,12 +39,25 @@ const SCOPE_LABEL: Record<string, string> = {
   jhs: 'Junior High',
   shs: 'Senior High',
 };
+// The scope is the level of the SECTION being graded — never the encoder's own
+// level. "Grade School" alone read as if it described the coordinator, which is
+// why an "Academic Coordinator — Grade School / Every level" row looked like a
+// contradiction. Say "sections" out loud so the subject of the phrase is clear.
+const SCOPE_ROW_LABEL: Record<string, string> = {
+  preschool: 'Preschool sections only',
+  gs: 'Grade School sections only',
+  jhs: 'Junior High sections only',
+  shs: 'Senior High sections only',
+};
+const ANY_SCOPE_LABEL = 'Any section';
 const DERIVE_LABEL: Record<string, string> = {
-  sas_of_subject: 'the SAS of the grade sheet’s SUBJECT',
-  ac_of_section_level: 'the Academic Coordinator of the SECTION’s level',
+  sas_of_subject: 'Subject Area Supervisor of that subject',
+  ac_of_section_level: 'Academic Coordinator of that section’s level',
 };
 // Roles that can be named as a fixed approver.
 const FIXED_ROLES = ['principal', 'acad_pre', 'acad_gs', 'acad_jhs', 'acad_shs'];
+// The order rules read best in: the people who encode most, first.
+const ROLE_ORDER = ['teacher', 'sas', 'acad_pre', 'acad_gs', 'acad_jhs', 'acad_shs'];
 
 // How an approver reads in the table.
 const describe = (r: RoutingRule) =>
@@ -50,6 +66,26 @@ const describe = (r: RoutingRule) =>
     : r.approverKind === 'fixed'
       ? SOURCE_LABEL[r.approverRole ?? ''] ?? r.approverRole ?? ''
       : 'Not set yet';
+
+// ── One dropdown instead of two ────────────────────────────────────────────
+// Editing used to ask for the KIND first ("A specific role" / "Depends on the
+// grade sheet") and only then the value — two steps built around a distinction
+// that only matters to the database. Every real answer is listed at once here,
+// so picking a checker is a single choice.
+const valueOf = (r: RoutingRule) =>
+  r.approverKind === 'derived'
+    ? `derived:${r.approverDerive ?? ''}`
+    : r.approverKind === 'fixed'
+      ? `fixed:${r.approverRole ?? ''}`
+      : 'unset';
+
+const patchFromValue = (v: string): Partial<RoutingRule> => {
+  if (v === 'unset') return { approverKind: 'unset', approverRole: null, approverDerive: null };
+  const [kind, rest] = v.split(':');
+  return kind === 'derived'
+    ? { approverKind: 'derived', approverDerive: rest, approverRole: null }
+    : { approverKind: 'fixed', approverRole: rest, approverDerive: null };
+};
 
 const sameRule = (a: RoutingRule, b: RoutingRule) =>
   a.approverKind === b.approverKind &&
@@ -123,6 +159,24 @@ export default function SetupApprovalRouting() {
   }, [draft]);
   const unset = draft.filter((r) => r.approverKind === 'unset');
   const invalid = selfCheck.length > 0 || circular.length > 0;
+
+  // Rules grouped by who encodes, with the "Any section" rule first and its
+  // level-specific exceptions under it. Precedence then READS off the page
+  // instead of having to be remembered from the paragraph above.
+  const groups = useMemo(() => {
+    const m = new Map<string, RoutingRule[]>();
+    for (const r of draft) m.set(r.sourceRole, [...(m.get(r.sourceRole) ?? []), r]);
+    for (const arr of m.values()) {
+      arr.sort((a, b) =>
+        a.sourceScope === null ? -1
+        : b.sourceScope === null ? 1
+        : a.sourceScope.localeCompare(b.sourceScope),
+      );
+    }
+    return [...m.entries()].sort(
+      ([a], [b]) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b),
+    );
+  }, [draft]);
 
   const patch = (id: number, p: Partial<RoutingRule>) => {
     setDraft((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -202,13 +256,26 @@ export default function SetupApprovalRouting() {
         </p>
       )}
 
-      {/* Precedence, stated up front so the table is not a puzzle (Part D.3). */}
-      <div className="mb-4 rounded-md border border-border bg-app px-3 py-2.5 text-[12.5px] text-ink-secondary">
-        <span className="font-semibold text-ink-primary">How a rule is picked:</span> by the
-        encoder's <span className="font-semibold">highest</span> role — Principal, then Academic
-        Coordinator, then Subject Area Supervisor, then Teacher. So a teacher who is also a
-        supervisor is routed by the supervisor rule. Where two rules could match, the one with a
-        level beats the one covering every level.
+      {/* Precedence, stated up front so the table is not a puzzle (Part D.3).
+          Two separate ideas, so they are two separate lines — running them
+          together was most of why this page read as dense. */}
+      <div className="mb-4 rounded-md border border-border bg-app px-3 py-2.5 text-[12.5px] text-ink-secondary space-y-1.5">
+        <div>
+          <span className="font-semibold text-ink-primary">Every grade sheet gets one checker.</span>{' '}
+          Which rule applies is decided by the <span className="font-semibold">highest</span> role
+          the person encoding holds — Principal, then Academic Coordinator, then Subject Area
+          Supervisor, then Teacher. A teacher who is also a supervisor follows the supervisor rule.
+        </div>
+        <div>
+          <span className="font-semibold text-ink-primary">Exceptions win.</span> Within a role, a
+          rule for one level beats that role&apos;s <span className="font-medium">Any section</span>{' '}
+          rule — so Teacher · Senior High sections goes to the Senior High coordinator even though
+          Teacher · Any section goes to the subject&apos;s supervisor.
+        </div>
+        <div>
+          <span className="font-semibold text-ink-primary">&quot;Sections&quot; means the class being
+          graded</span>, never the checker&apos;s own level.
+        </div>
       </div>
 
       {(selfCheck.length > 0 || circular.length > 0 || unset.length > 0) && (
@@ -249,70 +316,66 @@ export default function SetupApprovalRouting() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                <th className="py-2 pr-3 w-[30%]">Whose grades</th>
-                <th className="py-2 pr-3 w-[16%]">Level</th>
-                <th className="py-2">Checked by</th>
+                <th className="py-2 pr-3 w-[34%]">Which grade sheets</th>
+                <th className="py-2">Who checks them</th>
               </tr>
             </thead>
             <tbody>
-              {draft.map((r) => (
-                <tr key={r.id} className="border-b border-border-soft last:border-0">
-                  <td className="py-2 pr-3 text-ink-primary font-medium">
-                    {SOURCE_LABEL[r.sourceRole] ?? r.sourceRole}
-                  </td>
-                  <td className="py-2 pr-3 text-ink-secondary">
-                    {r.sourceScope ? SCOPE_LABEL[r.sourceScope] : 'Every level'}
-                  </td>
-                  <td className="py-2">
-                    {!editing ? (
-                      <span className={r.approverKind === 'unset' ? 'text-nps-red' : 'text-ink-primary'}>
-                        {describe(r)}
+              {groups.map(([role, rules]) => (
+                <Fragment key={role}>
+                  {/* Who encodes — said once, so each row below only has to
+                      answer "which sheets" and "who checks them". */}
+                  <tr className="border-b border-border-soft">
+                    <td colSpan={2} className="pt-3.5 pb-1.5">
+                      <span className="text-[12.5px] font-bold text-ink-primary">
+                        Encoded by {SOURCE_LABEL[role] ?? role}
                       </span>
-                    ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <select
-                          value={r.approverKind}
-                          onChange={(e) => {
-                            const kind = e.target.value as RoutingRule['approverKind'];
-                            patch(r.id, {
-                              approverKind: kind,
-                              approverRole: kind === 'fixed' ? (r.approverRole ?? 'principal') : null,
-                              approverDerive:
-                                kind === 'derived' ? (r.approverDerive ?? 'sas_of_subject') : null,
-                            });
-                          }}
-                          className="h-8 rounded-md border border-border bg-surface px-2 text-[12.5px]"
-                        >
-                          <option value="fixed">A specific role</option>
-                          <option value="derived">Depends on the grade sheet</option>
-                          <option value="unset">Not set yet</option>
-                        </select>
-                        {r.approverKind === 'fixed' && (
+                    </td>
+                  </tr>
+                  {rules.map((r) => (
+                    <tr key={r.id} className="border-b border-border-soft last:border-0">
+                      <td className="py-2 pr-3 align-middle">
+                        <span className={r.sourceScope ? 'pl-4 text-ink-secondary' : 'text-ink-secondary'}>
+                          {r.sourceScope
+                            ? `↳ ${SCOPE_ROW_LABEL[r.sourceScope] ?? SCOPE_LABEL[r.sourceScope]}`
+                            : ANY_SCOPE_LABEL}
+                        </span>
+                        {r.sourceScope && (
+                          <span className="ml-2 rounded-full border border-border bg-app px-1.5 py-0.5 text-[10.5px] text-ink-muted">
+                            exception
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        {!editing ? (
+                          <span className={r.approverKind === 'unset' ? 'text-nps-red' : 'text-ink-primary'}>
+                            {describe(r)}
+                          </span>
+                        ) : (
                           <select
-                            value={r.approverRole ?? ''}
-                            onChange={(e) => patch(r.id, { approverRole: e.target.value })}
-                            className="h-8 rounded-md border border-border bg-surface px-2 text-[12.5px]"
+                            value={valueOf(r)}
+                            onChange={(e) => patch(r.id, patchFromValue(e.target.value))}
+                            className="h-8 min-w-[300px] rounded-md border border-border bg-surface px-2 text-[12.5px]"
                           >
-                            {FIXED_ROLES.map((v) => (
-                              <option key={v} value={v}>{SOURCE_LABEL[v] ?? v}</option>
-                            ))}
+                            <optgroup label="Depends on the grade sheet">
+                              {Object.entries(DERIVE_LABEL).map(([v, l]) => (
+                                <option key={v} value={`derived:${v}`}>{l}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Always this role">
+                              {FIXED_ROLES.map((v) => (
+                                <option key={v} value={`fixed:${v}`}>{SOURCE_LABEL[v] ?? v}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="No checker">
+                              <option value="unset">Not set yet — these sheets are held</option>
+                            </optgroup>
                           </select>
                         )}
-                        {r.approverKind === 'derived' && (
-                          <select
-                            value={r.approverDerive ?? ''}
-                            onChange={(e) => patch(r.id, { approverDerive: e.target.value })}
-                            className="h-8 rounded-md border border-border bg-surface px-2 text-[12.5px]"
-                          >
-                            {Object.entries(DERIVE_LABEL).map(([v, l]) => (
-                              <option key={v} value={v}>{l}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>
