@@ -777,6 +777,18 @@ export async function getTeacher(id: number): Promise<Teacher | null> {
   );
 }
 
+// Flip a teacher between active and inactive without touching any other
+// profile field: 0 = active, otherwise the year they stopped teaching. Kept
+// apart from saveTeacher so the Teachers list can change status in place —
+// their records, past grades, and existing assignments are never affected.
+export async function setTeacherActive(id: number, endedYear: number): Promise<void> {
+  const { error } = await client()
+    .from('reg_teachers')
+    .update({ year_ended: endedYear })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function saveTeacher(input: TeacherInput, id?: number): Promise<void> {
   const row = teacherToRow(input);
   const c = client();
