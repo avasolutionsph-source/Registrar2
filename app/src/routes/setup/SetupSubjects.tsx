@@ -150,7 +150,7 @@ export default function SetupSubjects() {
       // The pair column arrives with setup-mapeh-pair.sql — say so instead of
       // surfacing a bare Postgres "column does not exist".
       setEditError(/paired_with/.test(msg)
-        ? 'Hindi pa naka-apply ang setup-mapeh-pair.sql sa Supabase — patakbuhin muna ito bago mag-set ng rotating pair.'
+        ? 'setup-mapeh-pair.sql has not been applied in Supabase yet — run it before setting a rotating pair.'
         : msg);
     } finally {
       setEditBusy(false);
@@ -554,8 +554,8 @@ export default function SetupSubjects() {
                 className="h-3.5 w-3.5 accent-nps-red"
               />
               <span>
-                <span className="font-medium">Rotating subject</span> — iba ang itinuturo bawat term
-                (hal. EPP-ICT, TLE-ICT). Ang term breakdown ay ise-set per section sa{' '}
+                <span className="font-medium">Rotating subject</span> — different content each term
+                (e.g. EPP-ICT, TLE-ICT). The term breakdown is set per section in{' '}
                 <span className="font-medium">Classes ▸ Subjects &amp; Teachers</span>.
               </span>
             </label>
@@ -573,8 +573,8 @@ export default function SetupSubjects() {
                   className="h-3.5 w-3.5 accent-nps-red"
                 />
                 <span>
-                  <span className="font-medium">Rotating pair — MAPEH (GS)</span> — may kaparehang
-                  subject, iisa ang teacher, at pinagsasama sa gitnang term (average = MAPEH).
+                  <span className="font-medium">Rotating pair — MAPEH</span> — has a partner subject
+                  and is taught together in the middle term (their average becomes MAPEH).
                 </span>
               </label>
               {pairChecked && (
@@ -583,7 +583,7 @@ export default function SetupSubjects() {
                   onChange={(e) => setPairWith(e.target.value)}
                   className="w-[280px] text-[12.5px]"
                 >
-                  <option value="">— Piliin ang kapareha</option>
+                  <option value="">— Choose the partner subject</option>
                   {catalog.map((s) => (
                     <option key={s.code} value={s.code}>
                       {s.fullName} ({s.code})
@@ -615,8 +615,8 @@ export default function SetupSubjects() {
           <div className="px-1 mb-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-[11.5px] text-ink-muted max-w-[560px]">
               Every subject in the system. Edit the name, abbreviation, level, category, or the
-              Rotating flag — the code is permanent. Ang term breakdown ng rotating subjects ay
-              per section sa Classes ▸ Subjects &amp; Teachers; removing a subject from a grade is
+              Rotating flag — the code is permanent. The term breakdown of rotating subjects is set
+              per section in Classes ▸ Subjects &amp; Teachers; removing a subject from a grade is
               done in the order list above, not here.
             </p>
             <Input
@@ -715,9 +715,9 @@ export default function SetupSubjects() {
                           value={editForm.paired}
                           onChange={(e) => setEditForm((f) => ({ ...f, paired: e.target.value }))}
                           className="mt-1.5 w-full text-[12px]"
-                          title="Rotating pair (MAPEH GS) — kapareha; isang teacher, average = MAPEH"
+                          title="Rotating pair (MAPEH) — partner subject; their average becomes MAPEH"
                         >
-                          <option value="">— Walang kapareha (pair)</option>
+                          <option value="">— No partner subject</option>
                           {catalog
                             .filter((x) => x.code !== s.code)
                             .map((x) => (
@@ -769,7 +769,7 @@ export default function SetupSubjects() {
                             {s.pairedWith && (
                               <span
                                 className="rounded-full bg-ok-fg/10 text-ok-fg text-[11px] font-semibold px-2 py-0.5"
-                                title="Rotating pair (MAPEH GS): isang teacher para sa dalawa; ang schedule per term ay nasa Classes ▸ Subjects & Teachers"
+                                title="Rotating pair (MAPEH): the per-term schedule is set in Classes ▸ Subjects & Teachers"
                               >
                                 MAPEH pair · {s.pairedWith}
                               </span>

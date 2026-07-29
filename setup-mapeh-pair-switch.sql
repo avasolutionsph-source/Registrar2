@@ -144,7 +144,7 @@ begin
   select s.paired_with into v_partner_code
     from reg_subjects s where upper(s.code) = upper(p_subject_code);
   if v_partner_code is null then
-    raise exception 'Hindi rotating pair ang subject na %', p_subject_code;
+    raise exception '% is not a rotating pair subject', p_subject_code;
   end if;
 
   select * into r_me from reg_class_subjects cs
@@ -152,11 +152,11 @@ begin
   select * into r_p from reg_class_subjects cs
    where cs.class_id = p_class_id and upper(cs.subject_code) = upper(v_partner_code);
   if r_me.subject_code is null or r_p.subject_code is null then
-    raise exception 'Wala ang pares sa section na ito';
+    raise exception 'The pair is not set up in this section';
   end if;
 
   if not coalesce(r_me.teacher_id = v_me, false) then
-    raise exception 'Hindi ikaw ang teacher ng % sa section na ito', r_me.subject_code;
+    raise exception 'You are not the teacher of % in this section', r_me.subject_code;
   end if;
 
   select min(x.k) into v_shared
@@ -167,7 +167,7 @@ begin
   ) x
   where x.k <> '';
   if v_shared is null then
-    raise exception 'Walang shared term ang pares — i-save muna ng Registrar ang rotation ng section';
+    raise exception 'The pair has no shared term — the Registrar must save this section''s rotation first';
   end if;
 
   v_first := coalesce(
@@ -175,7 +175,7 @@ begin
       < (select min(b.v) from unnest(string_to_array(coalesce(r_p.term, ''), ',')) b(v) where b.v <> ''),
     false);
   if not v_first then
-    raise exception 'Ang UNANG teacher sa rotation lang ang maaaring mag-lipat';
+    raise exception 'Only the first teacher in the rotation may hand the class over';
   end if;
 
   if p_undo then
