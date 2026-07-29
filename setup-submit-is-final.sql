@@ -41,12 +41,12 @@ begin
 
   -- Ang pagpasa ay PINAL: ang checker lang ang makakapagbukas nito ulit.
   if p_undo then
-    raise exception 'Hindi na mababawi ang naipasa. Kung may aayusin, hilingin sa checker na ibalik (Return) ang term na ito.';
+    raise exception 'A submitted term can no longer be withdrawn. Ask your checker to return it for revision if a correction is needed.';
   end if;
 
   v_target := public.teacher_sheet_owner(p_subject_code);
   if v_target is null then
-    raise exception 'Hindi mo hawak ang subject na ito';
+    raise exception 'You do not handle this subject';
   end if;
 
   -- Ang term ay dapat talagang sakop ng may-ari sa kahit isang section —
@@ -59,7 +59,7 @@ begin
          or (case when (cs.term_teachers ->> p_period) ~ '^\d+$'
                   then (cs.term_teachers ->> p_period)::bigint end) = v_target )
   ) then
-    raise exception 'Ang % ng % ay hindi mo hawak', p_period, p_subject_code;
+    raise exception '% of % is not part of your teaching load', p_period, p_subject_code;
   end if;
 
   select r.status into v_status
@@ -68,10 +68,10 @@ begin
     and r.sy = p_sy and r.period = p_period;
 
   if v_status = 'submitted' then
-    raise exception 'Naipasa na ito sa Registrar - hindi na ito mababago';
+    raise exception 'This term has been submitted to the Registrar and can no longer be changed';
   end if;
   if v_status = 'for_rechecking' then
-    raise exception 'Naipasa na ang term na ito para sa checking';
+    raise exception 'This term has already been submitted for checking';
   end if;
 
   insert into sas_grade_reviews (teacher_id, subject_code, sy, period,
@@ -101,7 +101,7 @@ declare
   v_from text := 'and r.status = ''submitted''';
   v_to   text := 'and r.status in (''submitted'', ''for_rechecking'')';
   v_msg_from text := 'Term % of % was submitted to the Registrar and can no longer be edited.';
-  v_msg_to   text := 'Naipasa na ang % ng % - hindi na ito mababago. Hilingin sa checker na ibalik ito kung may aayusin.';
+  v_msg_to   text := 'Term % of % has been submitted and can no longer be edited. Ask your checker to return it for revision if a correction is needed.';
 begin
   select pg_get_functiondef(p.oid) into v_def
   from pg_proc p
@@ -110,33 +110,33 @@ begin
   limit 1;
 
   if v_def is null then
-    raise exception 'Walang teacher_save_grades sa database na ito';
+    raise exception 'teacher_save_grades does not exist in this database';
   end if;
 
   -- Idempotent: kapag naka-apply na, wala nang gagawin.
   if position(v_to in v_def) > 0 then
-    raise notice 'Naka-apply na ang for_rechecking lock - walang binago.';
+    raise notice 'The for_rechecking lock is already applied - nothing changed.';
     return;
   end if;
 
   if position(v_from in v_def) = 0 then
-    raise exception 'Hindi nakita ang lock filter (%) sa live na teacher_save_grades - huwag ituloy nang hindi ito tinitingnan', v_from;
+    raise exception 'Lock filter (%) not found in the live teacher_save_grades - do not proceed without reviewing it first', v_from;
   end if;
 
   v_new := replace(v_def, v_from, v_to);
   v_new := replace(v_new, v_msg_from, v_msg_to);
   execute v_new;
-  raise notice 'Na-apply ang for_rechecking lock sa teacher_save_grades.';
+  raise notice 'for_rechecking lock applied to teacher_save_grades.';
 end $$;
 
 notify pgrst, 'reload schema';
 
 
 -- ═══ VERIFY — dapat 'true' pareho ══════════════════════════════════════════
-select 'save_grades lock kasama ang for_rechecking' as item,
+select 'save_grades lock covers for_rechecking' as item,
        (pg_get_functiondef('public.teacher_save_grades(text,text,text,jsonb)'::regprocedure)
         like '%for_rechecking%')::text as ok
 union all
-select 'submit_for_checking tinatanggihan ang undo',
+select 'submit_for_checking rejects undo',
        (pg_get_functiondef('public.teacher_submit_for_checking(text,text,text,boolean)'::regprocedure)
-        like '%Hindi na mababawi%')::text;
+        like '%can no longer be withdrawn%')::text;
