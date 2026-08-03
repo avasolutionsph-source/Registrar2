@@ -1007,8 +1007,15 @@ export default function ClassDetail() {
                         {grp.students.map((s, i) => (
                           <tr key={s.lrn} className="border-b border-border-soft last:border-0">
                             <td className="py-1.5 pr-3">{i + 1}. {formatLastFirstMiddle(s)}</td>
+                            {/* Only the parent named as guardian is shown. When
+                                the record says the guardian is someone else,
+                                the learner has no guardian NAME on file — the
+                                mother's maiden name was being printed there,
+                                which is the wrong person on an ID sheet. */}
                             <td className="py-1.5 pr-3 text-ink-secondary">
-                              {s.guardianRelation === 'Father' ? s.fatherName : s.motherMaidenName}
+                              {s.guardianRelation === 'Father' ? s.fatherName
+                                : s.guardianRelation === 'Mother' ? s.motherMaidenName
+                                : <span className="text-ink-muted" title="Guardian is neither parent — no name recorded">— guardian not named</span>}
                             </td>
                             <td className="py-1.5 pr-3 text-ink-secondary">{s.address}</td>
                             <td className="py-1.5 font-mono">{s.contactNumber}</td>
