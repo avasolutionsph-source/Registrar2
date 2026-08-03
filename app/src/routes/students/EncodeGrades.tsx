@@ -96,6 +96,9 @@ export default function EncodeGrades() {
   const [rows, setRows] = useState<Row[]>([]);
   const [addCode, setAddCode] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // subjectCode being raw-edited
+  // Registrar deliberately opened a PAST school year for encoding (transferee
+  // records off an SF 10, or a correction). Resets when the SY picker moves.
+  const [unlockedSy, setUnlockedSy] = useState(false);
   const [loadedKey, setLoadedKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -401,9 +404,14 @@ export default function EncodeGrades() {
     dirty();
   };
 
-  // Once a new school year is active, prior years are view-only (SY codes like
-  // "2025-2026" sort chronologically as strings). Registrar edits the current SY.
-  const locked = !!sy && !!activeSy && sy < activeSy;
+  // Once a new school year is active, prior years open as view-only (SY codes
+  // like "2025-2026" sort chronologically as strings) so a finished record is
+  // not edited by accident. The registrar can still UNLOCK one deliberately —
+  // a transferee's prior-year grades come off an SF 10 and are, by definition,
+  // past years, so a hard block would make that record impossible to enter.
+  // The unlock is per visit and resets whenever the school year changes.
+  const isPastSy = !!sy && !!activeSy && sy < activeSy;
+  const locked = isPastSy && !unlockedSy;
 
   async function save() {
     if (!student || !sy || locked) return;
@@ -503,7 +511,7 @@ export default function EncodeGrades() {
           <label className="text-[12px] text-ink-secondary">School Year</label>
           <select
             value={sy}
-            onChange={(e) => setSy(e.target.value)}
+            onChange={(e) => { setSy(e.target.value); setUnlockedSy(false); }}
             className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary"
           >
             {years.map((y) => (
@@ -521,8 +529,31 @@ export default function EncodeGrades() {
 
         {locked && (
           <div className="mb-3 mx-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
-            <span className="font-semibold">View only.</span> {formatSy(sy)} is a past school year — grades
-            can no longer be edited now that {formatSy(activeSy)} is active. Switch to {formatSy(activeSy)} to encode.
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <span>
+                <span className="font-semibold">View only.</span> {formatSy(sy)} is a past school year;{' '}
+                {formatSy(activeSy)} is the active one. Encoding a <b>transferee&apos;s prior-year
+                record</b> from an SF 10, or correcting an old entry? Unlock it here.
+              </span>
+              <Button variant="outline" size="sm" className="shrink-0"
+                onClick={() => setUnlockedSy(true)}>
+                Unlock {formatSy(sy)}
+              </Button>
+            </div>
+          </div>
+        )}
+        {isPastSy && unlockedSy && (
+          <div className="mb-3 mx-1 rounded-md border border-nps-red/30 bg-nps-red/5 px-3 py-2 text-[12px] text-nps-red">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <span>
+                <span className="font-semibold">Editing a past school year.</span> {formatSy(sy)} is
+                closed — save only what the learner&apos;s SF 10 or record actually shows.
+              </span>
+              <Button variant="outline" size="sm" className="shrink-0"
+                onClick={() => setUnlockedSy(false)}>
+                Lock again
+              </Button>
+            </div>
           </div>
         )}
 
