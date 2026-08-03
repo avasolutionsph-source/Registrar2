@@ -807,22 +807,30 @@ export default function ClassDetail() {
             </TabsContent>
 
             <TabsContent value="form1">
+              {/* The columns are exactly what the school's Form 1 requires —
+                  identity, parents, and every way to reach the guardian. Wide,
+                  so the table scrolls sideways instead of squeezing. */}
               <SectionCard heading={`Form 1 — DepEd SF 1 (Adviser: ${adviserName})`}>
-                <table className="w-full text-[12px]">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[1180px] text-[12px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3">LRN</th>
                       <th className="py-1.5 pr-3">Name</th>
                       <th className="py-1.5 pr-3">Gender</th>
                       <th className="py-1.5 pr-3">Birthdate</th>
-                      <th className="py-1.5 pr-3">Father</th>
-                      <th className="py-1.5">Mother (maiden)</th>
+                      <th className="py-1.5 pr-3">Father&apos;s Name</th>
+                      <th className="py-1.5 pr-3">Mother&apos;s Maiden Name</th>
+                      <th className="py-1.5 pr-3">Address</th>
+                      <th className="py-1.5 pr-3">Contact</th>
+                      <th className="py-1.5 pr-3">Email</th>
+                      <th className="py-1.5">Messenger</th>
                     </tr>
                   </thead>
                   <tbody>
                     {groupBySex(roster).map((grp) => (
                       <Fragment key={grp.key}>
-                        <SexRow grp={grp} colSpan={6} />
+                        <SexRow grp={grp} colSpan={10} />
                         {grp.students.map((s) => (
                           <tr key={s.lrn} className="border-b border-border-soft last:border-0">
                             <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
@@ -830,13 +838,18 @@ export default function ClassDetail() {
                             <td className="py-1.5 pr-3">{s.gender.charAt(0)}</td>
                             <td className="py-1.5 pr-3">{s.birthdate}</td>
                             <td className="py-1.5 pr-3">{s.fatherName}</td>
-                            <td className="py-1.5">{s.motherMaidenName}</td>
+                            <td className="py-1.5 pr-3">{s.motherMaidenName}</td>
+                            <td className="py-1.5 pr-3">{s.address}</td>
+                            <td className="py-1.5 pr-3">{s.contactNumber}</td>
+                            <td className="py-1.5 pr-3">{s.email || '—'}</td>
+                            <td className="py-1.5">{s.messenger || '—'}</td>
                           </tr>
                         ))}
                       </Fragment>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </SectionCard>
             </TabsContent>
 

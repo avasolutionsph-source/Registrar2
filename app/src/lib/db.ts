@@ -73,6 +73,8 @@ export interface StudentInput {
   religion: string;
   address: string;
   contactNumber: string;
+  email?: string; // parent / guardian — Form 1
+  messenger?: string; // parent / guardian — Form 1
   fatherName: string;
   motherMaidenName: string;
   guardianRelation: Student['guardianRelation'];
@@ -161,6 +163,9 @@ function rowToStudent(r: Row): Student {
     religion: str(r.religion),
     address: str(r.address),
     contactNumber: str(r.contact_number),
+    // Missing until setup-student-email-messenger.sql is applied — reads as ''.
+    email: str(r.email),
+    messenger: str(r.messenger),
     fatherName: str(r.father_name),
     motherMaidenName: str(r.mother_maiden_name),
     guardianRelation: (str(r.guardian_relation) || 'Mother') as Student['guardianRelation'],
@@ -194,6 +199,8 @@ function studentToRow(s: StudentInput): Row {
     religion: s.religion ?? '',
     address: s.address ?? '',
     contact_number: s.contactNumber ?? '',
+    email: s.email ?? '',
+    messenger: s.messenger ?? '',
     father_name: s.fatherName ?? '',
     mother_maiden_name: s.motherMaidenName ?? '',
     guardian_relation: s.guardianRelation ?? 'Mother',

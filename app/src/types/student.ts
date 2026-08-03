@@ -137,9 +137,12 @@ export interface Student {
   birthdate: string; // ISO YYYY-MM-DD
   religion: string; // e.g. "Roman Catholic"
 
-  // contact
+  // contact — all four print on Form 1 (DepEd SF 1). Optional because records
+  // imported before setup-student-email-messenger.sql carry neither.
   address: string;
   contactNumber: string;
+  email?: string; // parent / guardian email
+  messenger?: string; // parent / guardian Messenger account
 
   // family
   fatherName: string;

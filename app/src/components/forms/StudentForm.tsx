@@ -105,6 +105,8 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       religion: get('religion') || 'Roman Catholic',
       address: get('address'),
       contactNumber: get('contactNumber'),
+      email: get('email'),
+      messenger: get('messenger'),
       fatherName: get('fatherName'),
       motherMaidenName: get('motherMaidenName'),
       guardianRelation: (get('guardianRelation') || 'Father') as Student['guardianRelation'],
@@ -210,6 +212,13 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
           </Field>
           <Field label="Contact Number" required>
             <Input name="contactNumber" placeholder="0917 xxx xxxx" defaultValue={student?.contactNumber} required />
+          </Field>
+          {/* Parent / guardian reach — both print on Form 1 (SF 1). */}
+          <Field label="Email" hint="Parent / guardian">
+            <Input name="email" type="email" placeholder="name@email.com" defaultValue={student?.email} />
+          </Field>
+          <Field label="Messenger Account" hint="Parent / guardian">
+            <Input name="messenger" placeholder="Facebook / Messenger name" defaultValue={student?.messenger} />
           </Field>
         </div>
       </SectionCard>
