@@ -96,9 +96,12 @@ const groupBySex = groupRosterBySex;
 function SexRow({ grp, colSpan }: { grp: ReturnType<typeof groupBySex>[number]; colSpan: number }) {
   return (
     <tr>
+      {/* Sticky at left-0 so the band still reads MALE / FEMALE after the table
+          has been scrolled sideways — otherwise the label scrolls out of view
+          and the groups become unlabelled. */}
       <td
         colSpan={colSpan}
-        className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+        className={`sticky left-0 px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
           grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'
         }`}
       >
@@ -323,6 +326,36 @@ export default function ClassDetail() {
 
   const males = roster.filter((s) => s.gender === 'Male');
   const females = roster.filter((s) => s.gender === 'Female');
+
+  // One learner line in the Class List table. Kept as a plain render helper (not
+  // a component) so it closes over navigate/unenroll without remounting on
+  // every keystroke elsewhere on the page.
+  const rosterCell = (s: Student, i: number) => (
+    <div
+      onClick={() => navigate(`/students/${s.lrn}`)}
+      className="group flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-app"
+    >
+      {/* The explicit space survives into the clipboard — without it the
+          number and the surname paste into Word glued together ("1ALBIA").
+          Whitespace-only text is not a flex item, so nothing moves on screen. */}
+      <span className="text-ink-muted w-5 shrink-0 tabular-nums">{i + 1}</span>{' '}
+      <span className="flex-1">{formatLastFirstMiddle(s)}</span>
+      <button
+        type="button"
+        disabled={removingLrn === s.lrn}
+        onClick={(e) => {
+          e.stopPropagation();
+          void unenroll(s);
+        }}
+        // select-none keeps the word "Remove" out of a drag-select copy, so a
+        // roster pasted into Word is names only.
+        className="select-none opacity-0 group-hover:opacity-100 text-nps-red hover:underline text-[11px] font-medium shrink-0"
+        title="Remove from this class"
+      >
+        {removingLrn === s.lrn ? '…' : 'Remove'}
+      </button>
+    </div>
+  );
   const adviserName = `${klass.adviser.title} ${klass.adviser.familyName}, ${klass.adviser.firstName} ${klass.adviser.middleInitial}`;
   const periods = periodsForSy(klass.sy);
   const periodWord = periods.length === 3 ? 'Term' : 'Quarter';
@@ -742,61 +775,38 @@ export default function ClassDetail() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-x-4">
-                  <div>
-                    <div className="bg-panel-alt -mx-4 px-4 py-2 border-b border-border text-label uppercase font-bold text-ink-muted">
-                      Male · {males.length}
-                    </div>
-                    {males.map((s, i) => (
-                      <div
-                        key={s.lrn}
-                        onClick={() => navigate(`/students/${s.lrn}`)}
-                        className="group flex items-center gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
-                      >
-                        <span className="text-ink-muted w-5 tabular-nums">{i + 1}</span>
-                        <span className="flex-1">{formatLastFirstMiddle(s)}</span>
-                        <button
-                          type="button"
-                          disabled={removingLrn === s.lrn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void unenroll(s);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-nps-red hover:underline text-[11px] font-medium shrink-0"
-                          title="Remove from this class"
-                        >
-                          {removingLrn === s.lrn ? '…' : 'Remove'}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <div className="bg-panel-alt -mx-4 px-4 py-2 border-b border-border text-label uppercase font-bold text-ink-muted">
-                      Female · {females.length}
-                    </div>
-                    {females.map((s, i) => (
-                      <div
-                        key={s.lrn}
-                        onClick={() => navigate(`/students/${s.lrn}`)}
-                        className="group flex items-center gap-2.5 py-1.5 -mx-4 px-4 cursor-pointer hover:bg-app text-[12.5px]"
-                      >
-                        <span className="text-ink-muted w-5 tabular-nums">{i + 1}</span>
-                        <span className="flex-1">{formatLastFirstMiddle(s)}</span>
-                        <button
-                          type="button"
-                          disabled={removingLrn === s.lrn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void unenroll(s);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-nps-red hover:underline text-[11px] font-medium shrink-0"
-                          title="Remove from this class"
-                        >
-                          {removingLrn === s.lrn ? '…' : 'Remove'}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                {/* A REAL table, not a CSS grid of divs. Word, Excel and Google
+                    Docs all understand <table> and paste this as two columns;
+                    a grid is invisible to them, so the same drag-select used to
+                    arrive as one long list. Rows pair male[i] with female[i], so
+                    the shorter column simply runs out of names. */}
+                <div className="-mx-4">
+                  <table className="w-full table-fixed border-collapse text-[12.5px]">
+                    <thead>
+                      <tr>
+                        <th className="w-1/2 bg-panel-alt px-4 py-2 border-b border-border text-left text-label uppercase font-bold text-ink-muted">
+                          Male · {males.length}
+                        </th>
+                        <th className="w-1/2 bg-panel-alt px-4 py-2 border-b border-border text-left text-label uppercase font-bold text-ink-muted">
+                          Female · {females.length}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from(
+                        { length: Math.max(males.length, females.length) },
+                        (_, i) => (
+                          <tr key={i}>
+                            {[males[i], females[i]].map((s, col) => (
+                              <td key={col} className="align-top p-0">
+                                {s && rosterCell(s, i)}
+                              </td>
+                            ))}
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
                 </div>
                 {roster.length === 0 && (
                   <p className="text-[12.5px] text-ink-secondary px-1 pt-3">
@@ -811,12 +821,17 @@ export default function ClassDetail() {
                   identity, parents, and every way to reach the guardian. Wide,
                   so the table scrolls sideways instead of squeezing. */}
               <SectionCard heading={`Form 1 — DepEd SF 1 (Adviser: ${adviserName})`}>
+                {/* Wide table: LRN and Name stay PINNED while the rest scrolls
+                    sideways, so a row never loses its owner, and the whole row
+                    lights up on hover to carry the eye across ten columns. The
+                    pinned cells repeat the row background (and its hover) or
+                    the scrolling text would show through them. */}
                 <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-[12px]">
+                <table className="w-full min-w-[1240px] text-[12px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-3">LRN</th>
-                      <th className="py-1.5 pr-3">Name</th>
+                      <th className="sticky left-0 z-20 bg-panel py-1.5 pr-3 w-[104px] min-w-[104px]">LRN</th>
+                      <th className="sticky left-[104px] z-20 bg-panel py-1.5 pr-3 w-[210px] min-w-[210px]">Name</th>
                       <th className="py-1.5 pr-3">Gender</th>
                       <th className="py-1.5 pr-3">Birthdate</th>
                       <th className="py-1.5 pr-3">Father&apos;s Name</th>
@@ -832,9 +847,9 @@ export default function ClassDetail() {
                       <Fragment key={grp.key}>
                         <SexRow grp={grp} colSpan={10} />
                         {grp.students.map((s) => (
-                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                          <tr key={s.lrn} className="group border-b border-border-soft last:border-0 hover:bg-app">
+                            <td className="sticky left-0 z-10 bg-panel group-hover:bg-app py-1.5 pr-3 font-mono w-[104px] min-w-[104px]">{s.lrn}</td>
+                            <td className="sticky left-[104px] z-10 bg-panel group-hover:bg-app py-1.5 pr-3 w-[210px] min-w-[210px]">{formatLastFirstMiddle(s)}</td>
                             <td className="py-1.5 pr-3">{s.gender.charAt(0)}</td>
                             <td className="py-1.5 pr-3">{s.birthdate}</td>
                             <td className="py-1.5 pr-3">{s.fatherName}</td>
