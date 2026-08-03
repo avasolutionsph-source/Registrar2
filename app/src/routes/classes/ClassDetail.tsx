@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2, Save } from 'lucide-react';
+import { Printer, FileText, Users as UsersIcon, Check, X, Pencil, Plus, Trash2, Save, Copy } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
@@ -96,16 +96,19 @@ const groupBySex = groupRosterBySex;
 function SexRow({ grp, colSpan }: { grp: ReturnType<typeof groupBySex>[number]; colSpan: number }) {
   return (
     <tr>
-      {/* Sticky at left-0 so the band still reads MALE / FEMALE after the table
-          has been scrolled sideways — otherwise the label scrolls out of view
-          and the groups become unlabelled. */}
+      {/* The band spans the whole table, so sticking the CELL does nothing — its
+          left edge is already at 0 and it simply scrolls away with everything
+          else. Pinning the LABEL inside it is what keeps MALE / FEMALE readable
+          after the table is scrolled sideways. A no-op on narrow tables. */}
       <td
         colSpan={colSpan}
-        className={`sticky left-0 px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
+        className={`py-1 text-[11px] font-bold uppercase tracking-wider ${
           grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'
         }`}
       >
-        {grp.label} · {grp.students.length}
+        <span className="sticky left-0 inline-block px-2">
+          {grp.label} · {grp.students.length}
+        </span>
       </td>
     </tr>
   );
@@ -129,6 +132,7 @@ export default function ClassDetail() {
   const [addSearch, setAddSearch] = useState('');
   const [addSel, setAddSel] = useState<Set<string>>(new Set());
   const [addBusy, setAddBusy] = useState(false);
+  const [copied, setCopied] = useState(false); // "Copy list" feedback
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
@@ -326,6 +330,61 @@ export default function ClassDetail() {
 
   const males = roster.filter((s) => s.gender === 'Male');
   const females = roster.filter((s) => s.gender === 'Female');
+
+  // ── Copy the class list for Word / Excel ─────────────────────────────────
+  // Rendering the roster as a <table> is not enough on its own: a drag-select
+  // copy hands Word whatever the browser decides to serialise, which still
+  // carries the hidden "Remove" button text and can flatten the columns. This
+  // builds the exact HTML we want and puts it on the clipboard itself, so the
+  // paste is the same every time — two columns, names only.
+  async function copyClassList() {
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const line = (s: Student | undefined, i: number) =>
+      s ? `${i + 1}. ${formatLastFirstMiddle(s)}` : '';
+
+    const lines: string[] = [`MALE · ${males.length}\tFEMALE · ${females.length}`];
+    let html =
+      '<table style="border-collapse:collapse" cellpadding="4">' +
+      `<tr><td><b>MALE &middot; ${males.length}</b></td>` +
+      `<td><b>FEMALE &middot; ${females.length}</b></td></tr>`;
+    for (let i = 0; i < Math.max(males.length, females.length); i++) {
+      html += `<tr><td>${esc(line(males[i], i))}</td><td>${esc(line(females[i], i))}</td></tr>`;
+      lines.push(`${line(males[i], i)}\t${line(females[i], i)}`);
+    }
+    html += '</table>';
+    const text = lines.join('\n');
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        }),
+      ]);
+    } catch {
+      // Browsers without the async clipboard (or with it blocked): select a
+      // hidden copy of the table and use the old command, which still carries
+      // rich text through to Word.
+      const holder = document.createElement('div');
+      holder.innerHTML = html;
+      holder.setAttribute('style', 'position:fixed;left:-9999px;top:0');
+      document.body.appendChild(holder);
+      const range = document.createRange();
+      range.selectNodeContents(holder);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      try {
+        document.execCommand('copy');
+      } catch {
+        /* clipboard unavailable — the on-screen table can still be drag-copied */
+      }
+      sel?.removeAllRanges();
+      holder.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
 
   // One learner line in the Class List table. Kept as a plain render helper (not
   // a component) so it closes over navigate/unenroll without remounting on
@@ -715,7 +774,25 @@ export default function ClassDetail() {
 
             <TabsContent value="list">
               <SectionCard heading="Class List">
-                <div className="flex justify-end mb-3">
+                <div className="flex justify-end gap-2 mb-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => void copyClassList()}
+                    disabled={roster.length === 0}
+                    title="Copy the list, then paste into Word or Excel — it arrives as two columns"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> Copy list
+                      </>
+                    )}
+                  </Button>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={openAdd}>
                     <Plus className="w-3.5 h-3.5" /> Add learners
                   </Button>
