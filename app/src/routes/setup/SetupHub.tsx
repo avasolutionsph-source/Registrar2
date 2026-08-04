@@ -11,6 +11,7 @@ import {
   WifiOff,
   Percent,
   UserCog,
+  FlaskConical,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -146,6 +147,12 @@ const GROUPS: { heading: string; tiles: Tile[] }[] = [
         icon: WifiOff,
         label: 'Offline Access',
         desc: 'Save all records to this device to view & print during a brownout',
+      },
+      {
+        to: '/setup/dry-run',
+        icon: FlaskConical,
+        label: 'Dry Run',
+        desc: 'Rehearse with real teachers, then put the data back exactly as it was',
       },
     ],
   },

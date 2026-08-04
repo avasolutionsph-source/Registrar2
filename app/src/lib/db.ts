@@ -2403,3 +2403,59 @@ export async function syncToDevice(): Promise<SyncResult> {
   await idbSet(SNAP.meta, meta);
   return meta;
 }
+
+// ── Dry run: snapshot the database, then put it back ───────────────────────
+// Thin wrappers over the registrar-only public.dryrun_* RPCs (see
+// Registrar2/setup-dryrun-controls.sql). The heavy lifting lives in the
+// `dryrun` schema, which is deliberately not exposed to the API.
+
+export interface DryRunStatus {
+  label: string;
+  takenAt: string;
+  takenBy: string;
+  note: string | null;
+  hoursElapsed: number;
+}
+
+// null = no dry run is running.
+export async function getDryRunStatus(): Promise<DryRunStatus | null> {
+  const { data, error } = await client().rpc('dryrun_status');
+  if (error) throw error;
+  const r = (data ?? [])[0];
+  if (!r) return null;
+  return {
+    label: str(r.label),
+    takenAt: str(r.taken_at),
+    takenBy: str(r.taken_by),
+    note: r.note ? str(r.note) : null,
+    hoursElapsed: Number(r.hours_elapsed ?? 0),
+  };
+}
+
+// Take the "before" picture. Refuses while another dry run is running.
+export async function startDryRun(note?: string): Promise<Record<string, number>> {
+  const { data, error } = await client().rpc('dryrun_start', { p_note: note ?? null });
+  if (error) throw error;
+  return (data?.saved ?? {}) as Record<string, number>;
+}
+
+export interface DryRunStopResult {
+  hours: number;
+  restored: { src: string; n: number }[];
+  // Learners / sections / teachers / roles created during the run. Restore
+  // deliberately leaves these alone — deleting a real person is not something
+  // a button should decide.
+  extras: { kind: string; identifier: string; detail: string }[];
+}
+
+// Put everything back to the moment Start was pressed. `force` is required once
+// the snapshot is more than 48 hours old.
+export async function stopDryRun(force = false): Promise<DryRunStopResult> {
+  const { data, error } = await client().rpc('dryrun_stop', { p_force: force });
+  if (error) throw error;
+  return {
+    hours: Number(data?.hours ?? 0),
+    restored: (data?.restored ?? []) as DryRunStopResult['restored'],
+    extras: (data?.extras ?? []) as DryRunStopResult['extras'],
+  };
+}

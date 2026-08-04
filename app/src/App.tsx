@@ -38,6 +38,7 @@ import SetupSchoolProfile from '@/routes/setup/SetupSchoolProfile';
 import SetupAccounts from '@/routes/setup/SetupAccounts';
 import BackupArchive from '@/routes/setup/BackupArchive';
 import OfflineData from '@/routes/setup/OfflineData';
+import SetupDryRun from '@/routes/setup/SetupDryRun';
 import ReportsHub from '@/routes/reports/ReportsHub';
 import Statistics from '@/routes/reports/Statistics';
 import Alumni from '@/routes/reports/Alumni';
@@ -122,6 +123,7 @@ export default function App() {
           <Route path="setup/accounts" element={<SetupAccounts />} />
           <Route path="setup/backup" element={<BackupArchive />} />
           <Route path="setup/offline" element={<OfflineData />} />
+          <Route path="setup/dry-run" element={<SetupDryRun />} />
           <Route path="setup/teachers" element={<Navigate to="/teachers" replace />} />
           <Route path="setup/*" element={<ComingSoon />} />
           <Route path="reports" element={<ReportsHub />} />
