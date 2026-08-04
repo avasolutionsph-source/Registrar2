@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Field } from '@/components/ui/field';
 import { SectionCard } from '@/components/entity/SectionCard';
+import { UnsavedChangesDialog } from '@/components/shell/UnsavedGuard';
+import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { listClasses, getActiveSchoolYear, type StudentInput } from '@/lib/db';
 import { displayLrn } from '@/lib/lrn';
 import type { Student, ClassRecord, Gender, CredentialStatus } from '@/types';
@@ -43,6 +45,9 @@ interface Props {
 }
 
 export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props) {
+  // Unsaved-work guard: Cancel (and closing the tab) asks before discarding.
+  const [hasChanges, setHasChanges] = useState(false);
+  const { guard, dialogProps } = useUnsavedGuard(hasChanges);
   const [credentials, setCredentials] = useState<Record<string, boolean>>(() =>
     student
       ? Object.fromEntries(Object.entries(student.credentials).map(([k, v]) => [k, v === 'on-file']))
@@ -142,6 +147,7 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
     setSubmitting(true);
     try {
       await onSubmit(input);
+      setHasChanges(false); // saved — leaving is safe again
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save the student.');
     } finally {
@@ -150,7 +156,13 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 max-w-3xl">
+    // The form is uncontrolled (values are read from FormData on submit), so a
+    // single bubbled onChange is what marks it dirty — no per-field wiring.
+    <form
+      onSubmit={handleSubmit}
+      onChange={() => setHasChanges(true)}
+      className="flex flex-col gap-3.5 max-w-3xl"
+    >
       <SectionCard heading="Identity">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-1">
           <Field label="LRN" hint="12 digits. Leave blank if none yet (Nursery/Kinder).">
@@ -332,13 +344,15 @@ export function StudentForm({ student, onSubmit, onCancel, submitLabel }: Props)
       )}
 
       <div className="flex gap-2 justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="outline" onClick={() => guard(onCancel)} disabled={submitting}>
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Saving…' : submitLabel}
         </Button>
       </div>
+
+      <UnsavedChangesDialog {...dialogProps} what="Details you have entered" />
     </form>
   );
 }

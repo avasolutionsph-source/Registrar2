@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
+import { UnsavedChangesDialog } from '@/components/shell/UnsavedGuard';
+import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
@@ -110,6 +112,10 @@ export default function EncodeGrades() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Typed-but-unsaved work. Drives the leave guard, so Back cannot quietly
+  // discard a screen of encoding.
+  const [hasChanges, setHasChanges] = useState(false);
+  const { guard, dialogProps } = useUnsavedGuard(hasChanges);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +181,7 @@ export default function EncodeGrades() {
     );
     setEditing(null);
     setSaved(false);
+    setHasChanges(false); // freshly loaded rows are not unsaved work
   }
 
   const index = useMemo(() => subjectIndex(subjects), [subjects]);
@@ -302,7 +309,10 @@ export default function EncodeGrades() {
   // inject the read-only derived parent; the typed row is the editable MAPEH instead.
   const hasMapehRow = rows.some((r) => r.subjectCode.toUpperCase() === 'MAPEH');
 
-  const dirty = () => setSaved(false);
+  const dirty = () => {
+    setSaved(false);
+    setHasChanges(true);
+  };
 
   const setRawCell = (code: string, q: QuarterKey, comp: Component, field: 'earned' | 'total', value: string) => {
     const n = toNum(value);
@@ -487,6 +497,7 @@ export default function EncodeGrades() {
       await saveStudentGrades(student.lrn, grades);
       setStudent({ ...student, grades });
       setSaved(true);
+      setHasChanges(false); // safely on the server — Back is free again
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save grades.');
     } finally {
@@ -533,7 +544,11 @@ export default function EncodeGrades() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate(`/students/${student.lrn}`)} className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => guard(() => navigate(`/students/${student.lrn}`))}
+            className="gap-2"
+          >
             <ArrowLeft className="w-3.5 h-3.5" /> Back
           </Button>
           <Button onClick={save} disabled={saving || locked} className="gap-2">
@@ -919,6 +934,8 @@ export default function EncodeGrades() {
         </p>
         </fieldset>
       </SectionCard>
+
+      <UnsavedChangesDialog {...dialogProps} what="Grades you have typed" />
     </div>
   );
 }
