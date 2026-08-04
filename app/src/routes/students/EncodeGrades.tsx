@@ -29,6 +29,10 @@ const COMPONENTS: { key: Component; label: string }[] = [
   { key: 'st', label: 'EXs — Summative Tests & Term Exam' },
 ];
 
+// Picker sentinel for "a subject the catalog does not have". Not a subject code
+// — no real code contains a space, so it can never collide with one.
+const CUSTOM_SUBJECT = '__ other subject __';
+
 type Row = {
   subjectCode: string;
   customName?: string; // registrar-typed name override for this learner (else catalog name)
@@ -95,6 +99,9 @@ export default function EncodeGrades() {
   const [activeSy, setActiveSy] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
   const [addCode, setAddCode] = useState('');
+  // Adding a subject NPS does not offer — see addRow. Sentinel value for the
+  // picker, plus the name the registrar types for it.
+  const [newSubjectName, setNewSubjectName] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // subjectCode being raw-edited
   // Registrar deliberately opened a PAST school year for encoding (transferee
   // records off an SF 10, or a correction). Resets when the SY picker moves.
@@ -392,7 +399,36 @@ export default function EncodeGrades() {
     dirty();
   };
 
+  // A transferee's previous school may carry a subject NPS does not offer, and
+  // it still has to appear on their SF 10. Such a subject belongs to THIS
+  // learner only — it is never added to the catalog, so no other record and no
+  // curriculum is touched. The typed name is stored on the entry itself
+  // (customName), which is what buildSubjectRows prints; the code below is only
+  // an internal key that keeps the row addressable and unique.
+  const makeCustomCode = (name: string) => {
+    const base = (name.toUpperCase().match(/[A-Z0-9]+/g) ?? []).join('').slice(0, 6) || 'SUBJ';
+    const taken = new Set([...used, ...subjects.map((s) => s.code.toUpperCase())]);
+    if (!taken.has(base)) return base;
+    for (let n = 2; n < 100; n += 1) {
+      const c = `${base.slice(0, 6)}${n}`;
+      if (!taken.has(c)) return c;
+    }
+    return `${base.slice(0, 4)}${String(Date.now()).slice(-4)}`;
+  };
+
   const addRow = () => {
+    if (addCode === CUSTOM_SUBJECT) {
+      const name = newSubjectName.trim();
+      if (!name) return;
+      setRows((rs) => [
+        ...rs,
+        { subjectCode: makeCustomCode(name), customName: name, legacy: {}, raw: {}, letters: {} },
+      ]);
+      setNewSubjectName('');
+      setAddCode('');
+      dirty();
+      return;
+    }
     if (!addCode) return;
     setRows((rs) => [...rs, { subjectCode: addCode, legacy: {}, raw: {}, letters: {} }]);
     setAddCode('');
@@ -818,7 +854,7 @@ export default function EncodeGrades() {
           </div>
         )}
 
-        <div className="mt-3 flex items-center gap-2 px-1">
+        <div className="mt-3 flex items-center gap-2 px-1 flex-wrap">
           <select
             value={addCode}
             onChange={(e) => setAddCode(e.target.value)}
@@ -830,8 +866,29 @@ export default function EncodeGrades() {
                 {s.fullName} ({s.code})
               </option>
             ))}
+            {/* Last, and separated: this one does not come from the catalog. */}
+            <option value={CUSTOM_SUBJECT}>Other subject — type the name…</option>
           </select>
-          <Button variant="outline" size="sm" onClick={addRow} disabled={!addCode} className="gap-1.5">
+          {addCode === CUSTOM_SUBJECT && (
+            <input
+              type="text"
+              value={newSubjectName}
+              onChange={(e) => setNewSubjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addRow();
+              }}
+              autoFocus
+              placeholder="Subject name as written on the SF 10"
+              className="rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary min-w-[260px]"
+            />
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addRow}
+            disabled={!addCode || (addCode === CUSTOM_SUBJECT && !newSubjectName.trim())}
+            className="gap-1.5"
+          >
             <Plus className="w-3.5 h-3.5" /> Add
           </Button>
           <span className="mx-1 text-ink-muted">·</span>
@@ -845,6 +902,15 @@ export default function EncodeGrades() {
             {gradeLevel ? ` (${gradeBand(gradeLevel) === 'lower' ? 'w/ Mother Tongue' : 'w/ EPP-TLE'})` : ''}
           </Button>
         </div>
+
+        {addCode === CUSTOM_SUBJECT && (
+          <p className="mt-2 px-1 text-[11px] text-ink-secondary max-w-[720px]">
+            For a transferee whose previous school taught something NPS does not offer. The subject
+            is added to <span className="font-semibold">this learner&apos;s record only</span> — the
+            subject catalog and every other learner stay untouched — and the name you type is what
+            prints on their SF 10.
+          </p>
+        )}
 
         <p className="mt-3 px-1 text-[11px] text-ink-muted">
           {ks1
