@@ -91,6 +91,22 @@ const CRED_KEYS: ['bc', 'bp', 'hc', 'pix', 'rf', 'f137', 'rc', 'gmc'] = [
 // shared system-wide helper, so every roster splits the same way.
 const groupBySex = groupRosterBySex;
 
+// Senior High only: when this SECTION teaches a subject. The value is the
+// comma-joined period keys already stored on reg_class_subjects.term, so this
+// is a new control over existing data — no migration behind it.
+const TERM_CHOICES: { v: string; l: string }[] = [
+  { v: '', l: 'All 3 terms' },
+  { v: 'q1', l: 'Term 1 only' },
+  { v: 'q2', l: 'Term 2 only' },
+  { v: 'q3', l: 'Term 3 only' },
+  { v: 'q1,q2', l: 'Terms 1 & 2' },
+  { v: 'q2,q3', l: 'Terms 2 & 3' },
+  { v: 'q1,q3', l: 'Terms 1 & 3' },
+];
+const termChoiceLabel = (v: string | null) =>
+  TERM_CHOICES.find((o) => o.v === (v ?? ''))?.l ??
+  `Terms ${(v ?? '').replace(/q/g, '').split(',').join(' & ')}`;
+
 // Separator row for a grouped roster table: MALE / FEMALE / UNSPECIFIED header
 // spanning the whole table, matching the existing directory tabs.
 function SexRow({ grp, colSpan }: { grp: ReturnType<typeof groupBySex>[number]; colSpan: number }) {
@@ -155,6 +171,10 @@ export default function ClassDetail() {
   // binabasa ng coordinator at ng teacher gradebook), kaya ang dito i-set ay
   // agad na lalabas sa kabilang system.
   const [loadTermTeachers, setLoadTermTeachers] = useState<Record<string, Record<string, number | null>>>({});
+  // SHS: kailan ginagamit ng SECTION NA ITO ang bawat subject. Code (UPPER) →
+  // comma-joined period keys; null/'' = buong taon. Galing sa naka-store nang
+  // reg_class_subjects.term, kaya walang bagong column na kailangan.
+  const [loadTerms, setLoadTerms] = useState<Record<string, string | null>>({});
   // MAPEH pair (GS): sino ang MAUUNA sa section na ito, per pares (key =
   // sorted UPPER codes joined '|', value = UPPER code ng Term 1 subject).
   // LAGING naka-rotate ang pares — ang una ay Term 1+2 ('q1,q2'), ang kapareha
@@ -225,6 +245,7 @@ export default function ClassDetail() {
           const covSecond = pk.slice(-2).join(',');
           const subByCode = new Map(subs.map((s) => [s.code.toUpperCase(), s]));
           const termByCode = new Map(classSubs.map((a) => [a.subjectCode.toUpperCase(), a.term ?? null]));
+          setLoadTerms(Object.fromEntries(termByCode));
           const firsts: Record<string, string> = {};
           for (const s of subs) {
             const partner = s.pairedWith ? subByCode.get(s.pairedWith.toUpperCase()) : undefined;
@@ -481,6 +502,38 @@ export default function ClassDetail() {
   const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
   const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
 
+  // Only Senior High teaches a subject for part of the year; N–G10 subjects run
+  // the whole year, so the term column and the headings stay out of the way
+  // there — and, just as importantly, so the MAPEH pair and rotating blocks
+  // (which are GS/JHS features and set their own term) are never regrouped.
+  const isShsClass = !!klass && klass.gradeLevel.startsWith('XI');
+
+  const setLoadTerm = (code: string, v: string) => {
+    setLoadTerms((t) => ({ ...t, [code.toUpperCase()]: v || null }));
+    setLoadSaved(false);
+  };
+
+  // The subject list split by term, in reading order: whole-year first, then
+  // each single term, then the spans. Non-SHS keeps one unlabelled group, which
+  // renders exactly as before.
+  // Plain computation, not a hook: this sits after the loading early-return, and
+  // the list is at most a few dozen rows.
+  const loadGroups = (() => {
+    if (!isShsClass) return [{ key: '', label: '', items: loadSubjects }];
+    const byTerm = new Map<string, typeof loadSubjects>();
+    for (const row of loadSubjects) {
+      const k = loadTerms[row.subject.code.toUpperCase()] ?? '';
+      byTerm.set(k, [...(byTerm.get(k) ?? []), row]);
+    }
+    const rank = (k: string) => {
+      const i = TERM_CHOICES.findIndex((o) => o.v === k);
+      return i < 0 ? 99 : i;
+    };
+    return [...byTerm.entries()]
+      .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+      .map(([key, items]) => ({ key, label: termChoiceLabel(key), items }));
+  })();
+
   const isOffered = (code: string) =>
     Object.prototype.hasOwnProperty.call(load, code.toUpperCase());
   const toggleOffered = (code: string, offered: boolean) => {
@@ -610,6 +663,10 @@ export default function ClassDetail() {
             ...(pr
               ? { term: pairCoverage(pairKeyOf(k, pr.partner), k, pr.primary ? k : pr.partner) }
               : {}),
+            // SHS: the term the registrar picked for this section. Rotating and
+            // pair rows derive their own coverage above and are left alone, so
+            // this only speaks for ordinary subjects.
+            ...(isShsClass && !rot && !pr ? { term: loadTerms[k] ?? null } : {}),
           };
         }),
       );
@@ -1310,19 +1367,36 @@ export default function ClassDetail() {
                         </span>
                       </th>
                       <th className="py-1.5 pr-3">Subject</th>
+                      {isShsClass && <th className="py-1.5 pr-3 w-[150px]">Term</th>}
                       <th className="py-1.5 w-[45%]">Teacher</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadSubjects.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="py-6 text-center text-ink-secondary">
+                        <td colSpan={isShsClass ? 4 : 3} className="py-6 text-center text-ink-secondary">
                           No subjects for this grade yet. Set the grade&apos;s subjects and
                           order in Setup ▸ Subjects.
                         </td>
                       </tr>
                     ) : (
-                      loadSubjects.map(({ subject: s, inCurriculum }) => {
+                      loadGroups.map((grp) => (
+                      <Fragment key={grp.key || 'all'}>
+                      {/* Senior High reads by term first, so the term is a
+                          heading rather than a column to scan down. */}
+                      {isShsClass && (
+                        <tr>
+                          <td colSpan={4} className="pt-3 pb-1">
+                            <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-primary">
+                              {grp.label}
+                            </span>
+                            <span className="ml-2 text-[11px] text-ink-muted">
+                              {grp.items.length} subject{grp.items.length === 1 ? '' : 's'}
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                      {grp.items.map(({ subject: s, inCurriculum }) => {
                         const codeUpper = s.code.toUpperCase();
                         const offered = isOffered(s.code);
                         const rotating = !!s.isRotating;
@@ -1542,6 +1616,27 @@ export default function ClassDetail() {
                                 </span>
                               )}
                             </td>
+                            {isShsClass && (
+                              <td className="py-1.5 pr-3">
+                                <select
+                                  value={loadTerms[codeUpper] ?? ''}
+                                  onChange={(e) => setLoadTerm(codeUpper, e.target.value)}
+                                  disabled={!offered}
+                                  title={
+                                    offered
+                                      ? 'When this section teaches the subject'
+                                      : 'Tick the subject first'
+                                  }
+                                  className="w-[140px] rounded border border-border bg-panel px-2 py-1 text-[12px] text-ink-primary disabled:opacity-40"
+                                >
+                                  {TERM_CHOICES.map((o) => (
+                                    <option key={o.v} value={o.v}>
+                                      {o.l}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            )}
                             <td className="py-1.5">
                               {rotating ? (
                                 // Tig-isang teacher BAWAT TERM — ang pagpili ay
@@ -1636,7 +1731,9 @@ export default function ClassDetail() {
                           )}
                           </Fragment>
                         );
-                      })
+                      })}
+                      </Fragment>
+                      ))
                     )}
                   </tbody>
                 </table>
