@@ -7,7 +7,6 @@ import { PrintHost } from '@/components/print/PrintHost';
 import { ClassForm1 } from '@/components/print/ClassForm1';
 import { NatTab } from './NatTab';
 import { NcaeTab } from './NcaeTab';
-import { ClassForm5 } from '@/components/print/ClassForm5';
 import { BatchReportCards } from '@/components/print/BatchReportCards';
 import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -41,7 +40,6 @@ import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
 type ClassDoc =
   | { kind: 'sf1' }
-  | { kind: 'sf5' }
   | { kind: 'batch' }
   | { kind: 'one'; student: Student };
 
@@ -810,13 +808,6 @@ export default function ClassDetail() {
                 onClick={() => setDoc({ kind: 'sf1' })}
               >
                 <FileText className="w-3.5 h-3.5" /> Print Form 1
-              </Button>
-              <Button
-                variant="outline"
-                className="justify-start gap-2 w-full"
-                onClick={() => setDoc({ kind: 'sf5' })}
-              >
-                <FileText className="w-3.5 h-3.5" /> Print Form 5
               </Button>
               <Button
                 variant="outline"
@@ -1867,20 +1858,16 @@ export default function ClassDetail() {
         docTitle={
           doc?.kind === 'sf1'
             ? `SF 1 (School Register) · Grade ${klass.gradeLevel} ${klass.sectionName}`
-            : doc?.kind === 'sf5'
-              ? `SF 5 (Promotion) · Grade ${klass.gradeLevel} ${klass.sectionName}`
-              : doc?.kind === 'batch'
-                ? `Report Cards · Grade ${klass.gradeLevel} ${klass.sectionName}`
-                : doc?.kind === 'one'
-                  ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
-                  : ''
+            : doc?.kind === 'batch'
+              ? `Report Cards · Grade ${klass.gradeLevel} ${klass.sectionName}`
+              : doc?.kind === 'one'
+                ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
+                : ''
         }
         onClose={() => setDoc(null)}
       >
         {doc?.kind === 'sf1' ? (
           <ClassForm1 klass={klass} roster={roster} />
-        ) : doc?.kind === 'sf5' ? (
-          <ClassForm5 klass={klass} roster={roster} subjects={subjects} />
         ) : doc?.kind === 'batch' ? (
           <BatchReportCards klass={klass} roster={roster} subjects={subjects} attitudeScale={attitudeScale} />
         ) : doc?.kind === 'one' ? (

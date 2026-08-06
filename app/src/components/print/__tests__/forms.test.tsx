@@ -7,7 +7,6 @@ import { GoodMoral } from '../GoodMoral';
 import { CertEnrollment } from '../CertEnrollment';
 import { StudentId } from '../StudentId';
 import { ClassForm1 } from '../ClassForm1';
-import { ClassForm5 } from '../ClassForm5';
 import { BatchReportCards } from '../BatchReportCards';
 
 const subjects: Subject[] = [
@@ -176,15 +175,6 @@ describe('class-level forms render', () => {
     expect(text).toContain('ramos'); // male (surname is upper-cased in the doc)
     expect(text).toContain('santos'); // female
     expect(text).toContain('de leon'); // adviser in header
-  });
-
-  it('SF 5 Promotion report shows general averages and actions', () => {
-    const { container } = render(<ClassForm5 klass={klass} roster={roster} subjects={subjects} />);
-    const text = container.textContent ?? '';
-    expect(text).toContain('Report on Promotion');
-    expect(text).toContain('General Average');
-    expect(text).toContain('PROMOTED'); // GA 88 ≥ 75
-    expect(text).toContain('Total Enrolment');
   });
 
   it('Batch report cards render one per learner', () => {

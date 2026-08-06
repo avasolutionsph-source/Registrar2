@@ -6,7 +6,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { UnsavedChangesDialog } from '@/components/shell/UnsavedGuard';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { SectionCard } from '@/components/entity/SectionCard';
-import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
+import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, getSignedInEmail, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { subjectIndex, formatSy, gradeLabel, periodsForSy, FALLBACK_SUBJECT_NAMES, MAPEH_COMPONENT_CODES as MAPEH_CODE_SET } from '@/lib/forms';
 import {
@@ -474,12 +474,37 @@ export default function EncodeGrades() {
     setError(null);
     setSaved(false);
     try {
+      // One timestamp for the whole save, so every subject touched in this sitting
+      // reads as one edit rather than a scatter of near-identical times.
+      const stampedAt = new Date().toISOString();
+      const registrarEmail = (await getSignedInEmail()) ?? '';
+      // Everything already stored for this subject, keyed by code. This page
+      // owns the period grades — it does NOT own the teacher's per-activity
+      // scores (`items`) or the adviser's `attitude`, and it never even reads
+      // them. Building each entry from scratch therefore threw them away: one
+      // Save here left the number standing with nothing on the sheet to justify
+      // it. Start from what is stored and overwrite only what this page owns.
+      const storedByCode = new Map(
+        ((student.grades ?? {})[sy as keyof typeof student.grades] ?? []).map(
+          (e) => [String(e.subjectCode).toUpperCase(), e],
+        ),
+      );
       const cleaned: QuarterGrade[] = orderedRows
         .filter((r) => r.subjectCode)
         .map((r) => {
-          const entry: QuarterGrade = { subjectCode: r.subjectCode.toUpperCase() };
+          const code = r.subjectCode.toUpperCase();
+          const entry: QuarterGrade = { ...(storedByCode.get(code) ?? {}), subjectCode: code };
+          // The period grades below are rewritten from this page every time, so
+          // clear the old ones first — otherwise a value the registrar deleted
+          // would survive in the copy carried over.
+          QKEYS.forEach((q) => { delete entry[q]; });
+          delete entry.final;
+          delete entry.raw;
+          delete entry.letters;
+          delete entry.areaGroup;
           const cn = r.customName?.trim();
           if (cn) entry.customName = cn;
+          else delete entry.customName;
           if (ks1) {
             const letters: Partial<Record<QuarterKey, string>> = {};
             QKEYS.forEach((q) => {
@@ -499,6 +524,18 @@ export default function EncodeGrades() {
             });
             if (Object.keys(raw).length) entry.raw = raw;
             if (isAreaGroup(r.areaGroup)) entry.areaGroup = r.areaGroup;
+          }
+          // Did THIS page actually change a period grade or the final? Only
+          // then is the teacher told. Re-saving a sheet without touching a
+          // subject must not raise a flag on it.
+          const before = storedByCode.get(code);
+          const changed =
+            !!before &&
+            (QKEYS.some((q) => (before[q] ?? null) !== (entry[q] ?? null)) ||
+              (before.final ?? null) !== (entry.final ?? null));
+          if (changed) {
+            entry.regEditedAt = stampedAt;
+            entry.regEditedBy = registrarEmail;
           }
           return entry;
         });
