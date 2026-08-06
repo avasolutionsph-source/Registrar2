@@ -470,6 +470,17 @@ export async function saveStudentGrades(lrn: string, grades: Student['grades']):
   if (error) throw error;
 }
 
+// Targeted update of just the NCAE JSONB (Classes ▸ NCAE). Same shape as
+// saveStudentGrades: touch one column so nothing else on the learner can be
+// clobbered by a concurrent edit elsewhere.
+export async function saveStudentNcae(lrn: string, ncae: Student['ncae']): Promise<void> {
+  const { error } = await client()
+    .from('reg_students')
+    .update({ ncae: ncae && Object.keys(ncae).length ? ncae : null })
+    .eq('lrn', lrn);
+  if (error) throw error;
+}
+
 // Targeted update of just the enrolment_history JSONB. Used when encoding a
 // learner's prior-school years from a RECEIVED SF 10 (transferee). Re-sorts by
 // SY and recomputes loyalty_years (count of years spent AT NPS).
@@ -2458,4 +2469,15 @@ export async function stopDryRun(force = false): Promise<DryRunStopResult> {
     restored: (data?.restored ?? []) as DryRunStopResult['restored'],
     extras: (data?.extras ?? []) as DryRunStopResult['extras'],
   };
+}
+
+// The signed-in registrar's email, or '' when it cannot be read. Used to stamp
+// who changed a learner's grades from Encode Grades, so the teacher's sheet can
+// name them rather than reporting an anonymous change.
+export async function getSignedInEmail(): Promise<string> {
+  try {
+    return (await client().auth.getSession()).data.session?.user?.email ?? '';
+  } catch {
+    return '';
+  }
 }

@@ -14,6 +14,7 @@ import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { KeyValueGrid } from '@/components/entity/KeyValueGrid';
 import { StatusBadge } from '@/components/entity/StatusBadge';
+import { NCAE_AREAS } from '@/lib/forms';
 import {
   getStudent,
   listClasses,
@@ -441,11 +442,31 @@ export default function StudentDetail() {
           </SectionCard>
 
           <SectionCard id="tests" heading="Standardized tests">
-            <p className="text-[12.5px] text-ink-secondary px-1">
-              {isElem
-                ? 'NCAE / NAT not applicable for this grade level.'
-                : 'No scores recorded.'}
-            </p>
+            {/* NCAE is encoded in Classes ▸ NCAE (Grade 10) and lands on the
+                learner's own record, so it reads back here. */}
+            {student.ncae && NCAE_AREAS.some((a) => student.ncae?.[a.key] != null) ? (
+              <div className="px-1">
+                <p className="text-[11px] uppercase tracking-[0.04em] text-ink-muted mb-1.5">
+                  NCAE
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                  {NCAE_AREAS.map((a) => (
+                    <span key={a.key} className="text-[12.5px] text-ink-secondary">
+                      {a.label}{' '}
+                      <span className="font-semibold text-ink-primary tabular-nums">
+                        {student.ncae?.[a.key] ?? '—'}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[12.5px] text-ink-secondary px-1">
+                {isElem
+                  ? 'NCAE / NAT not applicable for this grade level.'
+                  : 'No scores recorded.'}
+              </p>
+            )}
           </SectionCard>
 
           <SectionCard id="releases" heading="Form 137 — Release Log">

@@ -249,6 +249,18 @@ export function buildSubjectRows(
 // The single source of truth for MAPEH component subject codes (grouped MUA/PEH
 // this year + the four classic MUS/ART/PED/HEA for legacy data). Imported by the
 // grade encoder so the set is never duplicated / out of sync.
+// ── NCAE (National Career Assessment Exam, taken in Grade 10) ──────────────
+// The five areas the school records off the result slip. Shared so the encoder
+// (Classes ▸ NCAE) and the learner record cannot drift apart.
+export type NcaeKey = 'eng' | 'mat' | 'sci' | 'tle' | 'mapeh';
+export const NCAE_AREAS: { key: NcaeKey; label: string }[] = [
+  { key: 'eng', label: 'ENG' },
+  { key: 'mat', label: 'MAT' },
+  { key: 'sci', label: 'SCI' },
+  { key: 'tle', label: 'TLE' },
+  { key: 'mapeh', label: 'MAPEH' },
+];
+
 // PDA = the NPS catalog's live code for "Physical Edu. & Health" (the grade
 // curricula carry PDA, not PEH — both are recognized so legacy PEH data still
 // derives).

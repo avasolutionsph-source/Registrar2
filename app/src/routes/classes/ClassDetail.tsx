@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { ClassForm1 } from '@/components/print/ClassForm1';
 import { NatTab } from './NatTab';
+import { NcaeTab } from './NcaeTab';
 import { ClassForm5 } from '@/components/print/ClassForm5';
 import { BatchReportCards } from '@/components/print/BatchReportCards';
 import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
@@ -51,7 +52,6 @@ const TAB_KEYS = [
   'idinfo',
   'parents',
   'credentials',
-  'form5',
   'ncae',
   'nat',
   'reportcard',
@@ -67,7 +67,6 @@ const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
   idinfo: 'ID Info',
   parents: 'Parents',
   credentials: 'Credentials',
-  form5: 'Form 5',
   ncae: 'NCAE',
   nat: 'NAT',
   reportcard: 'Report Card',
@@ -1218,105 +1217,8 @@ export default function ClassDetail() {
               </SectionCard>
             </TabsContent>
 
-            <TabsContent value="form5">
-              <SectionCard heading="Form 5 — DepEd SF 5 Report on Promotion">
-                <div className="grid grid-cols-[1fr_auto] gap-6">
-                  <table className="text-[12px]">
-                    <thead>
-                      <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                        <th className="py-1.5 pr-3 w-[18%]">LRN</th>
-                        <th className="py-1.5 pr-3">Learner's Name</th>
-                        <th className="py-1.5 pr-3 w-[14%] text-right">Gen Avg</th>
-                        <th className="py-1.5 w-[18%]">Action Taken</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupBySex(roster).map((grp) => (
-                        <Fragment key={grp.key}>
-                          <SexRow grp={grp} colSpan={4} />
-                          {grp.students.map((s) => (
-                            <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                              <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                              <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">—</td>
-                              <td className="py-1.5">
-                                <StatusBadge tone="ok">promoted</StatusBadge>
-                              </td>
-                            </tr>
-                          ))}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="flex flex-col gap-3 self-start min-w-[240px]">
-                    <div className="bg-panel-alt border border-border-soft rounded p-3">
-                      <div className="text-label uppercase font-bold text-ink-muted mb-2">Status summary</div>
-                      <div className="grid grid-cols-4 text-[11.5px] gap-y-1">
-                        <span></span>
-                        <span className="text-right text-ink-muted">M</span>
-                        <span className="text-right text-ink-muted">F</span>
-                        <span className="text-right text-ink-muted">Total</span>
-                        <span className="text-ink-secondary">Promoted</span>
-                        <span className="text-right tabular-nums">{males.length}</span>
-                        <span className="text-right tabular-nums">{females.length}</span>
-                        <span className="text-right tabular-nums font-semibold">{roster.length}</span>
-                        <span className="text-ink-secondary">Irregular</span>
-                        <span className="text-right tabular-nums">0</span>
-                        <span className="text-right tabular-nums">0</span>
-                        <span className="text-right tabular-nums">0</span>
-                        <span className="text-ink-secondary">Retained</span>
-                        <span className="text-right tabular-nums">0</span>
-                        <span className="text-right tabular-nums">0</span>
-                        <span className="text-right tabular-nums">0</span>
-                      </div>
-                    </div>
-                    <div className="bg-panel-alt border border-border-soft rounded p-3">
-                      <div className="text-label uppercase font-bold text-ink-muted mb-2">Proficiency</div>
-                      <div className="text-[11.5px] text-ink-secondary">
-                        Beginning · Developing · Approaching · Proficient · Advanced — populated when grades are encoded.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </SectionCard>
-            </TabsContent>
-
             <TabsContent value="ncae">
-              <SectionCard heading="NCAE scores (DepEd National Career Assessment Exam)">
-                <p className="text-[12.5px] text-ink-secondary mb-3">
-                  Grade {klass.gradeLevel} is not eligible for NCAE (taken at Grade 9 / 10). Page shown for completeness.
-                </p>
-                <table className="w-full text-[12px]">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-3">Name</th>
-                      <th className="py-1.5 pr-3">LRN</th>
-                      <th className="py-1.5 pr-3 text-right">GMC</th>
-                      <th className="py-1.5 pr-3 text-right">FIL</th>
-                      <th className="py-1.5 pr-3 text-right">MAPEH</th>
-                      <th className="py-1.5 text-right">TOTAL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupBySex(roster).map((grp) => (
-                      <Fragment key={grp.key}>
-                        <SexRow grp={grp} colSpan={6} />
-                        {grp.students.map((s) => (
-                          <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                            <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                            <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                            <td className="py-1.5 pr-3 text-right text-ink-muted">—</td>
-                            <td className="py-1.5 text-right text-ink-muted">—</td>
-                          </tr>
-                        ))}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </SectionCard>
+              <NcaeTab klass={klass} roster={roster} />
             </TabsContent>
 
             <TabsContent value="reportcard">

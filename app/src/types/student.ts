@@ -68,6 +68,12 @@ export type QuarterKey = 'q1' | 'q2' | 'q3' | 'q4';
 
 export interface QuarterGrade {
   subjectCode: string;
+  // Set when the REGISTRAR edited this subject's period grades from Encode
+  // Grades. The teacher's grade sheet reads it to say so — otherwise a grade
+  // changes under them with nothing on screen to explain it. Cleared the next
+  // time the teacher saves the subject, which is their acknowledgement.
+  regEditedAt?: string; // ISO timestamp
+  regEditedBy?: string; // registrar's email
   // Optional per-student subject name override. Lets the registrar rename the
   // subject on this learner's record (e.g. to match exactly how a transferee's
   // SF10 spells it) without touching the shared subject catalog. Falls back to
@@ -174,7 +180,8 @@ export interface Student {
   credentials: CredentialStatus;
 
   // standardized tests (only populated for eligible grade levels)
-  ncae?: { gmc?: number; fil?: number; mapeh?: number; total?: number };
+  // NCAE is taken in Grade 10; the school records these five areas.
+  ncae?: { eng?: number; mat?: number; sci?: number; tle?: number; mapeh?: number };
   nat?: { fil?: number };
 
   // ID photo: storage object path in the private `student-photos` bucket
