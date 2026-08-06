@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -84,6 +84,10 @@ const DEFAULT_AREAS: { label: string; code: string; kw: string[]; band: 'lower' 
 const numIn =
   'w-12 rounded border border-border bg-panel px-1 py-1 text-center text-[12px] text-ink-primary tabular-nums focus:outline-none focus:border-ring';
 
+// How long the encoding must sit still before it is written — long enough that
+// typing down a column is one save, short enough that walking away loses nothing.
+const AUTOSAVE_MS = 3000;
+
 const toNum = (s: string): number | undefined => {
   const n = Number(s);
   return s.trim() === '' || !Number.isFinite(n) ? undefined : n;
@@ -116,6 +120,11 @@ export default function EncodeGrades() {
   // discard a screen of encoding.
   const [hasChanges, setHasChanges] = useState(false);
   const { guard, dialogProps } = useUnsavedGuard(hasChanges);
+  // Autosave: same reason as the teacher grade sheet — nobody can retype a
+  // transferee's SF 10 from memory. Held in a ref so the debounce can depend on
+  // the ROWS (each keystroke restarts the wait) without re-arming whenever
+  // `save` is redefined. Written in an effect; a ref must not be set in render.
+  const saveRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,6 +514,18 @@ export default function EncodeGrades() {
     }
   }
 
+  useEffect(() => {
+    saveRef.current = save;
+  });
+  useEffect(() => {
+    // A locked past year, or nothing typed, has nothing to write.
+    if (!hasChanges || locked || !student || !sy) return undefined;
+    const t = setTimeout(() => { void saveRef.current?.(); }, AUTOSAVE_MS);
+    return () => clearTimeout(t);
+    // `rows` is the encoding itself — each keystroke restarts the wait, so the
+    // write lands after the pause rather than mid-number.
+  }, [hasChanges, locked, student, sy, rows]);
+
   if (student === undefined) {
     return (
       <div>
@@ -574,7 +595,19 @@ export default function EncodeGrades() {
           <span className="text-[11.5px] text-ink-muted">
             {ks1 ? 'Descriptive grading (Kinder–Grade 3)' : 'DepEd SY 2026-2027 · raw scores → transmuted grade'}
           </span>
-          {saved && <span className="text-[12px] text-ok-fg ml-auto">✓ Saved</span>}
+          {/* Always on screen while encoding is open, so nobody has to wonder
+              whether their work is safe. */}
+          {!locked && (
+            <span className="ml-auto text-[12px]">
+              {saving ? (
+                <span className="text-ink-muted">Saving…</span>
+              ) : hasChanges ? (
+                <span className="text-amber-600">Unsaved — saving automatically</span>
+              ) : saved ? (
+                <span className="text-ok-fg">✓ All changes saved</span>
+              ) : null}
+            </span>
+          )}
           {error && <span className="text-[12px] text-destructive ml-auto">{error}</span>}
         </div>
 
