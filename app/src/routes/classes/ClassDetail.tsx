@@ -94,17 +94,27 @@ const groupBySex = groupRosterBySex;
 // Senior High only: when this SECTION teaches a subject. The value is the
 // comma-joined period keys already stored on reg_class_subjects.term, so this
 // is a new control over existing data — no migration behind it.
-const TERM_CHOICES: { v: string; l: string }[] = [
-  { v: '', l: 'All 3 terms' },
-  { v: 'q1', l: 'Term 1 only' },
-  { v: 'q2', l: 'Term 2 only' },
-  { v: 'q3', l: 'Term 3 only' },
-  { v: 'q1,q2', l: 'Terms 1 & 2' },
-  { v: 'q2,q3', l: 'Terms 2 & 3' },
-  { v: 'q1,q3', l: 'Terms 1 & 3' },
-];
-const termChoiceLabel = (v: string | null) =>
-  TERM_CHOICES.find((o) => o.v === (v ?? ''))?.l ??
+//
+// Built from the school year's OWN periods rather than a fixed list of three:
+// a 2026+ year runs on three terms, but an older one has four quarters, and a
+// picker that only ever offered three would quietly mislabel those.
+function termChoicesFor(periodKeys: string[]): { v: string; l: string }[] {
+  const num = (k: string) => String(periodKeys.indexOf(k) + 1);
+  const out = [{ v: '', l: `All ${periodKeys.length} terms` }];
+  for (const k of periodKeys) out.push({ v: k, l: `Term ${num(k)} only` });
+  // Spans: every contiguous run of two or more, minus the full year (that is
+  // "All" above). Enough for a real timetable without listing every subset.
+  for (let i = 0; i < periodKeys.length; i += 1) {
+    for (let j = i + 1; j < periodKeys.length; j += 1) {
+      if (i === 0 && j === periodKeys.length - 1) continue;
+      const keys = periodKeys.slice(i, j + 1);
+      out.push({ v: keys.join(','), l: `Terms ${num(keys[0])}–${num(keys[keys.length - 1])}` });
+    }
+  }
+  return out;
+}
+const termChoiceLabel = (v: string | null, choices: { v: string; l: string }[]) =>
+  choices.find((o) => o.v === (v ?? ''))?.l ??
   `Terms ${(v ?? '').replace(/q/g, '').split(',').join(' & ')}`;
 
 // Separator row for a grouped roster table: MALE / FEMALE / UNSPECIFIED header
@@ -518,6 +528,7 @@ export default function ClassDetail() {
   // renders exactly as before.
   // Plain computation, not a hook: this sits after the loading early-return, and
   // the list is at most a few dozen rows.
+  const termChoices = termChoicesFor(periods.map((p) => p.key));
   const loadGroups = (() => {
     if (!isShsClass) return [{ key: '', label: '', items: loadSubjects }];
     const byTerm = new Map<string, typeof loadSubjects>();
@@ -526,12 +537,12 @@ export default function ClassDetail() {
       byTerm.set(k, [...(byTerm.get(k) ?? []), row]);
     }
     const rank = (k: string) => {
-      const i = TERM_CHOICES.findIndex((o) => o.v === k);
+      const i = termChoices.findIndex((o) => o.v === k);
       return i < 0 ? 99 : i;
     };
     return [...byTerm.entries()]
       .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
-      .map(([key, items]) => ({ key, label: termChoiceLabel(key), items }));
+      .map(([key, items]) => ({ key, label: termChoiceLabel(key, termChoices), items }));
   })();
 
   const isOffered = (code: string) =>
@@ -1629,7 +1640,7 @@ export default function ClassDetail() {
                                   }
                                   className="w-[140px] rounded border border-border bg-panel px-2 py-1 text-[12px] text-ink-primary disabled:opacity-40"
                                 >
-                                  {TERM_CHOICES.map((o) => (
+                                  {termChoices.map((o) => (
                                     <option key={o.v} value={o.v}>
                                       {o.l}
                                     </option>
