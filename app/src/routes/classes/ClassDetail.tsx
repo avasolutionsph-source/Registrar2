@@ -1098,35 +1098,77 @@ export default function ClassDetail() {
 
             <TabsContent value="parents">
               <SectionCard heading="Parents' Directory">
+                {/* How to REACH a family, not who the pupil is — the identity
+                    columns live on List and Form 1. Messenger and email were
+                    only on Form 1, which is a wide printable form; this is the
+                    page anyone opens when they actually need to contact a
+                    parent, so they belong here. */}
                 <p className="text-[11.5px] text-ink-muted mb-3 px-1">
-                  Per-pupil identity + origin info — what parents care about. Continuous numbering, no Boys/Girls split (legacy convention for this view).
+                  How to reach each family. Continuous numbering, no Boys/Girls split (legacy
+                  convention for this view). <span className="font-mono">—</span> = not on file.
                 </p>
-                <table className="w-full text-[12px]">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-[12px]">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-2 w-[5%]">#</th>
-                      <th className="py-1.5 pr-3">First Name</th>
-                      <th className="py-1.5 pr-3">Middle Name</th>
-                      <th className="py-1.5 pr-3">Last Name</th>
-                      <th className="py-1.5 pr-3 w-[12%]">Birthdate</th>
-                      <th className="py-1.5 pr-3 w-[7%]">Gender</th>
-                      <th className="py-1.5 w-[16%]">LRN</th>
+                      <th className="py-1.5 pr-2 w-[4%]">#</th>
+                      <th className="py-1.5 pr-3 w-[19%]">Name (Student)</th>
+                      <th className="py-1.5 pr-3 w-[19%]">Parents</th>
+                      <th className="py-1.5 pr-3 w-[20%]">Address</th>
+                      <th className="py-1.5 pr-3 w-[12%]">Contact</th>
+                      <th className="py-1.5 pr-3 w-[13%]">Messenger Account</th>
+                      <th className="py-1.5 w-[13%]">Email</th>
                     </tr>
                   </thead>
                   <tbody>
                     {roster.map((s, i) => (
-                      <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                      <tr key={s.lrn} className="border-b border-border-soft last:border-0 align-top">
                         <td className="py-1.5 pr-2 text-ink-muted tabular-nums">{i + 1}</td>
-                        <td className="py-1.5 pr-3">{s.firstName}</td>
-                        <td className="py-1.5 pr-3 text-ink-secondary">{s.middleName}</td>
-                        <td className="py-1.5 pr-3">{s.lastName.toUpperCase()}</td>
-                        <td className="py-1.5 pr-3 font-mono">{s.birthdate}</td>
-                        <td className="py-1.5 pr-3">{s.gender.charAt(0)}</td>
-                        <td className="py-1.5 font-mono">{s.lrn}</td>
+                        <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                        <td className="py-1.5 pr-3 text-ink-secondary">
+                          {/* Both parents, each labelled, with the guardian
+                              marked — a directory is useless if you cannot tell
+                              which name to ask for. */}
+                          {s.fatherName || s.motherMaidenName ? (
+                            <>
+                              {s.fatherName && (
+                                <div>
+                                  <span className="text-ink-muted">F:</span> {s.fatherName}
+                                  {s.guardianRelation === 'Father' && (
+                                    <span className="ml-1 text-[10px] text-ink-muted">(guardian)</span>
+                                  )}
+                                </div>
+                              )}
+                              {s.motherMaidenName && (
+                                <div>
+                                  <span className="text-ink-muted">M:</span> {s.motherMaidenName}
+                                  {s.guardianRelation === 'Mother' && (
+                                    <span className="ml-1 text-[10px] text-ink-muted">(guardian)</span>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="font-mono text-ink-muted">—</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-3 text-ink-secondary">
+                          {s.address || <span className="font-mono text-ink-muted">—</span>}
+                        </td>
+                        <td className="py-1.5 pr-3 font-mono">
+                          {s.contactNumber || <span className="text-ink-muted">—</span>}
+                        </td>
+                        <td className="py-1.5 pr-3 text-ink-secondary break-words">
+                          {s.messenger || <span className="font-mono text-ink-muted">—</span>}
+                        </td>
+                        <td className="py-1.5 text-ink-secondary break-words">
+                          {s.email || <span className="font-mono text-ink-muted">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </SectionCard>
             </TabsContent>
 

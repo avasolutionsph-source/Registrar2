@@ -74,6 +74,35 @@ select 'term coverage enforced' as item,
         like '%is not offered in this term%')::text as ok;
 
 
+-- ═══ ROLLBACK — kung may na-lock out habang nagte-test ════════════════════
+-- Patakbuhin LANG ang block na ito kung may guro na hindi makapag-save sa term
+-- na totoo namang tinuturo nila, at wala kang oras itama ang term ngayon.
+-- Inaalis nito ang bagong tseke at ibinabalik ang function sa dating asal.
+-- Ang natitirang guard (may-ari ng row, lock ng naipasa nang term) ay buo pa rin.
+--
+-- do $$
+-- declare v_def text; v_added text; v_from text :=
+--   '    raise exception ''Not authorized to grade this subject for this learner'';';
+-- begin
+--   select pg_get_functiondef(p.oid) into v_def
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.proname = 'teacher_save_grades' limit 1;
+--   if position('is not offered in' in v_def) = 0 then
+--     raise notice 'Wala namang term guard - walang inalis.'; return;
+--   end if;
+--   v_added := v_from || '
+--   end if;
+--
+--   if v_tt is null and v_term is not null
+--      and not (p_period = any (string_to_array(v_term, '','')))
+--   then
+--     raise exception ''% is not offered in this term for this section.'', p_subject_code;';
+--   execute replace(v_def, v_added, v_from);
+--   raise notice 'Inalis ang term-coverage guard.';
+-- end $$;
+-- notify pgrst, 'reload schema';
+
+
 -- ═══ TINGNAN MUNA: sinong maaapektuhan ═════════════════════════════════════
 -- Bawat subject na may term coverage, at may naka-encode nang grado SA LABAS
 -- ng coverage nito. Ito ang mga sisita ng bagong guard.
