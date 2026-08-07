@@ -35,6 +35,14 @@ export function formatBirthdate(iso: string): string {
   return `${d} ${MONTH_ABBR[m - 1]} ${y}`;
 }
 
+// M/D/YYYY with zero-padded parts (e.g. 08/02/2014) — the format the DepEd /
+// ESC learner lists are submitted in.
+export function formatBirthdateMdy(iso: string): string {
+  const [y, m, d] = (iso ?? '').split('-');
+  if (!y || !m || !d) return '';
+  return `${m.padStart(2, '0')}/${d.padStart(2, '0')}/${y}`;
+}
+
 export function ageOnDate(birthIso: string, refIso: string): number {
   const [by, bm, bd] = birthIso.split('-').map(Number);
   const [ry, rm, rd] = refIso.split('-').map(Number);

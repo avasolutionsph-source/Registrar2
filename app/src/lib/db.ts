@@ -372,6 +372,40 @@ export async function listStudentsByClass(classId: string): Promise<Student[]> {
   );
 }
 
+// Rosters for a SET of classes, carrying `birthdate` and `enrolment_history` on
+// top of the lite columns. Used by the ESC list, which needs the birthdate and
+// the prior school for a few hundred JHS learners: scoping the read to those
+// classes decrypts ONE PII column for ~600 rows instead of five for all ~6,000
+// (what `listStudents()` would cost).
+export async function listStudentsForClasses(classIds: string[]): Promise<Student[]> {
+  if (classIds.length === 0) return [];
+  return offlineRead(
+    async () => {
+      const c = client();
+      const out: Row[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await c
+          .from('reg_students')
+          .select(`${STUDENT_LITE_COLS},birthdate,enrolment_history`)
+          .in('current_class_id', classIds)
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .order('lrn', { ascending: true }) // stable tiebreaker across pages
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as Row[];
+        out.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      return out.map(rowToStudent);
+    },
+    async () => {
+      const ids = new Set(classIds);
+      return (await idbGet<Student[]>(SNAP.students))?.filter((s) => ids.has(s.currentClassId));
+    },
+  );
+}
+
 // Bulk restore from a decrypted archive. Calls the SECURITY-checked server RPC
 // (reg_import_students), which upserts by LRN and re-encrypts PII via the view's
 // triggers. Accepts the same Student shape produced by listStudents(). Returns
