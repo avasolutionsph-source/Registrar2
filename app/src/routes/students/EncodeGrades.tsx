@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { UnsavedChangesDialog } from '@/components/shell/UnsavedGuard';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
+import { enterMovesToNextCell } from '@/lib/gridKeys';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, getSignedInEmail, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
@@ -679,7 +680,7 @@ export default function EncodeGrades() {
         )}
 
         <fieldset disabled={locked} className="min-w-0 border-0 p-0 m-0 disabled:opacity-70">
-        <table className="w-full text-[12.5px]">
+        <table className="w-full text-[12.5px]" onKeyDown={enterMovesToNextCell}>
           <thead>
             <tr className="text-ink-muted text-[11px] uppercase border-b border-border">
               <th className="text-left font-medium py-1.5 pr-3">Subject</th>
@@ -878,7 +879,7 @@ export default function EncodeGrades() {
                 </select>
               </label>
             </div>
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[12px]" onKeyDown={enterMovesToNextCell}>
               <thead>
                 <tr className="text-ink-muted text-[10.5px] uppercase">
                   <th className="text-left font-medium py-1">Component</th>
