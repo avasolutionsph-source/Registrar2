@@ -164,6 +164,7 @@ export default function SetupSubjectAreas() {
     setSavingRole(role);
     setError(null);
     try {
+      // Two commits, not one — the levels can land while the subjects fail.
       await saveSasAreaDepts(role, cur.depts);
       await saveSasAreaSubjects(role, cur.subjectCodes);
       setSaved((prev) => (prev ? { ...prev, [role]: structuredClone(cur) } : prev));
@@ -171,6 +172,20 @@ export default function SetupSubjectAreas() {
       setGaps(await listUnsupervisedSubjects().catch(() => gaps));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save.');
+      // Re-read what the database actually holds. Without this, `saved` still
+      // describes the state from page load, so the card compares the draft
+      // against a lie: Discard would "restore" settings that are no longer
+      // stored, the Unsaved badge would clear, and the page would claim
+      // agreement with a database it no longer matches.
+      try {
+        const rows = await listSasScope();
+        const fresh = rows.find((r) => r.role === role) ?? emptyScope(role);
+        setSaved((prev) => (prev ? { ...prev, [role]: fresh } : prev));
+      } catch {
+        setError(
+          'Save failed and the current settings could not be re-read. Reload this page before editing further.',
+        );
+      }
     } finally {
       setSavingRole(null);
     }
