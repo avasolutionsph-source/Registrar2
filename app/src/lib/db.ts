@@ -2280,6 +2280,92 @@ export async function listRoutingAudit(limit = 50): Promise<RoutingAuditRow[]> {
   }));
 }
 
+// ── subject area supervisor scope (which subjects and levels each area covers) ──
+// Two plain tables behind a registrar-only RLS policy — see
+// setup-sas-scope-config.sql. Together they are the ONLY thing that decides
+// what a supervisor sees; the sas_* RPCs read them through sas_my_scope().
+
+/** Departments a supervisor area may cover, in school order. */
+export const SAS_DEPTS = [
+  { value: 'preschool', label: 'Preschool' },
+  { value: 'gs', label: 'Grade School' },
+  { value: 'jhs', label: 'Junior High' },
+  { value: 'shs', label: 'Senior High' },
+] as const;
+
+export interface SasAreaScope {
+  /** role key, e.g. 'sas_science' */
+  role: string;
+  depts: string[];
+  subjectCodes: string[];
+}
+
+export async function listSasScope(): Promise<SasAreaScope[]> {
+  const [areas, depts] = await Promise.all([
+    client().from('sas_subject_areas').select('role, subject_code'),
+    client().from('sas_area_depts').select('role, dept'),
+  ]);
+  if (areas.error) throw areas.error;
+  if (depts.error) throw depts.error;
+
+  const byRole = new Map<string, SasAreaScope>();
+  const get = (role: string) => {
+    let e = byRole.get(role);
+    if (!e) {
+      e = { role, depts: [], subjectCodes: [] };
+      byRole.set(role, e);
+    }
+    return e;
+  };
+  for (const r of depts.data ?? []) get(str(r.role)).depts.push(str(r.dept));
+  for (const r of areas.data ?? []) get(str(r.role)).subjectCodes.push(str(r.subject_code));
+  return [...byRole.values()];
+}
+
+// Replace-in-place, one area at a time: delete what was dropped, insert what was
+// added. Scoped to the single role so a save can never disturb another area.
+export async function saveSasAreaDepts(role: string, depts: string[]): Promise<void> {
+  const c = client();
+  const del = await c.from('sas_area_depts').delete().eq('role', role);
+  if (del.error) throw del.error;
+  if (!depts.length) return;
+  const ins = await c.from('sas_area_depts').insert(depts.map((dept) => ({ role, dept })));
+  if (ins.error) throw ins.error;
+}
+
+export async function saveSasAreaSubjects(role: string, codes: string[]): Promise<void> {
+  const c = client();
+  const del = await c.from('sas_subject_areas').delete().eq('role', role);
+  if (del.error) throw del.error;
+  if (!codes.length) return;
+  const ins = await c
+    .from('sas_subject_areas')
+    .insert(codes.map((subject_code) => ({ role, subject_code })));
+  if (ins.error) throw ins.error;
+}
+
+/**
+ * Subject codes that are actually being taught but sit in no supervisor area —
+ * these reach no one for checking, and nothing else in the system says so.
+ */
+export async function listUnsupervisedSubjects(): Promise<string[]> {
+  const [assigned, areas] = await Promise.all([
+    client().from('reg_class_subjects').select('subject_code, teacher_id, term_teachers'),
+    client().from('sas_subject_areas').select('subject_code'),
+  ]);
+  if (assigned.error) throw assigned.error;
+  if (areas.error) throw areas.error;
+  const covered = new Set((areas.data ?? []).map((r) => str(r.subject_code).toUpperCase()));
+  const gaps = new Set<string>();
+  for (const r of assigned.data ?? []) {
+    // Unassigned rows are not yet anyone's to check.
+    if (!r.teacher_id && !r.term_teachers) continue;
+    const code = str(r.subject_code);
+    if (code && !covered.has(code.toUpperCase())) gaps.add(code);
+  }
+  return [...gaps].sort();
+}
+
 // ── attitude scale (numerical → letter, registrar-configurable) ──
 // The subject grade sheet's attitude column converts a numerical score to a
 // letter using these bands. Stored in reg_attitude_scale; falls back to the
