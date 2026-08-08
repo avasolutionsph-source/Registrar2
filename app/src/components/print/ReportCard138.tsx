@@ -419,13 +419,18 @@ export function ReportCard138({
 
   return (
     <div
-      className={`mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
           rounded, highly legible sans) is used for readability; falls back to
           a similar sans when it isn't installed. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
+      {/* Zero PAGE margin, with the real 0.4in margin applied as padding on the
+          sheet itself. The browser draws its URL/date/page-number header and
+          footer inside the page margin — with no margin there is nowhere to
+          draw them, so they stop appearing without the user having to untick
+          "Headers and footers" on every computer. Content area is unchanged. */}
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
 
       <div className="text-[8.5px]">School Form 9</div>
 

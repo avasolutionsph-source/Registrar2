@@ -288,10 +288,13 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
+      {/* Zero PAGE margin, real margin as padding — see ReportCard138: this is
+          what keeps the browser's URL/page-number header and footer off the
+          printed card. */}
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
 
       {/* The grid IS the whole card (no shared header above it). Page budget at
           0.4in margins is ~10.2in, less ~0.17in root padding. The floor only
