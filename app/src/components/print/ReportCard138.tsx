@@ -445,12 +445,15 @@ export function ReportCard138({
   // slack first, then the type steps down — a 16-subject Grade XII and even an
   // outsized curriculum still land on a single sheet.
   const bodyType =
-    rows.length > 20 ? 'text-[8px] leading-[1.25]'
-    : rows.length > 14 ? 'text-[9px] leading-[1.3]'
-    : 'text-[10.5px] leading-[1.45]';
+    rows.length > 20 ? 'text-[8px] leading-[1.2]'
+    : rows.length > 14 ? 'text-[8.5px] leading-[1.25]'
+    : 'text-[10.5px] leading-[1.4]';
   const dense = rows.length > 14;
+  // Row padding steps down with density — a long subject list pays for itself
+  // in the rows, not just the type.
+  const rowPad = dense ? 'py-[1px]' : 'py-[2px]';
   const bd = 'border border-black';
-  const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
+  const cell = `${bd} px-1.5 ${rowPad} text-center align-middle`;
   const hcell = `${cell} font-bold`;
 
   // one FINAL letter for a deportment/program row from its 3 term marks
@@ -517,7 +520,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7in]' : 'min-h-[7.2in]'}`}>
+      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[6.5in]' : 'min-h-[7.2in]'}`}>
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
@@ -552,7 +555,7 @@ export function ReportCard138({
                 const rLetterFinal = modal(pcols.map((q) => r.letters?.[q]));
                 return (
                   <tr key={r.subjectCode}>
-                    <td className={`${bd} px-1.5 py-[3px] ${r.isMapehComponent ? 'pl-4 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
+                    <td className={`${bd} px-1.5 ${rowPad} ${r.isMapehComponent ? 'pl-4 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
                       {r.name}
                     </td>
                     {pcols.map((q, i) => (
@@ -578,7 +581,7 @@ export function ReportCard138({
                 );
               })}
               <tr>
-                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Average</td>
+                <td className={`${bd} px-1.5 ${rowPad} font-semibold`}>Average</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>
                     {shown(i) ? (descriptive ? periodAvgLetter(q) : periodAvgNum(q)) : ''}
@@ -587,14 +590,14 @@ export function ReportCard138({
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Conduct</td>
+                <td className={`${bd} px-1.5 ${rowPad} font-semibold`}>Conduct</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>{shown(i) ? conductLetter(q) : ''}</td>
                 ))}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1.5 py-[3px] text-right font-bold`} colSpan={periods.length + 1}>
+                <td className={`${bd} px-1.5 ${rowPad} text-right font-bold`} colSpan={periods.length + 1}>
                   General Average
                 </td>
                 <td className={`${cell} font-bold`}>
@@ -646,7 +649,7 @@ export function ReportCard138({
               <tbody>
                 {programRows.map((pr) => (
                   <tr key={pr.key}>
-                    <td className={`${bd} px-1.5 py-[3px]`}>{pr.label}</td>
+                    <td className={`${bd} px-1.5 ${rowPad}`}>{pr.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? programLetter(perQ(programs, q)?.[pr.key]) : ''}
@@ -676,7 +679,7 @@ export function ReportCard138({
               <tbody>
                 {CORE_VALUES.map((cv) => (
                   <tr key={cv.key}>
-                    <td className={`${bd} px-1.5 py-[3px]`}>{cv.label}</td>
+                    <td className={`${bd} px-1.5 ${rowPad}`}>{cv.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(values, q)?.[cv.key]) : ''}

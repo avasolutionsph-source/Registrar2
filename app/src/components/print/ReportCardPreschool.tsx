@@ -278,7 +278,7 @@ export function ReportCardPreschool({
   const nextLevel = NEXT_LEVEL[gradeCode] ?? '';
 
   const bd = 'border border-black';
-  const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
+  const cell = `${bd} px-1.5 py-[2px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
   const blank = (label: string, value: string, w = 'flex-1') => (
     <div className="flex items-end gap-2">
@@ -334,7 +334,7 @@ export function ReportCardPreschool({
           28-row deportment table is what actually sets the height, so its row
           padding is kept tight and the floor stays under budget with headroom.
           Raising either one spills onto sheet 2. */}
-      <div className="mt-2.5 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8in]">
+      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.4in]">
         {/* LEFT — identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
@@ -367,7 +367,7 @@ export function ReportCardPreschool({
             <tbody>
               {areas.map((a) => (
                 <tr key={a.code}>
-                  <td className={`${bd} px-1.5 py-[3px]`}>{a.name}</td>
+                  <td className={`${bd} px-1.5 py-[2px]`}>{a.name}</td>
                   {pcols.map((q, i) => (
                     <td key={q} className={cell}>{shown(i) ? (a.letters[q] ?? '') : ''}</td>
                   ))}
@@ -376,7 +376,7 @@ export function ReportCardPreschool({
                 </tr>
               ))}
               <tr>
-                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Over-All Progress</td>
+                <td className={`${bd} px-1.5 py-[2px] font-semibold`}>Over-All Progress</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>{shown(i) ? termProgress(q) : ''}</td>
                 ))}
@@ -456,7 +456,7 @@ export function ReportCardPreschool({
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={`${bd} px-1.5 py-[3px]`}> </th>
+                <th className={`${bd} px-1.5 py-[2px]`}> </th>
                 {periods.map((p) => (
                   <th key={p.key} className={`${hcell} w-11 font-normal`}>{p.label}</th>
                 ))}
@@ -467,7 +467,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-[#FAF7EF] text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[2px] bg-[#FAF7EF] text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
@@ -479,7 +479,7 @@ export function ReportCardPreschool({
                   </tr>
                   {g.items.map((it) => (
                     <tr key={it.k}>
-                      <td className={`${bd} px-1.5 py-[3px]`}>{it.label}</td>
+                      <td className={`${bd} px-1.5 py-[2px]`}>{it.label}</td>
                       {pcols.map((q, i) => (
                         <td key={q} className={cell}>
                           {shown(i) ? preDep[it.k]?.[q] ?? '' : ''}
