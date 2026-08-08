@@ -49,9 +49,14 @@ import { ageOnDate } from '@/lib/format';
 
 const PRINCIPAL = 'MRS. ROSARIO B. OLALIA';
 
-// The report cards' paper colour — gold, but a hair off white. Shared by both
-// cards (ReportCardPreschool imports it) so the two never drift apart.
-export const SHEET_GOLD = '#FFFDF8';
+// The report cards' paper colour — the faintest warm gold, all but white.
+// Shared by both cards (ReportCardPreschool imports it) so they never drift.
+export const SHEET_GOLD = '#FFFEFB';
+
+// The seal watermark's classes, shared by both cards so the two always match.
+export const WATERMARK_CLASS =
+  'pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] ' +
+  'w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.11]';
 
 // Paints the WHOLE sheet, on screen and on paper. Two targets are needed:
 //   html   — its background propagates to the page canvas, which is the only
@@ -487,7 +492,7 @@ export function ReportCard138({
         src={npsLogo}
         alt=""
         aria-hidden="true"
-        className="pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.07]"
+        className={WATERMARK_CLASS}
       />
 
       <div className="text-[8.5px]">School Form 9</div>

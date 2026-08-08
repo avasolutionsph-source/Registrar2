@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
 import depedLogo from '@/assets/deped-logo.png';
 import { listGradeSubjects, listSchoolYears, listClassSubjects } from '@/lib/db';
-import { SHEET_GOLD, sheetStyle } from './ReportCard138';
+import { SHEET_GOLD, sheetStyle, WATERMARK_CLASS } from './ReportCard138';
 import type { QuarterKey, SchoolYear, Student, Subject } from '@/types';
 import {
   subjectIndex,
@@ -305,7 +305,7 @@ export function ReportCardPreschool({
         src={npsLogo}
         alt=""
         aria-hidden="true"
-        className="pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.07]"
+        className={WATERMARK_CLASS}
       />
 
       <div className="text-[8.5px]">School Form 9</div>
@@ -463,7 +463,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-[#F8F4E8] text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px] bg-[#FAF7EF] text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
