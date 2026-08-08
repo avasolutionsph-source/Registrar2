@@ -558,8 +558,9 @@ export function conductForSy(student: Student, sy: string): ConductYear {
   return c[sy] ?? {};
 }
 
-// Adviser display name in the report-card style ("Ms. Coner, Angelica Mae A.");
-// blank when the section has no adviser assigned (never " , " garbage).
+// Adviser display name in the report-card style, FIRST name first — like the
+// official cards' "Ms. Angelica Mae A. Coner". Blank when the section has no
+// adviser assigned (never stray separators).
 export function adviserDisplayName(
   t?: { title?: string; familyName?: string; firstName?: string; middleInitial?: string } | null,
 ): string {
@@ -570,7 +571,7 @@ export function adviserDisplayName(
   // strip any stored trailing dot so "M." never prints as "M.."
   const mi = (t.middleInitial ?? '').trim().replace(/\.+$/, '');
   const title = (t.title ?? '').trim();
-  return `${title ? title + ' ' : ''}${last}${first ? ', ' + first : ''}${mi ? ' ' + mi + '.' : ''}`;
+  return [title, first, mi ? `${mi}.` : '', last].filter(Boolean).join(' ');
 }
 
 // Mean of the per-year values averages across a learner's whole record — the
