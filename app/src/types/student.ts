@@ -129,6 +129,12 @@ export interface ConductYear {
   attendance?: AttendanceRecord;
   values?: ValuesRecord;
   programs?: ProgramsRecord;
+  // Preschool Progress Report inputs, encoded by the class adviser in the
+  // portal (Adviser ▸ Progress Report / Deportment Marks):
+  // per-area B/D/C letters (SUBJECT CODE → period → letter) …
+  preScholarship?: Record<string, Partial<Record<QuarterKey, string>>>;
+  // … and per-statement deportment marks (statement key → period → AO/SO/RO/NO).
+  preDeportment?: Record<string, Partial<Record<QuarterKey, string>>>;
 }
 
 export interface Student {

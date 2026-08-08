@@ -48,57 +48,58 @@ const FALLBACK_AREAS = [
   'MAKABANSA-Filipino',
 ];
 
-// DEPORTMENT: the five core values with the official "I ..." statements. The
-// statement rows are marked by hand (AO/SO/RO/NO); the encoded core-value
-// rating (adviser portal) prints on the band row when it exists.
-const DEPORTMENT_GROUPS: { key: string; label: string; items: string[] }[] = [
+// DEPORTMENT: the five core values with the official "I ..." statements.
+// `k` is the storage key the ADVISER PORTAL writes into conduct.preDeportment
+// (Adviser ▸ Deportment Marks) — the two lists must never drift apart. The
+// band row additionally shows the encoded core-value rating when it exists.
+const DEPORTMENT_GROUPS: { key: string; label: string; items: { k: string; label: string }[] }[] = [
   {
     key: 'faith',
     label: 'FAITH',
     items: [
-      'I pray with proper posture and reverence.',
-      'I make the sign of the Cross correctly.',
-      'I recite familiar prayers with confidence.',
+      { k: 'faith1', label: 'I pray with proper posture and reverence.' },
+      { k: 'faith2', label: 'I make the sign of the Cross correctly.' },
+      { k: 'faith3', label: 'I recite familiar prayers with confidence.' },
     ],
   },
   {
     key: 'integrity',
     label: 'INTEGRITY',
     items: [
-      'I complete my work honestly and independently.',
-      'I accept responsibility for my actions.',
-      'I make good choices in school.',
+      { k: 'integrity1', label: 'I complete my work honestly and independently.' },
+      { k: 'integrity2', label: 'I accept responsibility for my actions.' },
+      { k: 'integrity3', label: 'I make good choices in school.' },
     ],
   },
   {
     key: 'respect',
     label: 'RESPECT',
     items: [
-      'I greet my teachers and school personnel politely.',
-      'I use respectful words such as “po” and “opo”.',
-      'I raise my hand and wait for my turn to speak.',
-      'I follow my teacher’s directions promptly.',
+      { k: 'respect1', label: 'I greet my teachers and school personnel politely.' },
+      { k: 'respect2', label: 'I use respectful words such as “po” and “opo”.' },
+      { k: 'respect3', label: 'I raise my hand and wait for my turn to speak.' },
+      { k: 'respect4', label: 'I follow my teacher’s directions promptly.' },
     ],
   },
   {
     key: 'excellence',
     label: 'EXCELLENCE',
     items: [
-      'I come to class prepared with needed materials.',
-      'I complete my assigned homework and class tasks.',
-      'I participate actively in class discussion and activities.',
-      'I try to complete tasks independently before asking for help.',
+      { k: 'excellence1', label: 'I come to class prepared with needed materials.' },
+      { k: 'excellence2', label: 'I complete my assigned homework and class tasks.' },
+      { k: 'excellence3', label: 'I participate actively in class discussion and activities.' },
+      { k: 'excellence4', label: 'I try to complete tasks independently before asking for help.' },
     ],
   },
   {
     key: 'socialResponsibility',
     label: 'SOCIAL RESPONSIBILITY',
     items: [
-      'I participate actively during morning routines and school activities.',
-      'I show kindness and consideration toward others.',
-      'I come to school wearing the proper uniform and with a neat appearance.',
-      'I keep my personal belongings organized and ready for class.',
-      'I help keep classroom clean and orderly.',
+      { k: 'socialResponsibility1', label: 'I participate actively during morning routines and school activities.' },
+      { k: 'socialResponsibility2', label: 'I show kindness and consideration toward others.' },
+      { k: 'socialResponsibility3', label: 'I come to school wearing the proper uniform and with a neat appearance.' },
+      { k: 'socialResponsibility4', label: 'I keep my personal belongings organized and ready for class.' },
+      { k: 'socialResponsibility5', label: 'I help keep classroom clean and orderly.' },
     ],
   },
 ];
@@ -200,20 +201,34 @@ export function ReportCardPreschool({
   const termsMap = classTerms ?? fetchedTerms;
 
   // ── SCHOLARSHIP rows: the section's subject load (blank rows when nothing
-  // is encoded yet), else the official fixed learning areas. Grades here are
-  // descriptive letters (B/D/C) stored per period on the grade entry.
+  // is encoded yet), else the official fixed learning areas. The B/D/C letter
+  // per term comes from the ADVISER's Progress Report sheet (conduct
+  // .preScholarship), with any letters on the grade entry as fallback.
+  const conductPre = conductForSy(student, year);
+  const preSch = conductPre.preScholarship ?? {};
+  const preDep = conductPre.preDeportment ?? {};
   const baseEntries = gradesForSy(student, year);
   const index = subjectIndex(subjects);
   const rank = new Map(orderCodes.map((c, i) => [c.toUpperCase(), i] as const));
   const byCode = new Map(baseEntries.map((g) => [g.subjectCode.toUpperCase(), g]));
-  const codes = new Set<string>([...byCode.keys(), ...Object.keys(termsMap ?? {})]);
+  const codes = new Set<string>([
+    ...byCode.keys(),
+    ...Object.keys(termsMap ?? {}),
+    ...Object.keys(preSch).map((c) => c.toUpperCase()),
+  ]);
+  const ALL_Q: QuarterKey[] = ['q1', 'q2', 'q3', 'q4'];
   let areas = [...codes]
     .map((c) => {
       const g = byCode.get(c);
+      const letters: Partial<Record<QuarterKey, string>> = { ...(g?.letters ?? {}) };
+      for (const q of ALL_Q) {
+        const v = preSch[c]?.[q];
+        if (v) letters[q] = v; // adviser-encoded letter wins
+      }
       return {
         code: c,
         name: g?.customName?.trim() || index.get(c)?.fullName || c,
-        letters: (g?.letters ?? {}) as Partial<Record<QuarterKey, string>>,
+        letters,
         order: rank.get(c) ?? 9999,
       };
     })
@@ -434,12 +449,16 @@ export function ReportCardPreschool({
                     </td>
                   </tr>
                   {g.items.map((it) => (
-                    <tr key={it}>
-                      <td className={`${bd} px-1.5 py-[3px]`}>{it}</td>
-                      {pcols.map((q) => (
-                        <td key={q} className={cell} />
+                    <tr key={it.k}>
+                      <td className={`${bd} px-1.5 py-[3px]`}>{it.label}</td>
+                      {pcols.map((q, i) => (
+                        <td key={q} className={cell}>
+                          {shown(i) ? preDep[it.k]?.[q] ?? '' : ''}
+                        </td>
                       ))}
-                      <td className={cell} />
+                      <td className={cell}>
+                        {complete ? modal(pcols.map((q) => preDep[it.k]?.[q])) : ''}
+                      </td>
                     </tr>
                   ))}
                 </Fragment>
