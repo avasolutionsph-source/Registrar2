@@ -20,6 +20,7 @@ import {
   monthsForSy,
   getPassingGrade,
   remark as remarkOf,
+  adviserFirstNameFirst,
   MAPEH_COMPONENT_CODES,
   FALLBACK_SUBJECT_NAMES,
   type SubjectRow,
@@ -336,7 +337,8 @@ export function ReportCard138({
   };
 
   const fullName = `${student.lastName}, ${student.firstName}${student.middleName ? ' ' + student.middleName : ''}`;
-  const adviser = liveClass?.adviserName || entry?.adviserName || '';
+  // first-name-first, even when the value is an old "Last, First" snapshot
+  const adviser = liveClass?.adviserName || adviserFirstNameFirst(entry?.adviserName);
   const age = student.birthdate ? ageOnDate(student.birthdate, `${year.slice(0, 4)}-06-01`) : null;
   const promoted = descriptive
     ? (gaLetter !== '' && gaLetter !== 'E' && gaLetter !== 'D')

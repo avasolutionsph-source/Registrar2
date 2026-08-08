@@ -574,6 +574,23 @@ export function adviserDisplayName(
   return [title, first, mi ? `${mi}.` : '', last].filter(Boolean).join(' ');
 }
 
+// Normalize a STORED adviser string to first-name-first. Enrolment-history
+// snapshots were saved "Mrs. Luna, Caren M."; every report card must print
+// "Mrs. Caren M. Luna". Names without a comma pass through untouched.
+export function adviserFirstNameFirst(name?: string | null): string {
+  const s = (name ?? '').trim();
+  const i = s.indexOf(',');
+  if (i < 0) return s;
+  const before = s.slice(0, i).trim(); // "Mrs. Luna" (title + last) or "Luna"
+  const after = s.slice(i + 1).trim(); // "Caren M."
+  if (!after) return before;
+  const parts = before.split(/\s+/);
+  const isTitle = /^(mr|mrs|ms|miss|sir|mme|engr|dr|fr|rev|bro|sr|atty)\.?$/i.test(parts[0] ?? '');
+  const title = parts.length > 1 && isTitle ? parts[0] : '';
+  const last = title ? parts.slice(1).join(' ') : before;
+  return [title, after, last].filter(Boolean).join(' ');
+}
+
 // Mean of the per-year values averages across a learner's whole record — the
 // basis for a Good Moral Certificate.
 export function overallValuesAverage(student: Student): number | null {

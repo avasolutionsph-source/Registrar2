@@ -11,6 +11,7 @@ import {
   conductForSy,
   periodsForSy,
   monthsForSy,
+  adviserFirstNameFirst,
 } from '@/lib/forms';
 import { displayLrn } from '@/lib/lrn';
 
@@ -155,7 +156,8 @@ export function ReportCardPreschool({
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
   const gradeCode = liveClass?.gradeLevel ?? entry?.gradeLevel ?? '';
   const sectionName = liveClass?.sectionName ?? entry?.sectionName ?? '';
-  const adviser = liveClass?.adviserName || entry?.adviserName || '';
+  // first-name-first, even when the value is an old "Last, First" snapshot
+  const adviser = liveClass?.adviserName || adviserFirstNameFirst(entry?.adviserName);
 
   // Registrar-curated subject order for this level (Setup ▸ Subjects).
   const [orderCodes, setOrderCodes] = useState<string[]>([]);
