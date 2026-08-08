@@ -457,13 +457,14 @@ export function ReportCard138({
   const finalLetterFor = (get: (q: QuarterKey) => number | undefined, toLetter: (v?: number) => string) =>
     complete ? modal(pcols.map((q) => toLetter(get(q)))) : '';
 
-  // print:min-h-0 — the gold comes from the PAGE CANVAS now, so the card no
-  // longer has to stretch to the full sheet to be coloured. Forcing it to 10in
-  // left no rounding room inside the 10.2in printable box and could emit a
-  // blank second page; its natural height plus the grid floor is enough.
+  // NO min-height on the sheet. It only ever made the on-screen preview look
+  // like a full page, but it also forced ~2in of empty space under a short
+  // card at print time — and `print:min-h-0` did not reliably win over it,
+  // which is what kept emitting a blank second sheet. The grid floor below
+  // fills the page; the gold comes from the page canvas, not from this box.
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full flex flex-col ${bodyType} text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
@@ -516,7 +517,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7.4in]' : 'min-h-[7.6in]'}`}>
+      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7in]' : 'min-h-[7.2in]'}`}>
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>

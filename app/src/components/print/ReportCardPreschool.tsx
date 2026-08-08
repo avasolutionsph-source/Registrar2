@@ -289,7 +289,7 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="relative isolate mx-auto w-full flex flex-col text-[10px] leading-[1.35] text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
@@ -334,7 +334,7 @@ export function ReportCardPreschool({
           28-row deportment table is what actually sets the height, so its row
           padding is kept tight and the floor stays under budget with headroom.
           Raising either one spills onto sheet 2. */}
-      <div className="mt-3 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.5in]">
+      <div className="mt-3 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.2in]">
         {/* LEFT — identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
