@@ -62,7 +62,17 @@ export const SHEET_GOLD = '#FFFDF8';
 export const sheetStyle = `
   #print-root { background: ${SHEET_GOLD} !important; }
   @media print {
-    @page { size: 8.5in 11in; margin: 0.4in; }
+    /* Zero PAGE margin so the colour reaches the paper edge: Chrome paints the
+       canvas over the page's CONTENT box only, never into the margin band, so
+       any @page margin prints as a white frame. The real 0.4in margin is put
+       back as padding on the card itself (print:p-[0.4in]).
+
+       This was tried once before and produced a second sheet — that was a
+       DIFFERENT bug: the card was also pinned to a 10in min-height, so card +
+       padding overflowed. With the card at its natural height there is over an
+       inch of slack, enough even on a machine that still prints headers and
+       footers (Chrome reserves margin for those regardless of this rule). */
+    @page { size: 8.5in 11in; margin: 0; }
     html, body {
       background: ${SHEET_GOLD} !important;
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
@@ -448,7 +458,7 @@ export function ReportCard138({
   // blank second page; its natural height plus the grid floor is enough.
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
