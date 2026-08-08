@@ -152,6 +152,12 @@ interface Props {
   // it, or just the classId and the card fetches it once. Absent = no filter.
   classTerms?: Record<string, string | null>;
   classId?: string;
+  // The LIVE class record's identity — grade/strand, section and the adviser
+  // as currently assigned. When given it overrides the enrolment-history
+  // snapshot, which goes stale when a learner moves section/strand or the
+  // section's adviser changes after enrolment. Callers pass it whenever the
+  // card's SY is the class's own SY; past years keep the snapshot.
+  liveClass?: { gradeLevel: string; sectionName: string; adviserName: string };
 }
 
 export function ReportCard138({
@@ -162,6 +168,7 @@ export function ReportCard138({
   attitudeScale = DEFAULT_ATTITUDE_SCALE,
   classTerms,
   classId,
+  liveClass,
 }: Props) {
   const year = sy ?? latestGradedSy(student) ?? student.currentSY;
   const periods = periodsForSy(year);
@@ -171,7 +178,9 @@ export function ReportCard138({
   const complete = upto === periods.length; // end-of-year card
   const shown = (i: number) => i < upto;
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
-  const gradeCode = entry?.gradeLevel;
+  // Live class wins over the enrolment snapshot (see the liveClass prop note).
+  const gradeCode = liveClass?.gradeLevel ?? entry?.gradeLevel;
+  const sectionName = liveClass?.sectionName ?? entry?.sectionName ?? '';
 
   // Registrar-curated subject order for this grade/strand (Setup ▸ Subjects).
   const [orderCodes, setOrderCodes] = useState<string[]>([]);
@@ -294,7 +303,7 @@ export function ReportCard138({
   };
 
   const fullName = `${student.lastName}, ${student.firstName}${student.middleName ? ' ' + student.middleName : ''}`;
-  const adviser = entry?.adviserName || '';
+  const adviser = liveClass?.adviserName || entry?.adviserName || '';
   const age = student.birthdate ? ageOnDate(student.birthdate, `${year.slice(0, 4)}-06-01`) : null;
   const promoted = descriptive
     ? (gaLetter !== '' && gaLetter !== 'E' && gaLetter !== 'D')
@@ -369,7 +378,7 @@ export function ReportCard138({
 
           <div className="mt-2">
             <div><b>Name:</b> {fullName} &nbsp; <b>Age:</b> {age ?? ''} &nbsp; <b>Gender:</b> {student.gender}</div>
-            <div><b>LRN:</b> {displayLrn(student.lrn)} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
+            <div><b>LRN:</b> {displayLrn(student.lrn)} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {sectionName}</div>
             <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> {isSHS ? track : '____________'}</div>
           </div>
 

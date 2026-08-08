@@ -552,6 +552,20 @@ export function conductForSy(student: Student, sy: string): ConductYear {
   return c[sy] ?? {};
 }
 
+// Adviser display name in the report-card style ("Ms. Coner, Angelica Mae A.");
+// blank when the section has no adviser assigned (never " , " garbage).
+export function adviserDisplayName(
+  t?: { title?: string; familyName?: string; firstName?: string; middleInitial?: string } | null,
+): string {
+  if (!t) return '';
+  const last = (t.familyName ?? '').trim();
+  const first = (t.firstName ?? '').trim();
+  if (!last && !first) return '';
+  const mi = (t.middleInitial ?? '').trim();
+  const title = (t.title ?? '').trim();
+  return `${title ? title + ' ' : ''}${last}${first ? ', ' + first : ''}${mi ? ' ' + mi + '.' : ''}`;
+}
+
 // Mean of the per-year values averages across a learner's whole record — the
 // basis for a Good Moral Certificate.
 export function overallValuesAverage(student: Student): number | null {

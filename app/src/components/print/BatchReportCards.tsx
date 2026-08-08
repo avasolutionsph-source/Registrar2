@@ -1,5 +1,6 @@
 import type { ClassRecord, Student, Subject } from '@/types';
 import type { AttitudeBand } from '@/lib/grading';
+import { adviserDisplayName } from '@/lib/forms';
 import { ReportCard138 } from './ReportCard138';
 
 interface Props {
@@ -22,6 +23,14 @@ export function BatchReportCards({ klass, roster, subjects, attitudeScale, upto,
     return <p className="text-center text-[12px] text-zinc-500">No learners in this class.</p>;
   }
 
+  // The class record IS the live source for grade/section/adviser — never the
+  // per-learner enrolment snapshot, which goes stale on adviser/section moves.
+  const liveClass = {
+    gradeLevel: klass.gradeLevel,
+    sectionName: klass.sectionName,
+    adviserName: adviserDisplayName(klass.adviser),
+  };
+
   return (
     <div>
       {ordered.map((s, i) => (
@@ -33,6 +42,7 @@ export function BatchReportCards({ klass, roster, subjects, attitudeScale, upto,
             upto={upto}
             attitudeScale={attitudeScale}
             classTerms={classTerms}
+            liveClass={liveClass}
           />
         </div>
       ))}

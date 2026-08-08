@@ -35,6 +35,7 @@ import {
   periodsForSy,
   formatSy,
   recommendedFormVariant,
+  adviserDisplayName,
 } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
 import { displayLrn } from '@/lib/lrn';
@@ -549,6 +550,15 @@ export default function StudentDetail() {
             upto={cardTermN}
             attitudeScale={attitudeScale}
             classId={cardSy === student.currentSY ? klass?.id : undefined}
+            liveClass={
+              cardSy === student.currentSY && klass
+                ? {
+                    gradeLevel: klass.gradeLevel,
+                    sectionName: klass.sectionName,
+                    adviserName: adviserDisplayName(klass.adviser),
+                  }
+                : undefined
+            }
           />
         ) : doc === 'gmc' ? (
           <GoodMoral student={student} />

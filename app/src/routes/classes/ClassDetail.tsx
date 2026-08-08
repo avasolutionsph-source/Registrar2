@@ -38,6 +38,7 @@ import {
   subjectFitsSection,
   latestPeriodWithData,
   gradesForSy,
+  adviserDisplayName,
   MAPEH_COMPONENT_CODES,
 } from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
@@ -1947,6 +1948,11 @@ export default function ClassDetail() {
             upto={cardTermN}
             attitudeScale={attitudeScale}
             classTerms={cardTerms}
+            liveClass={{
+              gradeLevel: klass.gradeLevel,
+              sectionName: klass.sectionName,
+              adviserName: adviserDisplayName(klass.adviser),
+            }}
           />
         ) : null}
       </PrintHost>
