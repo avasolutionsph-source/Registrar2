@@ -49,9 +49,25 @@ import { ageOnDate } from '@/lib/format';
 
 const PRINCIPAL = 'MRS. ROSARIO B. OLALIA';
 
-// The report cards' paper colour — a very light gold. Shared by both cards
+// The report cards' paper colour — a whisper of gold. Shared by both cards
 // (ReportCardPreschool imports it) so the two never drift apart.
-export const SHEET_GOLD = '#FEFBF0';
+export const SHEET_GOLD = '#FFFCF4';
+
+// Paints the WHOLE sheet, on screen and on paper. Two targets are needed:
+//   html   — its background propagates to the page canvas, which is the only
+//            thing that reaches into the printed page MARGINS.
+//   #print-root — the preview sheet, whose own white padding would otherwise
+//            frame the card on screen.
+// Injected by both cards; identical text, so a batch of N cards is harmless.
+export const sheetStyle = `
+  #print-root { background: ${SHEET_GOLD} !important; }
+  @media print {
+    @page { size: 8.5in 11in; margin: 0.4in; }
+    html { background: ${SHEET_GOLD} !important;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: transparent !important; }
+  }
+`;
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 const ordOf = (code?: string) => {
@@ -450,14 +466,7 @@ export function ReportCard138({
           margins included. Painting it on the card itself would stop at the
           card's own box and leave a white frame. Costs no layout height, so
           the one-page fit is untouched. */}
-      <style>{`
-        @media print {
-          @page { size: 8.5in 11in; margin: 0.4in; }
-          html { background: ${SHEET_GOLD} !important;
-                 -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body { background: transparent !important; }
-        }
-      `}</style>
+      <style>{sheetStyle}</style>
 
       {/* School seal watermark. `isolate` on the sheet makes it the stacking
           context, so z-[-1] paints ABOVE the white background but BELOW every
