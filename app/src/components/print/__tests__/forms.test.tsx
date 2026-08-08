@@ -147,6 +147,29 @@ describe('printable forms render with real-shaped data', () => {
     expect(text).toContain('Grade I'); // eligible-for-admission autofill (complete card)
   });
 
+  it('Grade 1 report card reads in letters, with the letter descriptor legend', () => {
+    const g1: Student = {
+      ...student,
+      currentSY: '2026-2027',
+      grades: {
+        '2026-2027': [
+          { subjectCode: 'MAT', letters: { q1: 'A', q2: 'A', q3: 'B' } },
+          { subjectCode: 'ENG', letters: { q1: 'B', q2: 'B', q3: 'B' } },
+        ],
+      },
+      enrolmentHistory: [
+        { sy: '2026-2027', gradeLevel: 'I', sectionName: 'St. Agnes', adviserName: 'Ms. Ana B. Cruz' },
+      ],
+    };
+    const { container } = render(<ReportCard138 student={g1} subjects={subjects} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Mathematics');
+    expect(text).toContain('A  (90-100)'); // letter legend, not the numeric one
+    expect(text).toContain('E  (0-64)');
+    expect(text).not.toContain('90-100Advancing'); // numeric legend row is gone
+    expect(text).toContain('Promoted'); // A/B average passes
+  });
+
   it('Report Card printed as of Term 1 hides finals, GA and promotion', () => {
     const { container } = render(<ReportCard138 student={student} subjects={subjects} upto={1} />);
     const text = container.textContent ?? '';

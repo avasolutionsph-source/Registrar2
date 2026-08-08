@@ -1880,7 +1880,7 @@ export async function getDescriptorConfig(sy: string): Promise<DescriptorConfig>
   const bandsByScale = new Map<string, LetterDescriptor[]>();
   for (const b of bands) {
     if (!bandsByScale.has(b.scaleKey)) bandsByScale.set(b.scaleKey, []);
-    bandsByScale.get(b.scaleKey)!.push({ letter: b.letter, label: b.label, filipino: '' });
+    bandsByScale.get(b.scaleKey)!.push({ letter: b.letter, label: b.label, filipino: '', min: b.min });
   }
 
   return {

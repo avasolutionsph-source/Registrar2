@@ -347,6 +347,11 @@ export interface LetterDescriptor {
   label: string;
   filipino: string;
   description?: string; // MATATAG "General Description"
+  // Lowest numeric grade this letter covers. Present on the registrar's saved
+  // scale (Setup ▸ Descriptors and Range) and on the code default below, so a
+  // report card can derive Passed/Failed from the letter instead of hardcoding
+  // which letters pass.
+  min?: number;
 }
 
 // Grade 1–3 descriptive scale (DepEd MATATAG "Table 8. Grade 1 to 3 Descriptive
@@ -355,6 +360,7 @@ export interface LetterDescriptor {
 export const G1_3_SCALE: LetterDescriptor[] = [
   {
     letter: 'A',
+    min: 90,
     label: 'Advancing',
     filipino: 'Namumukod-tangi',
     description:
@@ -362,6 +368,7 @@ export const G1_3_SCALE: LetterDescriptor[] = [
   },
   {
     letter: 'B',
+    min: 80,
     label: 'Benchmarking',
     filipino: 'Napamamalas',
     description:
@@ -369,6 +376,7 @@ export const G1_3_SCALE: LetterDescriptor[] = [
   },
   {
     letter: 'C',
+    min: 75,
     label: 'Connecting',
     filipino: 'Natutungo',
     description:
@@ -376,6 +384,7 @@ export const G1_3_SCALE: LetterDescriptor[] = [
   },
   {
     letter: 'D',
+    min: 65,
     label: 'Developing',
     filipino: 'Napauunlad',
     description:
@@ -383,6 +392,7 @@ export const G1_3_SCALE: LetterDescriptor[] = [
   },
   {
     letter: 'E',
+    min: 0,
     label: 'Emerging',
     filipino: 'Nagsisimula',
     description:

@@ -27,9 +27,11 @@ import {
 } from '@/lib/forms';
 import {
   isDescriptiveLevel,
+  descriptiveScaleFor,
   attitudeLetter,
   DEFAULT_ATTITUDE_SCALE,
   type AttitudeBand,
+  type LetterDescriptor,
 } from '@/lib/grading';
 import { displayLrn } from '@/lib/lrn';
 import { ageOnDate } from '@/lib/format';
@@ -114,7 +116,19 @@ function modal(vals: (string | undefined)[]): string {
   }
   return best;
 }
-const letterRemark = (l?: string) => (!l ? '' : 'ABC'.includes(l) ? 'Passed' : 'Failed');
+// Passed/Failed for a descriptive letter. Derived from the REGISTRAR's saved
+// scale (Setup ▸ Descriptors and Range): a letter passes when its band starts
+// at or above the passing grade. Falls back to the classic A/B/C rule only for
+// a scale that carries no minimums.
+function letterRemarkWith(scale: LetterDescriptor[], passing: number) {
+  const minOf = new Map(scale.filter((d) => d.min != null).map((d) => [d.letter, d.min as number]));
+  return (l?: string): string => {
+    if (!l) return '';
+    const min = minOf.get(l);
+    if (min == null) return 'ABC'.includes(l) ? 'Passed' : 'Failed';
+    return min >= passing ? 'Passed' : 'Failed';
+  };
+}
 
 const CORE_VALUES: { key: string; label: string }[] = [
   { key: 'faith', label: 'Faith' },
@@ -135,6 +149,7 @@ function programRowsFor(ord: number): { key: string; label: string }[] {
   return rows;
 }
 
+// Numeric PERFORMANCE DESCRIPTORS legend (Grades 2-12).
 const DESCRIPTORS: [string, string, string][] = [
   ['90-100', 'Advancing', 'Passed'],
   ['80-89', 'Benchmarking', 'Passed'],
@@ -142,6 +157,21 @@ const DESCRIPTORS: [string, string, string][] = [
   ['65-74', 'Developing', 'Failed'],
   ['0-64', 'Emerging', 'Failed'],
 ];
+
+// The same legend for a DESCRIPTIVE level (Grade 1 this SY): the registrar's
+// saved letters, their descriptive grade, and the numeric range each covers —
+// a band runs from its own minimum up to one below the next band's.
+function descriptorRows(
+  scale: LetterDescriptor[],
+  remarkOfLetter: (l?: string) => string,
+): [string, string, string][] {
+  const sorted = [...scale].sort((a, b) => (b.min ?? 0) - (a.min ?? 0));
+  return sorted.map((d, i) => {
+    const scaleLabel =
+      d.min == null ? d.letter : `${d.letter}  (${d.min}-${i === 0 ? 100 : (sorted[i - 1].min ?? 100) - 1})`;
+    return [scaleLabel, d.label, remarkOfLetter(d.letter)];
+  });
+}
 
 interface Props {
   student: Student;
@@ -242,7 +272,12 @@ export function ReportCard138({
   const isSHS = ord >= 11;
   const gradeRoman = romanPart(gradeCode);
   const track = trackLabel(gradeCode);
+  // Descriptive vs numerical, and WHICH letters — both from the registrar's
+  // saved setup (Setup ▸ Descriptors and Range) for this SY, with the code
+  // defaults standing in until it loads / for an unseeded year.
   const descriptive = descCfg ? descCfg.isDescriptive(gradeCode, year) : isDescriptiveLevel(gradeCode, year);
+  const letterScale = descCfg ? descCfg.scaleFor(gradeCode) : descriptiveScaleFor(gradeCode);
+  const letterRemark = letterRemarkWith(letterScale, getPassingGrade());
   const conduct = conductForSy(student, year);
   const att = conduct.attendance;
   const values = conduct.values?.q;
@@ -341,7 +376,7 @@ export function ReportCard138({
   const adviser = liveClass?.adviserName || adviserFirstNameFirst(entry?.adviserName);
   const age = student.birthdate ? ageOnDate(student.birthdate, `${year.slice(0, 4)}-06-01`) : null;
   const promoted = descriptive
-    ? (gaLetter !== '' && gaLetter !== 'E' && gaLetter !== 'D')
+    ? letterRemark(gaLetter) === 'Passed'
     : gaNum != null && gaNum >= getPassingGrade();
 
   // ── attendance (months + School Days from Setup ▸ School Year) ────────────
@@ -512,7 +547,7 @@ export function ReportCard138({
                 </tr>
               </thead>
               <tbody>
-                {DESCRIPTORS.map((d) => (
+                {(descriptive ? descriptorRows(letterScale, letterRemark) : DESCRIPTORS).map((d) => (
                   <tr key={d[0]}>
                     <td className="pr-6">{d[0]}</td>
                     <td className="pr-6">{d[1]}</td>
