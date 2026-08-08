@@ -4,6 +4,7 @@ import { Menu, X, WifiOff } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { listSchoolYears, syncToDevice } from '@/lib/db';
+import { useScrollRestore } from '@/lib/useScrollRestore';
 import { getOfflineMeta } from '@/lib/offlineCache';
 import npsLogo from '@/assets/nps-logo.png';
 import type { SchoolYear } from '@/types';
@@ -21,6 +22,9 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const location = useLocation();
+  // <main> is the only thing that scrolls here, so it is also the only thing
+  // that can remember where a page was left.
+  const mainRef = useScrollRestore<HTMLElement>();
 
   // Real school years from Supabase (replaces the old mock list).
   useEffect(() => {
@@ -148,7 +152,7 @@ export function AppShell() {
         </div>
       )}
 
-      <main className="flex-1 overflow-auto">
+      <main ref={mainRef} className="flex-1 overflow-auto">
         {!online && (
           <div className="bg-amber-100 border-b border-amber-200 text-amber-800 text-[12px] px-4 py-1.5 flex items-center gap-2">
             <WifiOff className="w-3.5 h-3.5 shrink-0" />
