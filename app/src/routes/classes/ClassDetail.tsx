@@ -8,7 +8,7 @@ import { ClassForm1 } from '@/components/print/ClassForm1';
 import { NatTab } from './NatTab';
 import { NcaeTab } from './NcaeTab';
 import { BatchReportCards } from '@/components/print/BatchReportCards';
-import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
+import { ReportCard138 } from '@/components/print/ReportCard138';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
@@ -33,7 +33,13 @@ import {
   type Transfer,
 } from '@/lib/db';
 import type { AttitudeBand } from '@/lib/grading';
-import { periodsForSy, subjectFitsSection, MAPEH_COMPONENT_CODES } from '@/lib/forms';
+import {
+  periodsForSy,
+  subjectFitsSection,
+  latestPeriodWithData,
+  gradesForSy,
+  MAPEH_COMPONENT_CODES,
+} from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
 import { enterMovesDown } from '@/lib/gridKeys';
 import { useEnterGuide } from '@/lib/useEnterGuide';
@@ -164,6 +170,11 @@ export default function ClassDetail() {
   const [copied, setCopied] = useState(false); // "Copy list" feedback
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
+  // Report card term picker: null = auto (latest term with grades in the roster).
+  const [cardUpto, setCardUpto] = useState<number | null>(null);
+  // SHS subject↔term coverage AS SAVED (code UPPER → term|null) — the report
+  // cards read this, never the load tab's unsaved draft (loadTerms).
+  const [cardTerms, setCardTerms] = useState<Record<string, string | null> | undefined>(undefined);
   const [load, setLoad] = useState<Record<string, number | null>>({}); // subjectCode -> teacherId | null (assigned subjects)
   // Registrar-curated subject codes for this grade/strand, in curriculum order
   // (Setup ▸ Subjects — Order per Grade). Drives which subjects the load tab lists.
@@ -259,6 +270,7 @@ export default function ClassDetail() {
           const subByCode = new Map(subs.map((s) => [s.code.toUpperCase(), s]));
           const termByCode = new Map(classSubs.map((a) => [a.subjectCode.toUpperCase(), a.term ?? null]));
           setLoadTerms(Object.fromEntries(termByCode));
+          setCardTerms(Object.fromEntries(termByCode));
           const firsts: Record<string, string> = {};
           for (const s of subs) {
             const partner = s.pairedWith ? subByCode.get(s.pairedWith.toUpperCase()) : undefined;
@@ -520,6 +532,15 @@ export default function ClassDetail() {
   // there — and, just as importantly, so the MAPEH pair and rotating blocks
   // (which are GS/JHS features and set their own term) are never regrouped.
   const isShsClass = !!klass && klass.gradeLevel.startsWith('XI');
+
+  // Report card term default: the latest term ANY learner in the roster already
+  // has grades for. The picker in the print toolbar overrides it (cardUpto).
+  const cardPeriods = periodsForSy(klass?.sy);
+  const cardTermN =
+    cardUpto ??
+    (klass && roster.length
+      ? Math.max(...roster.map((s) => latestPeriodWithData(gradesForSy(s, klass.sy), cardPeriods)))
+      : 1);
 
   const setLoadTerm = (code: string, v: string) => {
     setLoadTerms((t) => ({ ...t, [code.toUpperCase()]: v || null }));
@@ -818,7 +839,10 @@ export default function ClassDetail() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => setDoc({ kind: 'batch' })}
+                onClick={() => {
+                  setCardUpto(null); // re-derive the default term each open
+                  setDoc({ kind: 'batch' });
+                }}
               >
                 <Printer className="w-3.5 h-3.5" /> Print Report Cards
               </Button>
@@ -1225,7 +1249,14 @@ export default function ClassDetail() {
                   learner. Use your browser&rsquo;s &ldquo;Save as PDF&rdquo; to export.
                 </p>
                 <div className="flex justify-end mb-3">
-                  <Button variant="outline" className="gap-2" onClick={() => setDoc({ kind: 'batch' })}>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      setCardUpto(null);
+                      setDoc({ kind: 'batch' });
+                    }}
+                  >
                     <Printer className="w-3.5 h-3.5" /> Print all
                   </Button>
                 </div>
@@ -1253,7 +1284,10 @@ export default function ClassDetail() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setDoc({ kind: 'one', student: s })}
+                                onClick={() => {
+                                  setCardUpto(null);
+                                  setDoc({ kind: 'one', student: s });
+                                }}
                               >
                                 Print
                               </Button>
@@ -1876,14 +1910,44 @@ export default function ClassDetail() {
                 ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
                 : ''
         }
+        controls={
+          doc?.kind === 'batch' || doc?.kind === 'one' ? (
+            <select
+              value={cardTermN}
+              onChange={(e) => setCardUpto(Number(e.target.value))}
+              aria-label="Report card as of term"
+              className="rounded border border-border bg-panel px-2 py-1.5 text-[12px] text-ink-primary"
+            >
+              {cardPeriods.map((p, i) => (
+                <option key={p.key} value={i + 1}>
+                  {p.label} card{i === cardPeriods.length - 1 ? ' (complete)' : ''}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
         onClose={() => setDoc(null)}
       >
         {doc?.kind === 'sf1' ? (
           <ClassForm1 klass={klass} roster={roster} />
         ) : doc?.kind === 'batch' ? (
-          <BatchReportCards klass={klass} roster={roster} subjects={subjects} attitudeScale={attitudeScale} />
+          <BatchReportCards
+            klass={klass}
+            roster={roster}
+            subjects={subjects}
+            attitudeScale={attitudeScale}
+            upto={cardTermN}
+            classTerms={cardTerms}
+          />
         ) : doc?.kind === 'one' ? (
-          <ReportCardSF9 student={doc.student} subjects={subjects} sy={klass.sy} attitudeScale={attitudeScale} />
+          <ReportCard138
+            student={doc.student}
+            subjects={subjects}
+            sy={klass.sy}
+            upto={cardTermN}
+            attitudeScale={attitudeScale}
+            classTerms={cardTerms}
+          />
         ) : null}
       </PrintHost>
     </>

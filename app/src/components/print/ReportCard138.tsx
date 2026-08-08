@@ -1,25 +1,45 @@
 import { useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
-import { listGradeSubjects, getDescriptorConfig, type DescriptorConfig } from '@/lib/db';
-import type { Student, Subject } from '@/types';
+import {
+  listGradeSubjects,
+  listSchoolYears,
+  listClassSubjects,
+  getDescriptorConfig,
+  type DescriptorConfig,
+} from '@/lib/db';
+import type { QuarterKey, SchoolYear, Student, Subject } from '@/types';
 import {
   buildSubjectRows,
   subjectIndex,
-  generalAverage,
   formatSy,
   latestGradedSy,
   gradesForSy,
   conductForSy,
   periodsForSy,
-  MONTHS,
+  monthsForSy,
+  getPassingGrade,
+  remark as remarkOf,
+  type SubjectRow,
 } from '@/lib/forms';
-import { isDescriptiveLevel } from '@/lib/grading';
+import {
+  isDescriptiveLevel,
+  attitudeLetter,
+  DEFAULT_ATTITUDE_SCALE,
+  type AttitudeBand,
+} from '@/lib/grading';
 import { displayLrn } from '@/lib/lrn';
 import { ageOnDate } from '@/lib/format';
 
 // NPS Report Card — School Form 9 "Learner's Performance Report" (SY 2026-2027).
-// Exact reproduction of the official NPS SF9 (see docs/templates/report-card-sf9-official.md):
-// full-page portrait, header with seals, two columns. Grade 1 shows descriptive letters.
+// Exact reproduction of the official NPS SF9: FULL short bond portrait
+// (8.5 × 11in), header with seals, two columns.
+//
+// The card is printed PER TERM and grows as the year progresses (`upto`):
+//   Term 1 card → term-1 grades only; Final Grade / Remarks / GA left blank.
+//   Term 2 card → terms 1–2; Term 3 (complete) card → everything.
+// SHS only: subjects list is limited to what the section takes in the shown
+// terms (reg_class_subjects.term via classTerms/classId) — a Term-2-only
+// subject does not appear on the Term 1 card.
 
 const PRINCIPAL = 'MRS. ROSARIO B. OLALIA';
 
@@ -51,6 +71,11 @@ function trackLabel(code?: string): string {
 }
 
 const num = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '');
+const isNum = (v: unknown): v is number => typeof v === 'number';
+const meanRound = (ns: number[]): number | undefined =>
+  ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) / ns.length) : undefined;
+// attendance figures allow half days — keep 2 decimals, no float dust
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // numeric → program letter (MO/O/VS/S/FS/DM) and → deportment letter (AO/SO/RO/NO)
 function programLetter(v?: number): string {
@@ -118,13 +143,33 @@ interface Props {
   student: Student;
   subjects: Subject[];
   sy?: string;
+  // How many grading periods this card covers (1-based; default = all → the
+  // complete end-of-year card). Term 1 card = 1, Term 2 card = 2, …
+  upto?: number;
+  attitudeScale?: AttitudeBand[];
+  // SHS subject↔term coverage for the learner's section. Pass the map directly
+  // (code UPPER → comma-joined period keys | null) when the caller already has
+  // it, or just the classId and the card fetches it once. Absent = no filter.
+  classTerms?: Record<string, string | null>;
+  classId?: string;
 }
 
-export function ReportCard138({ student, subjects, sy }: Props) {
+export function ReportCard138({
+  student,
+  subjects,
+  sy,
+  upto: uptoProp,
+  attitudeScale = DEFAULT_ATTITUDE_SCALE,
+  classTerms,
+  classId,
+}: Props) {
   const year = sy ?? latestGradedSy(student) ?? student.currentSY;
   const periods = periodsForSy(year);
   const pcols = periods.map((p) => p.key); // 'q1'..
   const short = periods.map((p) => p.short); // '1'..
+  const upto = Math.min(Math.max(uptoProp ?? periods.length, 1), periods.length);
+  const complete = upto === periods.length; // end-of-year card
+  const shown = (i: number) => i < upto;
   const entry = (student.enrolmentHistory ?? []).find((e) => e.sy === year);
   const gradeCode = entry?.gradeLevel;
 
@@ -132,13 +177,10 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const [orderCodes, setOrderCodes] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
-    if (gradeCode) {
-      listGradeSubjects(gradeCode)
-        .then((o) => { if (!cancelled) setOrderCodes(o); })
-        .catch(() => { if (!cancelled) setOrderCodes([]); });
-    } else {
-      setOrderCodes([]);
-    }
+    (async () => {
+      const next = gradeCode ? await listGradeSubjects(gradeCode).catch(() => []) : [];
+      if (!cancelled) setOrderCodes(next);
+    })();
     return () => { cancelled = true; };
   }, [gradeCode]);
 
@@ -151,7 +193,38 @@ export function ReportCard138({ student, subjects, sy }: Props) {
     return () => { cancelled = true; };
   }, [year]);
 
-  const rows = buildSubjectRows(gradesForSy(student, year), subjectIndex(subjects), orderCodes);
+  // The SY row (Setup ▸ School Year) — its start/end dates decide WHICH months
+  // the attendance report lists, and its school-days-per-month fills the
+  // School Days row (Days Absent is then derived per month).
+  const [syRow, setSyRow] = useState<SchoolYear | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    listSchoolYears()
+      .then((rs) => { if (!cancelled) setSyRow(rs.find((r) => r.code === year) ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [year]);
+
+  // SHS subject↔term coverage: fetched only when the caller gave a classId
+  // without the ready-made map (single-student print from Students).
+  const [fetchedTerms, setFetchedTerms] = useState<Record<string, string | null> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next =
+        classTerms === undefined && classId
+          ? await listClassSubjects(classId)
+              .then((rows) =>
+                Object.fromEntries(rows.map((r) => [r.subjectCode.toUpperCase(), r.term ?? null])),
+              )
+              .catch(() => null)
+          : null;
+      if (!cancelled) setFetchedTerms(next);
+    })();
+    return () => { cancelled = true; };
+  }, [classId, classTerms]);
+  const termsMap = classTerms ?? fetchedTerms;
+
   const ord = ordOf(gradeCode);
   const isSHS = ord >= 11;
   const gradeRoman = romanPart(gradeCode);
@@ -162,79 +235,151 @@ export function ReportCard138({ student, subjects, sy }: Props) {
   const values = conduct.values?.q;
   const programs = conduct.programs?.q;
   const programRows = programRowsFor(ord);
+  // Deportment/programs maps are keyed 'q1'.. by the adviser portal but '1'..
+  // on legacy imported years — accept both so old cards still fill in.
+  const perQ = (
+    m: Record<string, Record<string, number>> | undefined,
+    q: QuarterKey,
+  ): Record<string, number> | undefined => m?.[q] ?? m?.[q.slice(1)];
+
+  // SHS: list every subject the SECTION offers in the shown terms — including
+  // ones with nothing encoded yet (blank row), exactly like the printed card.
+  const baseEntries = gradesForSy(student, year);
+  let entries = baseEntries;
+  if (isSHS && termsMap) {
+    const have = new Set(baseEntries.map((g) => g.subjectCode.toUpperCase()));
+    const extras = Object.keys(termsMap)
+      .filter((c) => !have.has(c))
+      .map((c) => ({ subjectCode: c }));
+    if (extras.length) entries = [...baseEntries, ...extras];
+  }
+  // Does this subject run in any of the terms this card shows? Codes outside
+  // the class list (transferee/custom subjects) and all-year rows always show.
+  const shownKeys = new Set(pcols.slice(0, upto));
+  const runsInShownTerms = (code: string): boolean => {
+    if (!isSHS || !termsMap) return true;
+    const t = termsMap[code.toUpperCase()];
+    if (t == null || !String(t).trim()) return true;
+    return String(t)
+      .split(',')
+      .map((s) => s.trim())
+      .some((k) => shownKeys.has(k as QuarterKey));
+  };
+  const rows = buildSubjectRows(entries, subjectIndex(subjects), orderCodes).filter((r) =>
+    runsInShownTerms(r.subjectCode),
+  );
 
   const academic = rows.filter((r) => !r.isMapehComponent);
-  const gaNum = generalAverage(rows);
+  // Final grade per subject: the stored final, else the mean of its encoded
+  // term grades — a Term-1-only SHS subject's final IS its Term 1 grade.
+  const finalOf = (r: SubjectRow): number | undefined =>
+    isNum(r.final) ? Math.round(r.final) : meanRound(pcols.map((q) => r[q]).filter(isNum));
+  const gaNum = meanRound(academic.map((r) => finalOf(r)).filter(isNum)) ?? null;
   const gaLetter = modal(academic.map((r) => modal(pcols.map((q) => r.letters?.[q]))));
 
-  const periodAvgNum = (q: 'q1' | 'q2' | 'q3' | 'q4') => {
-    const vals = academic.map((r) => r[q]).filter((v): v is number => typeof v === 'number');
+  const periodAvgNum = (q: QuarterKey) => {
+    const vals = academic.map((r) => r[q]).filter(isNum);
     return vals.length ? num(vals.reduce((a, b) => a + b, 0) / vals.length) : '';
   };
-  const periodAvgLetter = (q: 'q1' | 'q2' | 'q3' | 'q4') =>
-    modal(academic.map((r) => r.letters?.[q]));
+  const periodAvgLetter = (q: QuarterKey) => modal(academic.map((r) => r.letters?.[q]));
+
+  // Conduct row: the teacher-encoded attitude ratings averaged across subjects
+  // per term, shown as a letter from the registrar's attitude scale.
+  const conductLetter = (q: QuarterKey): string => {
+    const nums = baseEntries
+      .map((e) => e.attitude?.[q])
+      .filter((v): v is number => typeof v === 'number');
+    const mean = meanRound(nums);
+    return mean == null ? '' : attitudeLetter(mean, attitudeScale)?.letter ?? '';
+  };
 
   const fullName = `${student.lastName}, ${student.firstName}${student.middleName ? ' ' + student.middleName : ''}`;
   const adviser = entry?.adviserName || '';
   const age = student.birthdate ? ageOnDate(student.birthdate, `${year.slice(0, 4)}-06-01`) : null;
-  const promoted = descriptive ? (gaLetter && gaLetter !== 'E' && gaLetter !== 'D') : gaNum != null && gaNum >= 75;
+  const promoted = descriptive
+    ? (gaLetter !== '' && gaLetter !== 'E' && gaLetter !== 'D')
+    : gaNum != null && gaNum >= getPassingGrade();
+
+  // ── attendance (months + School Days from Setup ▸ School Year) ────────────
+  const months = monthsForSy(syRow?.startDate, syRow?.endDate);
+  const schoolDays = syRow?.schoolDays ?? {};
+  const attCell = (v: number | undefined) => (v == null ? '' : String(v));
+  const numOr = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
+  const sdOf = (k: string): number | undefined => numOr(schoolDays[k]);
+  const prOf = (k: string): number | undefined => numOr(att?.present?.[k]);
+  const absOf = (k: string): number | undefined => {
+    const sd = sdOf(k);
+    const pr = prOf(k);
+    return sd != null && pr != null ? r2(sd - pr) : undefined;
+  };
+  const tdOf = (k: string): number | undefined => numOr(att?.tardy?.[k]);
+  const sumOf = (get: (k: string) => number | undefined): number | undefined => {
+    const vals = months.map((m) => get(m.key)).filter((v): v is number => v != null);
+    return vals.length ? r2(vals.reduce((a, b) => a + b, 0)) : undefined;
+  };
+  const attRows: { label: string; get: (k: string) => number | undefined; total: number | undefined }[] = [
+    { label: 'School Days', get: sdOf, total: sumOf(sdOf) },
+    { label: 'Days Present', get: prOf, total: att?.totalPresent ?? sumOf(prOf) },
+    { label: 'Days Absent', get: absOf, total: sumOf(absOf) },
+    { label: 'Times Tardy', get: tdOf, total: att?.totalTardy ?? sumOf(tdOf) },
+  ];
 
   const bd = 'border border-black';
-  const cell = `${bd} px-0.5 py-0 text-center align-middle`;
+  const cell = `${bd} px-1 py-[2px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
 
   // one FINAL letter for a deportment/program row from its 3 term marks
-  const finalLetterFor = (get: (q: string) => number | undefined, toLetter: (v?: number) => string) =>
-    modal(pcols.map((q) => toLetter(get(q))));
+  const finalLetterFor = (get: (q: QuarterKey) => number | undefined, toLetter: (v?: number) => string) =>
+    complete ? modal(pcols.map((q) => toLetter(get(q)))) : '';
 
   return (
     <div
-      className="mx-auto w-full text-[6.6px] leading-[1.12] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="mx-auto w-full text-[9.5px] leading-[1.3] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
-      {/* Compact SF9 sized to fit HALF crosswise short bond (8.5 x 5.5in) for every level,
-          including the 16-subject Grade XII. Canva Sans (a rounded, highly legible sans) is
-          used for readability; falls back to a similar sans when it isn't installed. */}
-      <style>{`@media print { @page { size: 8.5in 5.5in; margin: 0.15in; } }`}</style>
+      {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
+          rounded, highly legible sans) is used for readability; falls back to
+          a similar sans when it isn't installed. */}
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.45in; } }`}</style>
 
-      <div className="text-[5px]">School Form 9</div>
+      <div className="text-[8px]">School Form 9</div>
 
       {/* header */}
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-        <div className="w-9 h-9 rounded-full border border-zinc-300 grid place-items-center text-[5px] text-zinc-400">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+        <div className="w-14 h-14 rounded-full border border-zinc-300 grid place-items-center text-[7px] text-zinc-400">
           DepEd
         </div>
-        <div className="text-center leading-[1.05]">
+        <div className="text-center leading-[1.15]">
           <div>REPUBLIC OF THE PHILIPPINES</div>
           <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
           <div>REGION V &middot; SCHOOLS DIVISIONS OFFICE OF NAGA CITY &middot; Naga North District</div>
-          <div className="text-[9px] font-bold text-red-700">NAGA PAROCHIAL SCHOOL</div>
+          <div className="text-[16px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
           <div>Corner Bagumbayan Sur and Ateneo Avenue, Naga City</div>
-          <div className="text-[5.5px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
+          <div className="text-[8.5px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
         </div>
-        <img src={npsLogo} alt="" className="w-9 h-9 object-contain" />
+        <img src={npsLogo} alt="" className="w-14 h-14 object-contain" />
       </div>
 
       {/* two columns */}
-      <div className="mt-0.5 grid grid-cols-2 gap-2 items-start">
+      <div className="mt-2 grid grid-cols-2 gap-4 items-start">
         {/* LEFT */}
         <div>
-          <div className="text-center font-bold">LEARNER&rsquo;S PERFORMANCE REPORT</div>
+          <div className="text-center font-bold text-[11px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
           <div className="text-center">School Year {formatSy(year)}</div>
 
-          <div className="mt-1">
+          <div className="mt-2">
             <div><b>Name:</b> {fullName} &nbsp; <b>Age:</b> {age ?? ''} &nbsp; <b>Gender:</b> {student.gender}</div>
             <div><b>LRN:</b> {displayLrn(student.lrn)} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {entry?.sectionName ?? ''}</div>
             <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> {isSHS ? track : '____________'}</div>
           </div>
 
-          <p className="mt-1 text-justify">
+          <p className="mt-2 text-justify">
             <b>Dear Parents,</b> The Performance Report shows the ability and progress your child has
             made in the different learning areas as well as his/her core values. The school welcomes
             you should you desire to know more about your child&rsquo;s progress.
           </p>
 
-          <div className="mt-1 text-center font-bold">LEARNING PROGRESS AND ACHIEVEMENT</div>
+          <div className="mt-2 text-center font-bold text-[10.5px]">LEARNING PROGRESS AND ACHIEVEMENT</div>
           <table className="w-full border-collapse">
             <thead>
               <tr>
@@ -243,64 +388,81 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                 <th className={hcell} rowSpan={2}>Final Grade</th>
                 <th className={hcell} rowSpan={2}>Remarks</th>
               </tr>
-              <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-6`}>{s}</th>)}</tr>
+              <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.subjectCode}>
-                  <td className={`${bd} px-0.5 py-0 ${r.isMapehComponent ? 'pl-3 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
-                    {r.name}
-                  </td>
-                  {pcols.map((q) => (
-                    <td key={q} className={cell}>
-                      {descriptive ? (r.letters?.[q] ?? '') : num(r[q])}
+              {rows.map((r) => {
+                const vFinal = finalOf(r);
+                const rLetterFinal = modal(pcols.map((q) => r.letters?.[q]));
+                return (
+                  <tr key={r.subjectCode}>
+                    <td className={`${bd} px-1 py-[2px] ${r.isMapehComponent ? 'pl-4 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
+                      {r.name}
                     </td>
-                  ))}
-                  {/* MAPEH components show term grades only (no Final/Remarks) */}
-                  <td className={cell}>
-                    {r.isMapehComponent ? '' : descriptive ? modal(pcols.map((q) => r.letters?.[q])) : num(r.final)}
-                  </td>
-                  <td className={cell}>
-                    {r.isMapehComponent ? '' : descriptive ? letterRemark(modal(pcols.map((q) => r.letters?.[q]))) : r.remark}
-                  </td>
-                </tr>
-              ))}
+                    {pcols.map((q, i) => (
+                      <td key={q} className={cell}>
+                        {shown(i) ? (descriptive ? (r.letters?.[q] ?? '') : num(r[q])) : ''}
+                      </td>
+                    ))}
+                    {/* MAPEH components show term grades only (no Final/Remarks);
+                        Final Grade + Remarks appear only on the complete card */}
+                    <td className={cell}>
+                      {!complete || r.isMapehComponent ? '' : descriptive ? rLetterFinal : num(vFinal)}
+                    </td>
+                    <td className={cell}>
+                      {!complete || r.isMapehComponent
+                        ? ''
+                        : descriptive
+                          ? letterRemark(rLetterFinal)
+                          : vFinal == null
+                            ? ''
+                            : remarkOf(vFinal)}
+                    </td>
+                  </tr>
+                );
+              })}
               <tr>
-                <td className={`${bd} px-0.5 py-0 font-semibold`}>Average</td>
-                {pcols.map((q) => (
-                  <td key={q} className={cell}>{descriptive ? periodAvgLetter(q) : periodAvgNum(q)}</td>
+                <td className={`${bd} px-1 py-[2px] font-semibold`}>Average</td>
+                {pcols.map((q, i) => (
+                  <td key={q} className={cell}>
+                    {shown(i) ? (descriptive ? periodAvgLetter(q) : periodAvgNum(q)) : ''}
+                  </td>
                 ))}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-0.5 py-0 font-semibold`}>Conduct</td>
-                {pcols.map((q) => <td key={q} className={cell} />)}
+                <td className={`${bd} px-1 py-[2px] font-semibold`}>Conduct</td>
+                {pcols.map((q, i) => (
+                  <td key={q} className={cell}>{shown(i) ? conductLetter(q) : ''}</td>
+                ))}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-0.5 py-0 text-right font-bold`} colSpan={periods.length + 1}>
+                <td className={`${bd} px-1 py-[2px] text-right font-bold`} colSpan={periods.length + 1}>
                   General Average
                 </td>
-                <td className={`${cell} font-bold`}>{descriptive ? gaLetter : (gaNum ?? '')}</td>
-                <td className={cell}>{promoted ? 'Promoted' : ''}</td>
+                <td className={`${cell} font-bold`}>
+                  {complete ? (descriptive ? gaLetter : (gaNum ?? '')) : ''}
+                </td>
+                <td className={cell}>{complete && promoted ? 'Promoted' : ''}</td>
               </tr>
             </tbody>
           </table>
 
-          <div className="mt-2 font-bold">PERFORMANCE DESCRIPTORS</div>
-          <table className="border-collapse text-[5.5px]">
+          <div className="mt-3 font-bold text-[10px]">PERFORMANCE DESCRIPTORS</div>
+          <table className="border-collapse text-[9px]">
             <thead>
               <tr>
-                <th className="pr-3 text-left font-bold">Grading Scale</th>
-                <th className="pr-3 text-left font-bold">Descriptions</th>
+                <th className="pr-4 text-left font-bold">Grading Scale</th>
+                <th className="pr-4 text-left font-bold">Descriptions</th>
                 <th className="text-left font-bold">Remarks</th>
               </tr>
             </thead>
             <tbody>
               {DESCRIPTORS.map((d) => (
                 <tr key={d[0]}>
-                  <td className="pr-3">{d[0]}</td>
-                  <td className="pr-3">{d[1]}</td>
+                  <td className="pr-4">{d[0]}</td>
+                  <td className="pr-4">{d[1]}</td>
                   <td>{d[2]}</td>
                 </tr>
               ))}
@@ -309,11 +471,11 @@ export function ReportCard138({ student, subjects, sy }: Props) {
         </div>
 
         {/* RIGHT */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-3">
           {/* SPECIAL PROGRAMS — not shown for Senior High (Grade 11-12) */}
           {!isSHS && (
           <div>
-            <div className="text-center font-bold">SPECIAL PROGRAMS</div>
+            <div className="text-center font-bold text-[10.5px]">SPECIAL PROGRAMS</div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -321,27 +483,29 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                   <th className={hcell} colSpan={periods.length}>TERM</th>
                   <th className={hcell} rowSpan={2}>FINAL GRADE</th>
                 </tr>
-                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-6`}>{s}</th>)}</tr>
+                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
               </thead>
               <tbody>
                 {programRows.map((pr) => (
                   <tr key={pr.key}>
-                    <td className={`${bd} px-0.5 py-0`}>{pr.label}</td>
-                    {pcols.map((q) => (
-                      <td key={q} className={cell}>{programLetter(programs?.[q]?.[pr.key])}</td>
+                    <td className={`${bd} px-1 py-[2px]`}>{pr.label}</td>
+                    {pcols.map((q, i) => (
+                      <td key={q} className={cell}>
+                        {shown(i) ? programLetter(perQ(programs, q)?.[pr.key]) : ''}
+                      </td>
                     ))}
-                    <td className={cell}>{finalLetterFor((q) => programs?.[q]?.[pr.key], programLetter)}</td>
+                    <td className={cell}>{finalLetterFor((q) => perQ(programs, q)?.[pr.key], programLetter)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="text-[5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
+            <div className="text-[7.5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
           </div>
           )}
 
           {/* DEPORTMENT */}
           <div>
-            <div className="text-center font-bold">DEPORTMENT</div>
+            <div className="text-center font-bold text-[10.5px]">DEPORTMENT</div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -349,85 +513,78 @@ export function ReportCard138({ student, subjects, sy }: Props) {
                   <th className={hcell} colSpan={periods.length}>TERM</th>
                   <th className={hcell} rowSpan={2}>FINAL GRADE</th>
                 </tr>
-                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-6`}>{s}</th>)}</tr>
+                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
               </thead>
               <tbody>
                 {CORE_VALUES.map((cv) => (
                   <tr key={cv.key}>
-                    <td className={`${bd} px-0.5 py-0`}>{cv.label}</td>
-                    {pcols.map((q) => (
-                      <td key={q} className={cell}>{deportmentLetter(values?.[q]?.[cv.key])}</td>
+                    <td className={`${bd} px-1 py-[2px]`}>{cv.label}</td>
+                    {pcols.map((q, i) => (
+                      <td key={q} className={cell}>
+                        {shown(i) ? deportmentLetter(perQ(values, q)?.[cv.key]) : ''}
+                      </td>
                     ))}
-                    <td className={cell}>{finalLetterFor((q) => values?.[q]?.[cv.key], deportmentLetter)}</td>
+                    <td className={cell}>{finalLetterFor((q) => perQ(values, q)?.[cv.key], deportmentLetter)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="text-[5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
+            <div className="text-[7.5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
           </div>
 
           {/* ATTENDANCE */}
           <div>
-            <div className="text-center font-bold">ATTENDANCE REPORT</div>
-            <table className="w-full border-collapse text-[5.5px]">
+            <div className="text-center font-bold text-[10.5px]">ATTENDANCE REPORT</div>
+            <table className="w-full border-collapse text-[8.5px]">
               <thead>
                 <tr>
-                  <th className={`${bd} px-0.5`}> </th>
-                  {MONTHS.map((m) => <th key={m.key} className={`${bd} px-0.5`}>{m.label}</th>)}
-                  <th className={`${bd} px-0.5`}>Total</th>
+                  <th className={`${bd} px-1`}> </th>
+                  {months.map((m) => <th key={m.key} className={`${bd} px-1`}>{m.label}</th>)}
+                  <th className={`${bd} px-1`}>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {([
-                  ['School Days', undefined],
-                  ['Days Present', att?.present],
-                  ['Days Absent', undefined],
-                  ['Times Tardy', att?.tardy],
-                ] as const).map(([label, data], i) => {
-                  const total =
-                    label === 'Days Present' ? att?.totalPresent : label === 'Times Tardy' ? att?.totalTardy : undefined;
-                  return (
-                    <tr key={i}>
-                      <td className={`${bd} px-0.5`}>{label}</td>
-                      {MONTHS.map((m) => (
-                        <td key={m.key} className={`${bd} px-0.5 text-center`}>{data?.[m.key] ?? ''}</td>
-                      ))}
-                      <td className={`${bd} px-0.5 text-center font-semibold`}>{total ?? ''}</td>
-                    </tr>
-                  );
-                })}
+                {attRows.map((row) => (
+                  <tr key={row.label}>
+                    <td className={`${bd} px-1 whitespace-nowrap`}>{row.label}</td>
+                    {months.map((m) => (
+                      <td key={m.key} className={`${bd} px-1 text-center`}>{attCell(row.get(m.key))}</td>
+                    ))}
+                    <td className={`${bd} px-1 text-center font-semibold`}>{attCell(row.total)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* CERTIFICATE OF TRANSFER */}
-          <div className="mt-0.5">
-            <div className="text-center font-bold">CERTIFICATE OF TRANSFER</div>
+          <div className="mt-1">
+            <div className="text-center font-bold text-[10.5px]">CERTIFICATE OF TRANSFER</div>
             <p className="text-justify">
               This is to certify that the above-named learner has satisfactorily completed the
               requirements for the grade level indicated.
             </p>
-            <div className="mt-0.5">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
-            <div>Eligible for Admission to Grade: {nextRoman(gradeCode)}</div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              <div className="text-left pt-3"><i>Approved:</i></div>
+            <div className="mt-1">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
+            <div>Eligible for Admission to Grade: {complete ? nextRoman(gradeCode) : ''}</div>
+            <div className="mt-5 grid grid-cols-2 gap-2 text-center">
+              <div className="text-left pt-4"><i>Approved:</i></div>
               <div>
                 <div className="font-semibold uppercase">{adviser || ' '}</div>
                 <div className="border-t border-black">Class Adviser</div>
               </div>
             </div>
-            <div className="mt-2">
+            <div className="mt-4">
               <div className="font-semibold uppercase">{PRINCIPAL}</div>
               <div>School Principal</div>
             </div>
           </div>
 
           {/* CANCELLATION */}
-          <div className="mt-1">
-            <div className="text-center font-bold">CANCELLATION OF ELIGIBILITY TO TRANSFER</div>
-            <div className="mt-1">Admitted in: ____________________ Date: __________</div>
-            <div className="mt-3 text-center">
-              <div className="inline-block border-t border-black px-8">School Principal</div>
+          <div className="mt-2">
+            <div className="text-center font-bold text-[10.5px]">CANCELLATION OF ELIGIBILITY TO TRANSFER</div>
+            <div className="mt-2">Admitted in: ____________________ Date: __________</div>
+            <div className="mt-5 text-center">
+              <div className="inline-block border-t border-black px-10">School Principal</div>
             </div>
           </div>
         </div>

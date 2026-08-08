@@ -4,7 +4,6 @@ import { Pencil, Printer, FileText, IdCard, Upload, GraduationCap } from 'lucide
 import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Form137 } from '@/components/print/Form137';
-import { ReportCardSF9 } from '@/components/print/ReportCardSF9';
 import { ReportCard138 } from '@/components/print/ReportCard138';
 import { GoodMoral } from '@/components/print/GoodMoral';
 import { CertEnrollment } from '@/components/print/CertEnrollment';
@@ -31,6 +30,7 @@ import {
   buildSubjectRows,
   generalAverage,
   latestGradedSy,
+  latestPeriodWithData,
   gradesForSy,
   periodsForSy,
   formatSy,
@@ -42,7 +42,7 @@ import type { CredentialState, ClassRecord, Student, Subject } from '@/types';
 
 const REF_DATE = '2026-05-04'; // reference "today" for age display
 const fmtQ = (v?: number) => (typeof v === 'number' ? String(Math.round(v)) : '—');
-type DocKind = 'form137' | 'sf10' | 'sf9' | 'card138' | 'gmc' | 'coe' | 'id';
+type DocKind = 'form137' | 'sf10' | 'card138' | 'gmc' | 'coe' | 'id';
 
 const credLabels: Record<string, string> = {
   bc: 'BC · Birth Certificate',
@@ -77,6 +77,8 @@ export default function StudentDetail() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [attitudeScale, setAttitudeScale] = useState<AttitudeBand[] | undefined>(undefined);
+  // Report card term picker: null = auto (latest term with encoded grades).
+  const [cardUpto, setCardUpto] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -148,6 +150,12 @@ export default function StudentDetail() {
   const isElem = klass && ['I', 'II', 'III', 'IV', 'V', 'VI'].includes(klass.gradeLevel);
   // DepEd DO#58 s.2017 — which permanent-record template fits this learner's latest year.
   const recommended = recommendedFormVariant(student);
+
+  // Report card: which SY it covers + which term card to print. Defaults to
+  // the latest term that already has grades; the toolbar picker overrides it.
+  const cardSy = latestGradedSy(student) ?? student.currentSY;
+  const cardPeriods = periodsForSy(cardSy);
+  const cardTermN = cardUpto ?? latestPeriodWithData(gradesForSy(student, cardSy), cardPeriods);
 
   const gradedSy = latestGradedSy(student);
   const gradePeriods = periodsForSy(gradedSy ?? student.currentSY);
@@ -232,16 +240,12 @@ export default function StudentDetail() {
               <Button
                 variant="outline"
                 className="justify-start gap-2 w-full"
-                onClick={() => setDoc('card138')}
+                onClick={() => {
+                  setCardUpto(null); // re-derive the default term each open
+                  setDoc('card138');
+                }}
               >
                 <Printer className="w-3.5 h-3.5" /> Report Card (SF 9)
-              </Button>
-              <Button
-                variant="outline"
-                className="justify-start gap-2 w-full"
-                onClick={() => setDoc('sf9')}
-              >
-                <Printer className="w-3.5 h-3.5" /> Report Card (SF 9 · plain)
               </Button>
               <Button
                 variant="outline"
@@ -509,8 +513,6 @@ export default function StudentDetail() {
         docTitle={
           doc === 'card138'
             ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
-            : doc === 'sf9'
-            ? `Report Card (SF 9) · ${student.lastName}, ${student.firstName}`
             : doc === 'sf10'
               ? `SF 10 · ${student.lastName}, ${student.firstName}`
               : doc === 'gmc'
@@ -521,12 +523,33 @@ export default function StudentDetail() {
                     ? `Student ID · ${student.lastName}, ${student.firstName}`
                     : `Form 137 · ${student.lastName}, ${student.firstName}`
         }
+        controls={
+          doc === 'card138' ? (
+            <select
+              value={cardTermN}
+              onChange={(e) => setCardUpto(Number(e.target.value))}
+              aria-label="Report card as of term"
+              className="rounded border border-border bg-panel px-2 py-1.5 text-[12px] text-ink-primary"
+            >
+              {cardPeriods.map((p, i) => (
+                <option key={p.key} value={i + 1}>
+                  {p.label} card{i === cardPeriods.length - 1 ? ' (complete)' : ''}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
         onClose={() => setDoc(null)}
       >
         {doc === 'card138' ? (
-          <ReportCard138 student={student} subjects={subjects} />
-        ) : doc === 'sf9' ? (
-          <ReportCardSF9 student={student} subjects={subjects} attitudeScale={attitudeScale} />
+          <ReportCard138
+            student={student}
+            subjects={subjects}
+            sy={cardSy}
+            upto={cardTermN}
+            attitudeScale={attitudeScale}
+            classId={cardSy === student.currentSY ? klass?.id : undefined}
+          />
         ) : doc === 'gmc' ? (
           <GoodMoral student={student} />
         ) : doc === 'coe' ? (

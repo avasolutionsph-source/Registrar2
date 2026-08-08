@@ -468,6 +468,60 @@ export const MONTHS: { key: string; label: string }[] = [
   { key: 'may', label: 'May' },
 ];
 
+// Calendar-order month defs (index 0 = January) for monthsForSy's walk.
+const MONTH_DEFS: { key: string; label: string }[] = [
+  { key: 'jan', label: 'Jan' },
+  { key: 'feb', label: 'Feb' },
+  { key: 'mar', label: 'Mar' },
+  { key: 'apr', label: 'Apr' },
+  { key: 'may', label: 'May' },
+  { key: 'jun', label: 'Jun' },
+  { key: 'jul', label: 'Jul' },
+  { key: 'aug', label: 'Aug' },
+  { key: 'sep', label: 'Sep' },
+  { key: 'oct', label: 'Oct' },
+  { key: 'nov', label: 'Nov' },
+  { key: 'dec', label: 'Dec' },
+];
+
+// Attendance-report month columns, walked from the SY's configured start date
+// to its end date (Setup ▸ School Year) — the SAME list for every grade level.
+// A January-start year therefore lists Jan onward, an August-start year lists
+// Aug–May, etc. Capped at 12 columns; falls back to the classic Jun–May list
+// when the SY has no dates configured (legacy/imported years).
+export function monthsForSy(startDate?: string, endDate?: string): { key: string; label: string }[] {
+  const parse = (iso?: string): { y: number; m: number } | null => {
+    const m = /^(\d{4})-(\d{2})/.exec(iso ?? '');
+    if (!m) return null;
+    const mm = parseInt(m[2], 10);
+    return mm >= 1 && mm <= 12 ? { y: parseInt(m[1], 10), m: mm - 1 } : null;
+  };
+  const s = parse(startDate);
+  const e = parse(endDate);
+  if (!s || !e) return MONTHS;
+  const out: { key: string; label: string }[] = [];
+  let y = s.y;
+  let m = s.m;
+  for (let i = 0; i < 12; i++) {
+    out.push(MONTH_DEFS[m]);
+    if (y === e.y && m === e.m) break;
+    m = (m + 1) % 12;
+    if (m === 0) y++;
+  }
+  return out;
+}
+
+// 1-based index of the LAST grading period that has any encoded data (a term
+// grade or a descriptive letter) across the given subject entries; 1 when the
+// record is still empty. Drives the report-card term selector's default.
+export function latestPeriodWithData(entries: QuarterGrade[], periods: GradingPeriod[]): number {
+  for (let i = periods.length - 1; i >= 0; i--) {
+    const k = periods[i].key;
+    if (entries.some((e) => typeof e[k] === 'number' || !!e.letters?.[k])) return i + 1;
+  }
+  return 1;
+}
+
 // The 14 observed-values traits NPS tracked, in report-card order.
 export const VALUE_TRAITS: { key: string; label: string }[] = [
   { key: 'piety', label: 'Piety / Faith in God' },

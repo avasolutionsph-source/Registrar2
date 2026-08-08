@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import type { Student, Subject, ClassRecord } from '@/types';
 import { Form137 } from '../Form137';
-import { ReportCardSF9 } from '../ReportCardSF9';
+import { ReportCard138 } from '../ReportCard138';
 import { GoodMoral } from '../GoodMoral';
 import { CertEnrollment } from '../CertEnrollment';
 import { StudentId } from '../StudentId';
@@ -99,17 +99,32 @@ describe('printable forms render with real-shaped data', () => {
     expect(container.textContent ?? '').toContain('SF 10');
   });
 
-  it('Report Card (SF 9) shows grades, attendance and observed values', () => {
-    const { container } = render(<ReportCardSF9 student={student} subjects={subjects} />);
+  it('Report Card (SF 9) shows grades, attendance, deportment and programs', () => {
+    const { container } = render(<ReportCard138 student={student} subjects={subjects} />);
     const text = container.textContent ?? '';
-    expect(text).toContain('Report Card');
+    expect(text).toContain('PERFORMANCE REPORT'); // LEARNER'S PERFORMANCE REPORT
+    expect(text).toContain('NAGA PAROCHIAL SCHOOL');
     expect(text).toContain('Ed. sa Pagpapakatao');
-    expect(text).toContain('Record of Attendance');
+    expect(text).toContain('ATTENDANCE REPORT');
     expect(text).toContain('Days Present');
-    expect(text).toContain("Learner"); // Learner's Observed Values
-    expect(text).toContain('Honesty'); // a core-value trait label
-    expect(text).toContain('Special Programs');
-    expect(text).toContain('Computer'); // special-program label
+    expect(text).toContain('Days Absent');
+    expect(text).toContain('Faith'); // deportment core value
+    expect(text).toContain('SPECIAL PROGRAMS');
+    expect(text).toContain('Scouting'); // Grade VI program row
+    // complete card (default): finals + GA + promotion visible
+    expect(text).toContain('88'); // general average (mean of 89,86,84,91)
+    expect(text).toContain('Promoted');
+    expect(text).toContain('Passed');
+  });
+
+  it('Report Card printed as of Term 1 hides finals, GA and promotion', () => {
+    const { container } = render(<ReportCard138 student={student} subjects={subjects} upto={1} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('PERFORMANCE REPORT');
+    expect(text).toContain('Mathematics'); // subjects still listed
+    expect(text).toContain('85'); // ENG q1 (the shown term) still prints
+    expect(text).not.toContain('Promoted'); // no promotion before the last term
+    expect(text).not.toContain('91'); // ESP final grade masked until the complete card
   });
 
   it('Good Moral Certificate names the learner and certifies character', () => {
@@ -177,12 +192,12 @@ describe('class-level forms render', () => {
     expect(text).toContain('de leon'); // adviser in header
   });
 
-  it('Batch report cards render one per learner', () => {
+  it('Batch report cards render one official card per learner', () => {
     const { container } = render(<BatchReportCards klass={klass} roster={roster} subjects={subjects} />);
     const text = container.textContent ?? '';
-    // both learners appear; "Report Card" header repeats per card
+    // both learners appear; the official card header repeats per card
     expect(text.toLowerCase()).toContain('ramos');
     expect(text.toLowerCase()).toContain('santos');
-    expect((text.match(/Report Card/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect((text.match(/PERFORMANCE REPORT/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });

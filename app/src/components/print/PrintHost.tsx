@@ -8,12 +8,15 @@ interface Props {
   docTitle: string;
   onClose: () => void;
   children: ReactNode;
+  // Optional extra toolbar controls (e.g. the report card's term picker).
+  // Rendered in the never-printed toolbar, left of the Print button.
+  controls?: ReactNode;
 }
 
 // Full-screen preview that renders an actual document on a paper-sized sheet.
 // "Print / Save as PDF" calls the browser's print dialog; the global @media
 // print rules (index.css) hide the app shell so only #print-root is printed.
-export function PrintHost({ open, docTitle, onClose, children }: Props) {
+export function PrintHost({ open, docTitle, onClose, children, controls }: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -35,6 +38,7 @@ export function PrintHost({ open, docTitle, onClose, children }: Props) {
       <div className="no-print sticky top-0 z-10 mx-auto mb-4 flex max-w-[210mm] items-center justify-between rounded-lg border border-border bg-panel px-3 py-2 shadow-lg">
         <div className="text-[13px] font-semibold text-ink-primary">{docTitle}</div>
         <div className="flex items-center gap-2">
+          {controls}
           <Button onClick={() => window.print()} className="gap-2">
             <Printer className="h-3.5 w-3.5" /> Print / Save as PDF
           </Button>
