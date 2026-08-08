@@ -19,21 +19,15 @@ const td = `${bd} px-1 py-[3px] align-top`;
 interface Props {
   klass: ClassRecord;
   roster: Student[];
-  // Set when the list is filtered to grantees, so the sheet says so instead of
-  // silently printing a short roster.
-  granteesOnly?: boolean;
 }
 
-export function EscSheet({ klass, roster, granteesOnly }: Props) {
+export function EscSheet({ klass, roster }: Props) {
   const groups = groupRosterBySex(roster);
   const schoolHeader = escSchoolHeader(klass.gradeLevel);
 
   return (
     <div className="font-serif text-black">
-      <Letterhead
-        docTitle="Educational Service Contracting (ESC) List"
-        docSubtitle={granteesOnly ? 'ESC grantees only' : undefined}
-      />
+      <Letterhead docTitle="Educational Service Contracting (ESC) List" />
 
       <div className="mt-3 text-[10px] leading-tight">
         <div>

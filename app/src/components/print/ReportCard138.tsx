@@ -20,6 +20,8 @@ import {
   monthsForSy,
   getPassingGrade,
   remark as remarkOf,
+  MAPEH_COMPONENT_CODES,
+  FALLBACK_SUBJECT_NAMES,
   type SubjectRow,
 } from '@/lib/forms';
 import {
@@ -252,11 +254,12 @@ export function ReportCard138({
     q: QuarterKey,
   ): Record<string, number> | undefined => m?.[q] ?? m?.[q.slice(1)];
 
-  // SHS: list every subject the SECTION offers in the shown terms — including
-  // ones with nothing encoded yet (blank row), exactly like the printed card.
+  // Every level: list every subject the SECTION offers — including ones with
+  // nothing encoded yet (blank row), exactly like the printed card. The class
+  // list is available whenever this is a current-SY card (classTerms/classId).
   const baseEntries = gradesForSy(student, year);
   let entries = baseEntries;
-  if (isSHS && termsMap) {
+  if (termsMap) {
     const have = new Set(baseEntries.map((g) => g.subjectCode.toUpperCase()));
     const extras = Object.keys(termsMap)
       .filter((c) => !have.has(c))
@@ -275,9 +278,38 @@ export function ReportCard138({
       .map((s) => s.trim())
       .some((k) => shownKeys.has(k as QuarterKey));
   };
-  const rows = buildSubjectRows(entries, subjectIndex(subjects), orderCodes).filter((r) =>
+  let rows = buildSubjectRows(entries, subjectIndex(subjects), orderCodes).filter((r) =>
     runsInShownTerms(r.subjectCode),
   );
+  // Blank MAPEH block: when the merged MUA/PDA components carry no scores yet,
+  // withDerivedMapeh drops them (nothing to derive from) and MAPEH would fall
+  // off a not-yet-graded card — put the blank parent + components back.
+  if (
+    termsMap &&
+    !isSHS &&
+    !rows.some((r) => r.isMapehParent || ['MAPEH', 'MAP'].includes(r.subjectCode.toUpperCase()))
+  ) {
+    const rank = new Map(orderCodes.map((c, i) => [c.toUpperCase(), i] as const));
+    const idx = subjectIndex(subjects);
+    const compCodes = Object.keys(termsMap)
+      .filter((c) => MAPEH_COMPONENT_CODES.has(c))
+      .sort((a, b) => (rank.get(a) ?? 9998) - (rank.get(b) ?? 9998));
+    if (compCodes.length) {
+      const baseOrder = rank.get(compCodes[0]) ?? 9998;
+      rows = [
+        ...rows,
+        { subjectCode: 'MAPEH', name: 'MAPEH', category: 'Core', order: baseOrder, remark: '', isMapehParent: true },
+        ...compCodes.map((c, i) => ({
+          subjectCode: c,
+          name: idx.get(c)?.fullName ?? FALLBACK_SUBJECT_NAMES[c] ?? c,
+          category: 'Core',
+          order: baseOrder + 0.01 * (i + 1),
+          remark: '',
+          isMapehComponent: true,
+        })),
+      ].sort((a, b) => a.order - b.order);
+    }
+  }
 
   const academic = rows.filter((r) => !r.isMapehComponent);
   // Final grade per subject: the stored final, else the mean of its encoded
