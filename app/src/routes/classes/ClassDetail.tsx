@@ -36,6 +36,8 @@ import type { AttitudeBand } from '@/lib/grading';
 import { periodsForSy, subjectFitsSection, MAPEH_COMPONENT_CODES } from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
 import { enterMovesDown } from '@/lib/gridKeys';
+import { useEnterGuide } from '@/lib/useEnterGuide';
+import { EnterKeyGuide } from '@/components/shell/EnterKeyGuide';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
@@ -151,6 +153,9 @@ export default function ClassDetail() {
   const [escState, setEscState] = useState<Record<string, { grantee: boolean; escNo: string }>>({});
   const [escBusy, setEscBusy] = useState(false);
   const [escSaved, setEscSaved] = useState(false);
+  // TabsContent unmounts when inactive, so the guide below only ever opens on
+  // the ESC tab — the one tab here that is typed into.
+  const guide = useEnterGuide();
   const [addOpen, setAddOpen] = useState(false);
   const [allLite, setAllLite] = useState<Student[] | null>(null);
   const [addSearch, setAddSearch] = useState('');
@@ -1692,8 +1697,14 @@ export default function ClassDetail() {
                 <div className="flex items-start justify-between gap-3 mb-3 px-1">
                   <p className="text-[11.5px] text-ink-muted">
                     Mark ESC grantees for SY {klass.sy} and record each certificate number. The subsidy
-                    amount is the fixed government rate (not stored here).
+                    amount is the fixed government rate (not stored here).{' '}
+                    <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> moves
+                    down.{' '}
+                    <button type="button" onClick={guide.show} className="underline underline-offset-2 hover:text-ink-primary">
+                      Show the guide
+                    </button>
                   </p>
+                  <EnterKeyGuide open={guide.open} onClose={guide.close} />
                   <div className="flex items-center gap-2 shrink-0">
                     {escSaved && <span className="text-[12px] text-ok-fg">✓ Saved</span>}
                     <Button

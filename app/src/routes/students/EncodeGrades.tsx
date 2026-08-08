@@ -6,6 +6,8 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { UnsavedChangesDialog } from '@/components/shell/UnsavedGuard';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { enterMovesDown } from '@/lib/gridKeys';
+import { useEnterGuide } from '@/lib/useEnterGuide';
+import { EnterKeyGuide } from '@/components/shell/EnterKeyGuide';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { getStudent, listSubjects, listSchoolYears, saveStudentGrades, listWeightConfig, listGradeSubjects, getDescriptorConfig, listTransmutation, getGradingPolicy, listGradeSubjectWeights, getSignedInEmail, type DescriptorConfig, type TransmuteRow, type GradeSubjectWeights } from '@/lib/db';
 import { formatLastFirstMiddle } from '@/lib/format';
@@ -121,6 +123,7 @@ export default function EncodeGrades() {
   // discard a screen of encoding.
   const [hasChanges, setHasChanges] = useState(false);
   const { guard, dialogProps } = useUnsavedGuard(hasChanges);
+  const guide = useEnterGuide();
   // Autosave: same reason as the teacher grade sheet — nobody can retype a
   // transferee's SF 10 from memory. Held in a ref so the debounce can depend on
   // the ROWS (each keystroke restarts the wait) without re-arming whenever
@@ -679,6 +682,9 @@ export default function EncodeGrades() {
           </div>
         )}
 
+        {/* Rows here are subjects, not learners — the guide says so. Never on a
+            locked past-year sheet, which cannot be typed into. */}
+        {!locked && <EnterKeyGuide open={guide.open} onClose={guide.close} rowNoun="subject" />}
         <fieldset disabled={locked} className="min-w-0 border-0 p-0 m-0 disabled:opacity-70">
         <table className="w-full text-[12.5px]" onKeyDown={enterMovesDown}>
           <thead>
