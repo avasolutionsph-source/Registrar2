@@ -1920,12 +1920,15 @@ export async function saveHonorCriteria(sy: string, gaMin: number, floor: number
 }
 
 // ── NAT scores (National Achievement Test, registrar-entered, per SY) ──
+// Column order and headings follow the DepEd NAT list NPS submits: FIL, ENG,
+// MAT, SCI, APN. `key` is the reg_nat_scores column name and must not change —
+// only the order and the printed heading do.
 export const NAT_SUBJECTS = [
-  { key: 'english', label: 'English' },
-  { key: 'filipino', label: 'Filipino' },
-  { key: 'math', label: 'Math' },
-  { key: 'science', label: 'Science' },
-  { key: 'ap', label: 'Araling Panlipunan' },
+  { key: 'filipino', label: 'FIL', full: 'Filipino' },
+  { key: 'english', label: 'ENG', full: 'English' },
+  { key: 'math', label: 'MAT', full: 'Mathematics' },
+  { key: 'science', label: 'SCI', full: 'Science' },
+  { key: 'ap', label: 'APN', full: 'Araling Panlipunan' },
 ] as const;
 export type NatSubjectKey = (typeof NAT_SUBJECTS)[number]['key'];
 export type NatRow = Partial<Record<NatSubjectKey, number>>;

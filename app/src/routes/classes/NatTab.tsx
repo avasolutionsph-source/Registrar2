@@ -1,19 +1,20 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Printer } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/entity/SectionCard';
 import { Input } from '@/components/ui/input';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
+import { PrintHost } from '@/components/print/PrintHost';
+import { NatSheet } from '@/components/print/NatSheet';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { groupRosterBySex } from '@/lib/roster';
+import { schoolIdFromLrn, displayLrn } from '@/lib/lrn';
+import { isNatGrade } from '@/lib/nat';
 import { listNatScores, saveNatRow, NAT_SUBJECTS, type NatRow, type NatSubjectKey } from '@/lib/db';
 import { enterMovesDown } from '@/lib/gridKeys';
 import { useEnterGuide } from '@/lib/useEnterGuide';
 import { EnterKeyGuide } from '@/components/shell/EnterKeyGuide';
 import type { ClassRecord, Student } from '@/types';
-
-// NAT is administered at the exit grades only (Grade 6, 10, 12).
-function isNatGrade(gradeLevel: string): boolean {
-  const base = (gradeLevel || '').split('-')[0];
-  return base === 'VI' || base === 'X' || base === 'XII';
-}
 
 export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[] }) {
   const eligible = isNatGrade(klass.gradeLevel);
@@ -21,12 +22,16 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
   const [loading, setLoading] = useState(true);
   const [savingLrn, setSavingLrn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
   const guide = useEnterGuide();
 
   useEffect(() => {
-    if (!eligible) { setLoading(false); return; }
+    // An ineligible section renders the "not a NAT grade" card and never reaches
+    // the loading state, so there is nothing to clear here. `loading` starts
+    // true and is only ever cleared — a class page shows one class, so this
+    // never re-runs against an already-loaded sheet.
+    if (!eligible) return;
     let cancelled = false;
-    setLoading(true);
     listNatScores(klass.sy)
       .then((m) => { if (!cancelled) setScores(m); })
       .catch((e) => { if (!cancelled) setError(e?.message ?? 'Failed to load NAT scores.'); })
@@ -71,8 +76,8 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
     return (
       <SectionCard heading="NAT scores (DepEd National Achievement Test)">
         <p className="text-[12.5px] text-ink-secondary">
-          Grade {klass.gradeLevel} is not a NAT grade. The National Achievement Test is administered
-          at the exit levels — <span className="font-medium">Grade 6, Grade 10 and Grade 12</span>.
+          Grade {klass.gradeLevel} does not take the NAT. NPS administers the National Achievement
+          Test in <span className="font-medium">Grade 6</span>.
         </p>
       </SectionCard>
     );
@@ -82,15 +87,41 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
 
   return (
     <SectionCard heading={`NAT scores · Grade ${klass.gradeLevel} ${klass.sectionName}`}>
-      <p className="text-[12.5px] text-ink-secondary mb-3">
-        Enter each learner's National Achievement Test score (0–100) per learning area. Scores save
-        when you leave a row. The <span className="font-medium">MPS</span> row is the mean per subject.
-        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> moves down,{' '}
-        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Tab</kbd> moves across.{' '}
-        <button type="button" onClick={guide.show} className="underline underline-offset-2 hover:text-ink-primary">
-          Show the guide
-        </button>
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <p className="text-[12.5px] text-ink-secondary max-w-[62ch]">
+          Enter each learner's National Achievement Test score (0–100) per learning area. Scores save
+          when you leave a row. The <span className="font-medium">MPS</span> row is the mean per subject.{' '}
+          <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> moves down,{' '}
+          <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Tab</kbd> moves across.{' '}
+          <button type="button" onClick={guide.show} className="underline underline-offset-2 hover:text-ink-primary">
+            Show the guide
+          </button>
+        </p>
+        <div className="flex items-center gap-2">
+          <ExportCsvButton
+            rows={groupRosterBySex(roster).flatMap((g) => g.students)}
+            columns={[
+              { header: 'Name', value: (s) => formatLastFirstMiddle(s) },
+              { header: 'LRN', value: (s) => displayLrn(s.lrn) },
+              ...NAT_SUBJECTS.map((sub) => ({
+                header: sub.label,
+                value: (s: Student) => scores[s.lrn]?.[sub.key] ?? '',
+              })),
+              { header: 'School ID', value: (s) => schoolIdFromLrn(s.lrn) },
+            ]}
+            filename={`nat-grade-6-${klass.sectionName}-${klass.sy}`}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={roster.length === 0}
+            onClick={() => setPrinting(true)}
+          >
+            <Printer className="w-3.5 h-3.5" /> Print NAT list
+          </Button>
+        </div>
+      </div>
       {/* First-timers only: opens once per browser, on the first sheet they encode. */}
       <EnterKeyGuide open={guide.open} onClose={guide.close} />
       {error && <p className="mb-3 text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{error}</p>}
@@ -105,8 +136,11 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
                 <th className="py-1.5 pr-3 min-w-[200px]">Name</th>
                 <th className="py-1.5 pr-3">LRN</th>
                 {NAT_SUBJECTS.map((s) => (
-                  <th key={s.key} className="py-1.5 px-1 text-center">{s.label}</th>
+                  <th key={s.key} className="py-1.5 px-1 text-center" title={s.full}>
+                    {s.label}
+                  </th>
                 ))}
+                <th className="py-1.5 pl-3">School ID</th>
               </tr>
             </thead>
             <tbody onBlur={(e) => {
@@ -121,7 +155,7 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
                 <Fragment key={grp.key}>
                   <tr>
                     <td
-                      colSpan={2 + NAT_SUBJECTS.length}
+                      colSpan={3 + NAT_SUBJECTS.length}
                       className={`px-2 py-1 text-[11px] font-bold uppercase tracking-wider ${
                         grp.key === 'Unspecified' ? 'bg-amber-100 text-amber-800' : 'bg-app'
                       }`}
@@ -135,7 +169,7 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
                         {formatLastFirstMiddle(s)}
                         {savingLrn === s.lrn && <span className="ml-2 text-[11px] text-ink-muted">saving…</span>}
                       </td>
-                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">{s.lrn}</td>
+                      <td className="py-1.5 pr-3 font-mono text-ink-secondary">{displayLrn(s.lrn)}</td>
                       {NAT_SUBJECTS.map((sub) => (
                         <td key={sub.key} className="py-1 px-1 text-center">
                           <Input
@@ -148,13 +182,20 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
                           />
                         </td>
                       ))}
+                      {/* LRN[0:6] — the school that FIRST enrolled this learner
+                          in the DepEd system, which is where DepEd aggregates
+                          their NAT result. Not NPS's own ID: a section holds
+                          learners from several originating schools. */}
+                      <td className="py-1.5 pl-3 font-mono text-ink-secondary">
+                        {schoolIdFromLrn(s.lrn)}
+                      </td>
                     </tr>
                   ))}
                 </Fragment>
               ))}
               {roster.length === 0 && (
                 <tr>
-                  <td colSpan={2 + NAT_SUBJECTS.length} className="py-6 text-center text-ink-secondary">
+                  <td colSpan={3 + NAT_SUBJECTS.length} className="py-6 text-center text-ink-secondary">
                     No learners in this section yet.
                   </td>
                 </tr>
@@ -169,12 +210,21 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
                       {mps[s.key] ?? '—'}
                     </td>
                   ))}
+                  <td />
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       )}
+
+      <PrintHost
+        open={printing}
+        docTitle={`NAT · Grade 6 ${klass.sectionName} · ${klass.sy}`}
+        onClose={() => setPrinting(false)}
+      >
+        <NatSheet klass={klass} roster={roster} scores={scores} mps={mps} />
+      </PrintHost>
     </SectionCard>
   );
 }

@@ -44,6 +44,7 @@ import {
 import { groupRosterBySex } from '@/lib/roster';
 import { formatLastFirstMiddle, formatBirthdate, formatBirthdateMdy } from '@/lib/format';
 import { escSchoolHeader, hasFullLrn, isEscLevel, priorSchool } from '@/lib/esc';
+import { isNatGrade } from '@/lib/nat';
 import { EscSheet } from '@/components/print/EscSheet';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
@@ -489,6 +490,8 @@ export default function ClassDetail() {
   // runs on the SHS voucher and the lower levels have no equivalent — so the tab
   // itself only exists on a Grade 7–10 section.
   const isEscClass = isEscLevel(klass?.gradeLevel);
+  // NPS administers the NAT in Grade 6, so only those sections get the tab.
+  const isNatClass = isNatGrade(klass?.gradeLevel);
   // What still has to be filled in on a learner's record before the list can be
   // filed. Computed once per learner, since priorSchool() reads enrolment history.
   const escGaps = (() => {
@@ -835,7 +838,9 @@ export default function ClassDetail() {
         <div className="flex-1 min-w-0">
           <Tabs defaultValue="list">
             <TabsList className="bg-panel border border-border-soft p-0.5 mb-3 rounded-md">
-              {TAB_KEYS.filter((k) => k !== 'esc' || isEscClass).map((k) => (
+              {TAB_KEYS.filter(
+                (k) => (k !== 'esc' || isEscClass) && (k !== 'nat' || isNatClass),
+              ).map((k) => (
                 <TabsTrigger key={k} value={k}>
                   {TAB_LABELS[k]}
                 </TabsTrigger>
@@ -1015,9 +1020,11 @@ export default function ClassDetail() {
               </SectionCard>
             </TabsContent>
 
-            <TabsContent value="nat">
-              <NatTab klass={klass} roster={roster} />
-            </TabsContent>
+            {isNatClass && (
+              <TabsContent value="nat">
+                <NatTab klass={klass} roster={roster} />
+              </TabsContent>
+            )}
 
             <TabsContent value="pupils">
               <SectionCard heading="Pupils Directory">
