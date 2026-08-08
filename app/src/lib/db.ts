@@ -5,6 +5,7 @@
 import { supabase } from './supabase';
 import { idbGet, idbSet, SNAP } from './offlineCache';
 import { isPlaceholderLrn } from './lrn';
+import { deptOfGrade } from './forms';
 import {
   AREA_GROUPS,
   isAreaGroup,
@@ -2322,48 +2323,116 @@ export async function listSasScope(): Promise<SasAreaScope[]> {
   return [...byRole.values()];
 }
 
-// Replace-in-place, one area at a time: delete what was dropped, insert what was
-// added. Scoped to the single role so a save can never disturb another area.
-export async function saveSasAreaDepts(role: string, depts: string[]): Promise<void> {
+// Writes the DIFFERENCE, never a wipe-and-rewrite. Deleting every row first and
+// re-inserting would look simpler, but a failed insert — a subject code dropped
+// from the catalog since this page loaded, say — would leave the area with
+// nothing at all. Removing only what was unticked cannot lose what was kept.
+// Scoped to the one role, so a save can never disturb another area.
+async function replaceRows(
+  table: 'sas_area_depts' | 'sas_subject_areas',
+  column: 'dept' | 'subject_code',
+  role: string,
+  next: string[],
+): Promise<void> {
   const c = client();
-  const del = await c.from('sas_area_depts').delete().eq('role', role);
-  if (del.error) throw del.error;
-  if (!depts.length) return;
-  const ins = await c.from('sas_area_depts').insert(depts.map((dept) => ({ role, dept })));
-  if (ins.error) throw ins.error;
+  const cur = await c.from(table).select(column).eq('role', role);
+  if (cur.error) throw cur.error;
+
+  const before = new Set((cur.data ?? []).map((r) => str((r as Record<string, unknown>)[column])));
+  const after = new Set(next);
+  const toRemove = [...before].filter((v) => !after.has(v));
+  const toAdd = [...after].filter((v) => !before.has(v));
+
+  if (toRemove.length) {
+    const del = await c.from(table).delete().eq('role', role).in(column, toRemove);
+    if (del.error) throw del.error;
+  }
+  if (toAdd.length) {
+    const ins = await c.from(table).insert(toAdd.map((v) => ({ role, [column]: v })));
+    if (ins.error) throw ins.error;
+  }
 }
 
-export async function saveSasAreaSubjects(role: string, codes: string[]): Promise<void> {
-  const c = client();
-  const del = await c.from('sas_subject_areas').delete().eq('role', role);
-  if (del.error) throw del.error;
-  if (!codes.length) return;
-  const ins = await c
-    .from('sas_subject_areas')
-    .insert(codes.map((subject_code) => ({ role, subject_code })));
-  if (ins.error) throw ins.error;
+export const saveSasAreaDepts = (role: string, depts: string[]) =>
+  replaceRows('sas_area_depts', 'dept', role, depts);
+
+export const saveSasAreaSubjects = (role: string, codes: string[]) =>
+  replaceRows('sas_subject_areas', 'subject_code', role, codes);
+
+export interface SasGap {
+  subjectCode: string;
+  dept: string;
 }
 
 /**
- * Subject codes that are actually being taught but sit in no supervisor area —
- * these reach no one for checking, and nothing else in the system says so.
+ * Subjects being taught this school year that no supervisor can reach.
+ *
+ * A gap is a (subject, department) pair, not a bare subject: an area covering
+ * only Grade School leaves its own subjects unchecked in Junior High.
+ *
+ * Departments that NO area covers are not gaps — they are somebody else's job.
+ * Senior High is checked by its own Academic Coordinator, so its subjects
+ * having no supervisor is the design, not a hole. Reporting those was the
+ * difference between a warning worth reading and one that cries wolf.
  */
-export async function listUnsupervisedSubjects(): Promise<string[]> {
-  const [assigned, areas] = await Promise.all([
-    client().from('reg_class_subjects').select('subject_code, teacher_id, term_teachers'),
-    client().from('sas_subject_areas').select('subject_code'),
+export async function listUnsupervisedSubjects(): Promise<SasGap[]> {
+  const sy = await getActiveSchoolYear();
+  if (!sy) return [];
+
+  const [classes, areas, depts] = await Promise.all([
+    client().from('reg_classes').select('id, grade_level').eq('sy', sy.code),
+    client().from('sas_subject_areas').select('role, subject_code'),
+    client().from('sas_area_depts').select('role, dept'),
   ]);
-  if (assigned.error) throw assigned.error;
+  if (classes.error) throw classes.error;
   if (areas.error) throw areas.error;
-  const covered = new Set((areas.data ?? []).map((r) => str(r.subject_code).toUpperCase()));
-  const gaps = new Set<string>();
+  if (depts.error) throw depts.error;
+
+  const classIds = (classes.data ?? []).map((r) => str(r.id));
+  if (!classIds.length) return [];
+  const assigned = await client()
+    .from('reg_class_subjects')
+    .select('class_id, subject_code, teacher_id, term_teachers')
+    .in('class_id', classIds);
+  if (assigned.error) throw assigned.error;
+
+  const deptOfClass = new Map(
+    (classes.data ?? []).map((r) => [str(r.id), deptOfGrade(str(r.grade_level))] as const),
+  );
+  const deptsOfRole = new Map<string, Set<string>>();
+  for (const r of depts.data ?? []) {
+    const role = str(r.role);
+    let set = deptsOfRole.get(role);
+    if (!set) {
+      set = new Set<string>();
+      deptsOfRole.set(role, set);
+    }
+    set.add(str(r.dept));
+  }
+  // Which (subject, dept) pairs some area actually reaches.
+  const reached = new Set<string>();
+  for (const a of areas.data ?? []) {
+    for (const d of deptsOfRole.get(str(a.role)) ?? []) {
+      reached.add(`${str(a.subject_code).toUpperCase()}|${d}`);
+    }
+  }
+  // Departments any area supervises at all — outside these, a missing
+  // supervisor is expected rather than a gap.
+  const supervisedDepts = new Set([...deptsOfRole.values()].flatMap((s) => [...s]));
+
+  const gaps = new Map<string, SasGap>();
   for (const r of assigned.data ?? []) {
     // Unassigned rows are not yet anyone's to check.
     if (!r.teacher_id && !r.term_teachers) continue;
     const code = str(r.subject_code);
-    if (code && !covered.has(code.toUpperCase())) gaps.add(code);
+    const dept = deptOfClass.get(str(r.class_id));
+    if (!code || !dept || !supervisedDepts.has(dept)) continue;
+    const key = `${code.toUpperCase()}|${dept}`;
+    if (!reached.has(key) && !gaps.has(key)) gaps.set(key, { subjectCode: code, dept });
   }
-  return [...gaps].sort();
+  return [...gaps.values()].sort(
+    (a, b) => a.subjectCode.localeCompare(b.subjectCode) || a.dept.localeCompare(b.dept),
+  );
 }
 
 // ── attitude scale (numerical → letter, registrar-configurable) ──

@@ -107,6 +107,22 @@ export function gradeRank(code?: string): number {
   return i < 0 ? 999 : i;
 }
 
+// The DEPARTMENT that owns a section — the same four buckets the approval
+// routing and the supervisor scopes use.
+//
+// MUST match public.reg_dept_of() in SQL exactly, including 'S' (SPED), which
+// sits with Grade School there and with preschool in levelOfGrade() below.
+// The two answer different questions: this one is about who supervises a
+// section, that one about which subject catalog it draws from.
+export type Dept = 'preschool' | 'gs' | 'jhs' | 'shs';
+export function deptOfGrade(g: string): Dept {
+  const base = (g ?? '').split('-')[0]; // "XII-STEM" → "XII"
+  if (base === 'XI' || base === 'XII') return 'shs';
+  if (['VII', 'VIII', 'IX', 'X'].includes(base)) return 'jhs';
+  if (['I', 'II', 'III', 'IV', 'V', 'VI', 'S'].includes(base)) return 'gs';
+  return 'preschool';
+}
+
 // Which subject education-level applies to a section's grade code.
 export function levelOfGrade(g: string): 'preschool' | 'elem' | 'jhs' | 'shs' {
   const base = (g ?? '').split('-')[0]; // "XII-STEM" → "XII"
