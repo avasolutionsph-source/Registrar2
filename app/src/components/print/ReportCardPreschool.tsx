@@ -102,12 +102,6 @@ const DEPORTMENT_GROUPS: { key: string; label: string; items: string[] }[] = [
   },
 ];
 
-// Attendance month labels as the form spells them (longer than the SF9's).
-const MONTH_LONG: Record<string, string> = {
-  jun: 'June', jul: 'July', aug: 'Aug', sep: 'Sept', oct: 'Oct', nov: 'Nov',
-  dec: 'Dec', jan: 'Jan', feb: 'Feb', mar: 'Mar', apr: 'April', may: 'May',
-};
-
 function deportmentLetter(v?: number): string {
   if (v == null) return '';
   if (v >= 91) return 'AO';
@@ -363,7 +357,8 @@ export function ReportCardPreschool({
                 <tr>
                   <th className={`${bd} w-[58px] px-0.5 py-[2px] text-left`}>ATTENDANCE</th>
                   {months.map((m) => (
-                    <th key={m.key} className={`${bd} px-0.5 py-[2px] break-words`}>{MONTH_LONG[m.key] ?? m.label}</th>
+                    // short labels (Jun, Jul, …) so a month NEVER wraps to two lines
+                    <th key={m.key} className={`${bd} px-0.5 py-[2px] whitespace-nowrap`}>{m.label}</th>
                   ))}
                   <th className={`${bd} w-[30px] px-0.5 py-[2px]`}>TOTAL</th>
                 </tr>
