@@ -277,7 +277,7 @@ export function ReportCardPreschool({
   const nextLevel = NEXT_LEVEL[gradeCode] ?? '';
 
   const bd = 'border border-black';
-  const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
+  const cell = `${bd} px-1.5 py-[5px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
   const blank = (label: string, value: string, w = 'flex-1') => (
     <div className="flex items-end gap-2">
@@ -288,42 +288,46 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.4] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10.5px] leading-[1.45] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
 
-      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8in]">
+      {/* The grid IS the whole card (no shared header above it), so its floor
+          can claim nearly the full sheet — the page budget at 0.4in margins is
+          ~10.2in and the root padding eats ~0.17in, so 9.8in fills the paper
+          while staying safely on ONE page. */}
+      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[9.8in]">
         {/* LEFT — letterhead, identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-[8.5px]">School Form 9</div>
           <div className="text-[8.5px]">Student No.: {student.studentNo || '__________'} &nbsp; LRN: {displayLrn(student.lrn)}</div>
 
           {/* letterhead — seals hug the centered text */}
-          <div className="mt-1 flex items-center justify-center gap-3">
-            <img src={depedLogo} alt="" className="w-12 h-12 object-contain shrink-0" />
-            <div className="text-center leading-[1.3]">
+          <div className="mt-2 flex items-center justify-center gap-3">
+            <img src={depedLogo} alt="" className="w-14 h-14 object-contain shrink-0" />
+            <div className="text-center leading-[1.35]">
               <div>REPUBLIC OF THE PHILIPPINES</div>
               <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
               <div>REGION V</div>
-              <div className="text-[15px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
+              <div className="text-[16px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
               <div>Cor. Ateneo Avenue and Bagumbayan Sur, Naga City</div>
-              <div className="text-[8.5px]">Government Recognition No. 002 S. 2009</div>
+              <div className="text-[9px]">Government Recognition No. 002 S. 2009</div>
             </div>
-            <img src={npsLogo} alt="" className="w-16 h-16 object-contain shrink-0" />
+            <img src={npsLogo} alt="" className="w-[72px] h-[72px] object-contain shrink-0" />
           </div>
 
-          <div className="mt-3 text-center font-bold text-[11.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
+          <div className="mt-4 text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
           <div className="text-center font-semibold">SCHOOL YEAR {formatSy(year)}</div>
 
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-4 space-y-2">
             {blank('NAME:', fullName)}
             {blank(`${levelLine}:`, sectionName)}
             {blank('TEACHER:', adviser)}
           </div>
 
           {/* SCHOLARSHIP */}
-          <table className="mt-3 w-full border-collapse break-inside-avoid">
+          <table className="mt-4 w-full border-collapse break-inside-avoid">
             <thead>
               <tr>
                 <th className={hcell} colSpan={periods.length + 3}>SCHOLARSHIP</th>
@@ -343,7 +347,7 @@ export function ReportCardPreschool({
             <tbody>
               {areas.map((a) => (
                 <tr key={a.code}>
-                  <td className={`${bd} px-1.5 py-[3px]`}>{a.name}</td>
+                  <td className={`${bd} px-1.5 py-[5px]`}>{a.name}</td>
                   {pcols.map((q, i) => (
                     <td key={q} className={cell}>{shown(i) ? (a.letters[q] ?? '') : ''}</td>
                   ))}
@@ -352,7 +356,7 @@ export function ReportCardPreschool({
                 </tr>
               ))}
               <tr>
-                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Over-All Progress</td>
+                <td className={`${bd} px-1.5 py-[5px] font-semibold`}>Over-All Progress</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>{shown(i) ? termProgress(q) : ''}</td>
                 ))}
@@ -361,15 +365,15 @@ export function ReportCardPreschool({
               </tr>
             </tbody>
           </table>
-          <div className="mt-1 text-[9px]">
+          <div className="mt-1.5 text-[9.5px]">
             <b>Performance Descriptors</b> &nbsp; B- Beginning &nbsp; D- Developing &nbsp; C- Consistent
           </div>
 
           {/* ATTENDANCE RECORD — table-fixed so 13 columns can NEVER grow past
               the half-page column and bleed into the deportment side */}
-          <div className="mt-4 break-inside-avoid">
-            <div className="mb-1 font-bold text-[11px]">ATTENDANCE RECORD</div>
-            <table className="w-full table-fixed border-collapse text-[8px] leading-[1.25]">
+          <div className="mt-5 break-inside-avoid">
+            <div className="mb-1 font-bold text-[11.5px]">ATTENDANCE RECORD</div>
+            <table className="w-full table-fixed border-collapse text-[8.5px] leading-[1.3]">
               <thead>
                 <tr>
                   <th className={`${bd} w-[58px] px-0.5 py-[2px] text-left`}>ATTENDANCE</th>
@@ -395,11 +399,11 @@ export function ReportCardPreschool({
           </div>
 
           {/* promotion + signatures + cancellation */}
-          <div className="mt-auto pt-4 break-inside-avoid space-y-1.5">
+          <div className="mt-auto pt-5 break-inside-avoid space-y-2">
             {blank('Promoted to/Retained in', '')}
             {blank('Eligible for Transfer & Admission to', complete ? nextLevel : '')}
 
-            <div className="pt-5 grid grid-cols-2 gap-4 text-center">
+            <div className="pt-6 grid grid-cols-2 gap-4 text-center">
               <div>
                 <div className="font-semibold uppercase">{adviser || ' '}</div>
                 <div className="border-t border-black pt-0.5">Class Adviser</div>
@@ -410,11 +414,11 @@ export function ReportCardPreschool({
               </div>
             </div>
 
-            <div className="pt-3">
+            <div className="pt-4 space-y-1.5">
               <div className="font-bold">Cancellation of Eligibility to Transfer</div>
               {blank('Has been admitted in', '')}
               {blank('Date', '', 'w-40')}
-              <div className="mt-5 text-center">
+              <div className="mt-6 text-center">
                 <div className="inline-block border-t border-black px-10 pt-0.5">Principal</div>
               </div>
             </div>
@@ -423,11 +427,11 @@ export function ReportCardPreschool({
 
         {/* RIGHT — DEPORTMENT */}
         <div className="flex flex-col">
-          <div className="mb-1 text-center font-bold text-[11.5px]">DEPORTMENT</div>
+          <div className="mb-1.5 text-center font-bold text-[12.5px]">DEPORTMENT</div>
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={`${bd} px-1.5 py-[3px]`}> </th>
+                <th className={`${bd} px-1.5 py-[5px]`}> </th>
                 {periods.map((p) => (
                   <th key={p.key} className={`${hcell} w-11 font-normal`}>{p.label}</th>
                 ))}
@@ -438,7 +442,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-zinc-200 text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[5px] bg-zinc-200 text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
@@ -450,7 +454,7 @@ export function ReportCardPreschool({
                   </tr>
                   {g.items.map((it) => (
                     <tr key={it.k}>
-                      <td className={`${bd} px-1.5 py-[3px]`}>{it.label}</td>
+                      <td className={`${bd} px-1.5 py-[5px]`}>{it.label}</td>
                       {pcols.map((q, i) => (
                         <td key={q} className={cell}>
                           {shown(i) ? preDep[it.k]?.[q] ?? '' : ''}
@@ -465,7 +469,7 @@ export function ReportCardPreschool({
               ))}
             </tbody>
           </table>
-          <div className="mt-1.5 text-[9px]">
+          <div className="mt-2 text-[9.5px]">
             <div className="font-bold">DEPORTMENT MARKING CODE</div>
             <div>AO-Always Observed &nbsp; SO- Sometimes Observed &nbsp; RO-Rarely Observed &nbsp; NO-Not Observed</div>
           </div>
