@@ -102,11 +102,12 @@ const dense: Student = {
 };
 
 function page(html: string, strict = false): string {
-  // strict: shrink the page to 10.55in to stand in for Letter printed with the
-  // browser's "Minimum" margins (~10.68in content box). A card that fits this
-  // fits every margin setting a school machine will realistically use.
+  // strict: shrink the page to 10.2in — Letter (11in) printed with Chrome's
+  // DEFAULT margins (~0.4in each), which is the tightest content box a school
+  // machine realistically uses. "Minimum" margins give ~10.68in, so a card
+  // that clears 10.2in clears every setting.
   const override = strict
-    ? '<style>@media print { @page { size: 8.5in 10.55in; margin: 0; } }</style>'
+    ? '<style>@media print { @page { size: 8.5in 10.2in; margin: 0; } }</style>'
     : '';
   return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./app.css"></head><body>${html}${override}</body></html>`;
 }

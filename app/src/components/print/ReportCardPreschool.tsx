@@ -334,7 +334,7 @@ export function ReportCardPreschool({
           28-row deportment table is what actually sets the height, so its row
           padding is kept tight and the floor stays under budget with headroom.
           Raising either one spills onto sheet 2. */}
-      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.4in]">
+      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.9in]">
         {/* LEFT — identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>

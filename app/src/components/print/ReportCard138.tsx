@@ -520,7 +520,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[6.5in]' : 'min-h-[7.2in]'}`}>
+      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7.3in]' : 'min-h-[7.9in]'}`}>
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
