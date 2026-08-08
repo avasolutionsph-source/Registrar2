@@ -4,7 +4,7 @@ import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { ExportCsvButton } from '@/components/ExportCsvButton';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Letterhead } from '@/components/print/parts';
-import { listClasses, listStudentsLite, listStudentsBySy, type StudentYear } from '@/lib/db';
+import { listClasses, listStudentsLite, listStudentsBySy, errMsg, type StudentYear } from '@/lib/db';
 import { isAllTime } from '@/types';
 import { gradeLabel } from '@/lib/forms';
 import type { GradeLevel, SchoolYear, Student, ClassRecord } from '@/types';
@@ -65,7 +65,7 @@ export default function Statistics() {
           setStudents(st);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load statistics.');
+        if (!cancelled) setError(errMsg(e, 'Failed to load statistics.'));
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -13,6 +13,7 @@ import {
   setStudentStatus,
   getStudentDeleteInfo,
   deleteStudent,
+  errMsg,
   type StudentYear,
 } from '@/lib/db';
 import type { Student } from '@/types';
@@ -56,7 +57,7 @@ export default function StudentsList() {
           setClassById(new Map(cls.map((c) => [c.id, c])));
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load students.');
+        if (!cancelled) setError(errMsg(e, 'Failed to load students.'));
       } finally {
         if (!cancelled) setLoading(false);
       }

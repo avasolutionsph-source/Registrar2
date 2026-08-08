@@ -37,6 +37,26 @@ function client() {
   return supabase;
 }
 
+// Supabase hands back a PostgrestError as a PLAIN OBJECT unless .throwOnError()
+// is used, so the usual `e instanceof Error ? e.message : 'something failed'`
+// throws away the real message, code and hint and leaves only the placeholder —
+// every database failure then reads the same and none of them can be diagnosed
+// from the screen. Use this instead of `instanceof Error` when reporting a read.
+export function errMsg(e: unknown, fallback: string): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [o.message, o.details, o.hint].filter(
+      (x): x is string => typeof x === 'string' && x.length > 0,
+    );
+    if (parts.length) {
+      const body = parts.join(' — ');
+      return typeof o.code === 'string' && o.code ? `${body} (${o.code})` : body;
+    }
+  }
+  return fallback;
+}
+
 // ── offline read cache ──────────────────────────────────────────────────
 // Reads go to the network when online; if offline (or the request fails on a
 // flaky connection) they fall back to the last snapshot saved by syncToDevice().
@@ -333,7 +353,15 @@ export async function listStudentsBySy(sy: string): Promise<StudentYear[]> {
         const { data, error } = await c
           .from('reg_students')
           .select(`${STUDENT_LITE_COLS},enrolment_history`)
-          .contains('enrolment_history', [{ sy, schoolId: NPS_SCHOOL_ID }])
+          // `@>` containment against the jsonb array. NOT .contains() with an
+          // array argument: postgrest-js takes its Postgres-ARRAY-literal branch
+          // for any JS array and emits `cs.{${value.join(',')}}`, so an array of
+          // objects stringifies to the literal `cs.{[object Object]}` — which a
+          // jsonb column cannot parse, so every request 400s. Passing the JSON
+          // text through .filter() sends `cs.[{"sy":…,"schoolId":…}]`, and `@>`
+          // on a jsonb array matches an element that is a SUPERSET of these
+          // keys, so entries also carrying gradeLevel/sectionName still match.
+          .filter('enrolment_history', 'cs', JSON.stringify([{ sy, schoolId: NPS_SCHOOL_ID }]))
           .order('last_name', { ascending: true })
           .order('first_name', { ascending: true })
           .order('lrn', { ascending: true })
