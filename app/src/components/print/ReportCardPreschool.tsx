@@ -289,7 +289,7 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full flex flex-col text-[10px] leading-[1.35] text-black p-2 print:p-[0.35in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="rc-sheet relative isolate mx-auto w-full flex flex-col text-[10px] leading-[1.35] text-black p-2 print:p-[0.35in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
@@ -334,7 +334,7 @@ export function ReportCardPreschool({
           28-row deportment table is what actually sets the height, so its row
           padding is kept tight and the floor stays under budget with headroom.
           Raising either one spills onto sheet 2. */}
-      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.9in]">
+      <div className="mt-6 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.45in]">
         {/* LEFT — identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
@@ -458,9 +458,12 @@ export function ReportCardPreschool({
               <tr>
                 <th className={`${bd} px-1.5 py-[2px]`}> </th>
                 {periods.map((p) => (
-                  <th key={p.key} className={`${hcell} w-11 font-normal`}>{p.label}</th>
+                  // Narrow mark columns on purpose: every pixel here goes to
+                  // the statement column, and fewer wrapped statements is what
+                  // keeps this card on one sheet at narrow page widths.
+                  <th key={p.key} className={`${hcell} w-8 font-normal`}>{p.label}</th>
                 ))}
-                <th className={`${hcell} w-11 font-normal`}>Over-All</th>
+                <th className={`${hcell} w-8 font-normal`}>Over-All</th>
               </tr>
             </thead>
             <tbody>

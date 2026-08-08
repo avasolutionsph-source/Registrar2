@@ -109,7 +109,19 @@ function page(html: string, strict = false): string {
   const override = strict
     ? '<style>@media print { @page { size: 8.5in 10.2in; margin: 0; } }</style>'
     : '';
-  return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./app.css"></head><body>${html}${override}</body></html>`;
+  // The card is wrapped in the EXACT markup PrintHost renders, and #root is
+  // present as its sibling. Measuring the bare card was the flaw in the first
+  // version of this harness: the wrapper's own padding counts against the page
+  // budget, so a card that fit alone could still spill in the real app.
+  const shell = `
+<div id="root"></div>
+<div class="fixed inset-0 z-50 overflow-auto bg-zinc-800/60 p-4 sm:p-6 print:static print:overflow-visible print:bg-transparent print:p-0">
+  <div class="no-print sticky top-0 z-10 mx-auto mb-4 flex max-w-[210mm] items-center justify-between rounded-lg border px-3 py-2">toolbar</div>
+  <div id="print-root" class="mx-auto bg-white text-black shadow-xl w-[210mm] p-[14mm] print:w-auto print:p-0 print:shadow-none print:bg-transparent">
+    ${html}
+  </div>
+</div>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./app.css"></head><body>${shell}${override}</body></html>`;
 }
 
 describe('page-fit harness', () => {

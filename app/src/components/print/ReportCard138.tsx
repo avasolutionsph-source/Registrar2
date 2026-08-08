@@ -81,9 +81,30 @@ export const sheetStyle = `
     html, body {
       background: ${SHEET_GOLD} !important;
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      margin: 0 !important; padding: 0 !important;
     }
+    /* The preview chrome must contribute ZERO height. PrintHost already sets
+       print:p-0 on both, but a stray responsive padding (sm:p-6 also matches
+       at print width) would silently eat ~0.5in of the page budget and put the
+       card on a second sheet. Pinned here so the measured card height is the
+       whole story. */
+    #print-root { padding: 0 !important; margin: 0 !important; width: auto !important; }
+    #print-root, #print-root * { box-sizing: border-box; }
   }
 `;
+
+// NOTE for whoever tunes these cards next — measured, not guessed:
+//  • Both cards fit ONE Letter/short-bond sheet at every margin setting Chrome
+//    offers (None 8.5x11, Minimum 8.18x10.68, Default 7.7x10.2). Verified with
+//    the page-fit harness in __tests__/pagefit.harness.test.tsx.
+//  • They do NOT fit A4 (7.25in usable width): the two columns squeeze, table
+//    text wraps to more lines and the card grows past the page. The school
+//    prints on short bond, and @page asks for 8.5x11, so this is accepted.
+//  • A `@media print and (max-width: …)` guard to auto-shrink on narrow paper
+//    was tried and REMOVED: Chrome does not evaluate width media queries
+//    against the page box when printing, so the rule never matched. `zoom` on
+//    .rc-sheet does work if a future fix needs it — the trigger is the problem,
+//    not the technique.
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 const ordOf = (code?: string) => {
@@ -444,11 +465,15 @@ export function ReportCard138({
   // the paper while leaving ~1in of headroom. A long subject list eats that
   // slack first, then the type steps down — a 16-subject Grade XII and even an
   // outsized curriculum still land on a single sheet.
+  // Sized against the NARROWEST real paper, not just the shortest: Letter with
+  // Chrome's default margins is only 7.7in wide, and A4 7.25in — a 16-subject
+  // Grade XII wraps far more there than on an 8.5in sheet, which is what used
+  // to push it onto a second page. Measured with the page-fit harness.
   const bodyType =
-    rows.length > 20 ? 'text-[8px] leading-[1.2]'
-    : rows.length > 14 ? 'text-[8.5px] leading-[1.25]'
+    rows.length > 20 ? 'text-[7.5px] leading-[1.15]'
+    : rows.length > 12 ? 'text-[8px] leading-[1.2]'
     : 'text-[10.5px] leading-[1.4]';
-  const dense = rows.length > 14;
+  const dense = rows.length > 12;
   // Row padding steps down with density — a long subject list pays for itself
   // in the rows, not just the type.
   const rowPad = dense ? 'py-[1px]' : 'py-[2px]';
@@ -467,7 +492,7 @@ export function ReportCard138({
   // fills the page; the gold comes from the page canvas, not from this box.
   return (
     <div
-      className={`relative isolate mx-auto w-full flex flex-col ${bodyType} text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`rc-sheet relative isolate mx-auto w-full flex flex-col ${bodyType} text-black p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
@@ -520,7 +545,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7.3in]' : 'min-h-[7.9in]'}`}>
+      <div className={`mt-6 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[6in]' : 'min-h-[7.6in]'}`}>
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
@@ -547,7 +572,10 @@ export function ReportCard138({
                 <th className={hcell} rowSpan={2}>Final Grade</th>
                 <th className={hcell} rowSpan={2}>Remarks</th>
               </tr>
-              <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-9`}>{s}</th>)}</tr>
+              {/* Term columns narrow on a long list: the width goes to the
+                  subject names, and fewer wrapped names is what keeps a
+                  16-subject Grade XII on one sheet. */}
+              <tr>{short.map((s, i) => <th key={i} className={`${hcell} ${dense ? 'w-7' : 'w-9'}`}>{s}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((r) => {
