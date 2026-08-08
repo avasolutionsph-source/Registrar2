@@ -403,12 +403,16 @@ export function ReportCard138({
     { label: 'Times Tardy', get: tdOf, total: att?.totalTardy ?? sumOf(tdOf) },
   ];
 
-  // ONE PAGE, always. The page budget (0.45in margins on 11in) is ~10.1in;
-  // the header takes ~1.5in, so the content grid gets an 8in floor for the
-  // balanced look and NEVER stretches the total past a single sheet. A long
-  // subject list first eats the slack, then `dense` shrinks the type so even
-  // an outsized curriculum still lands on one page.
-  const dense = rows.length > 16;
+  // ONE PAGE, always. Budget at 0.4in margins = 10.2in, less ~0.17in of sheet
+  // padding; the letterhead takes ~1.4in, so a 7.6in grid floor still fills
+  // the paper while leaving ~1in of headroom. A long subject list eats that
+  // slack first, then the type steps down — a 16-subject Grade XII and even an
+  // outsized curriculum still land on a single sheet.
+  const bodyType =
+    rows.length > 20 ? 'text-[8px] leading-[1.25]'
+    : rows.length > 14 ? 'text-[9px] leading-[1.3]'
+    : 'text-[10.5px] leading-[1.45]';
+  const dense = rows.length > 14;
   const bd = 'border border-black';
   const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
@@ -419,18 +423,18 @@ export function ReportCard138({
 
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
           rounded, highly legible sans) is used for readability; falls back to
           a similar sans when it isn't installed. */}
-      {/* Zero PAGE margin, with the real 0.4in margin applied as padding on the
-          sheet itself. The browser draws its URL/date/page-number header and
-          footer inside the page margin — with no margin there is nowhere to
-          draw them, so they stop appearing without the user having to untick
-          "Headers and footers" on every computer. Content area is unchanged. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
+      {/* A real 0.4in page margin. Do NOT set this to 0 to hide the browser's
+          URL/page-number footer: with "Headers and footers" enabled Chrome
+          still reserves room for them, so the zero margin only ADDS our own
+          padding on top and pushes the card onto a second sheet. Suppressing
+          that footer is a browser setting, not a page-CSS one. */}
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
 
       {/* School seal watermark. `isolate` on the sheet makes it the stacking
           context, so z-[-1] paints ABOVE the white background but BELOW every
@@ -463,7 +467,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8in]">
+      <div className={`mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch ${dense ? 'min-h-[7.4in]' : 'min-h-[7.6in]'}`}>
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>

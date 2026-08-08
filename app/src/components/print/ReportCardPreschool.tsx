@@ -288,13 +288,11 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
-      {/* Zero PAGE margin, real margin as padding — see ReportCard138: this is
-          what keeps the browser's URL/page-number header and footer off the
-          printed card. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
+      {/* Real 0.4in page margin — see ReportCard138 for why this must not be 0. */}
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
 
       {/* School seal watermark — see ReportCard138: `isolate` + z-[-1] keeps it
           above the white sheet but behind every row. */}
@@ -310,7 +308,7 @@ export function ReportCardPreschool({
           STRETCHES the columns — the 28-row deportment table is what actually
           sets the height, so its row padding is kept tight and the floor stays
           under budget with headroom. Raising either one spills onto sheet 2. */}
-      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[9.2in]">
+      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8.8in]">
         {/* LEFT — letterhead, identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-[8.5px]">School Form 9</div>
