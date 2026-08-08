@@ -9,6 +9,8 @@ import {
   promotionStatus,
   classifyArea,
   isDescriptiveLevel,
+  attitudeRange,
+  clampAttitudeInput,
 } from '../grading';
 
 describe('componentPercent', () => {
@@ -95,5 +97,32 @@ describe('classification & key stage', () => {
     expect(isDescriptiveLevel('K')).toBe(true);
     expect(isDescriptiveLevel('IV')).toBe(false); // Grade 4 → numerical
     expect(isDescriptiveLevel('X')).toBe(false);
+  });
+});
+
+describe('attitude entry bounds', () => {
+  it('derives the span from the configured bands, ceiling at 99', () => {
+    expect(attitudeRange()).toEqual({ min: 75, max: 99 });
+    expect(attitudeRange([{ min: 70, letter: 'A', label: 'a' }])).toEqual({ min: 70, max: 99 });
+    expect(attitudeRange([])).toEqual({ min: 75, max: 99 }); // unseeded → default
+  });
+
+  const R = { min: 75, max: 99 };
+  it('never lets a keystroke push the cell past the ceiling', () => {
+    expect(clampAttitudeInput('23', '2', R)).toBe('23'); // still on the way up
+    expect(clampAttitudeInput('234', '23', R)).toBe('23'); // the 4 does not land
+    expect(clampAttitudeInput('100', '10', R)).toBe('10'); // no 100 on this scale
+    expect(clampAttitudeInput('95', '9', R)).toBe('95');
+  });
+  it('takes digits only, and lets the cell be cleared', () => {
+    expect(clampAttitudeInput('8a8', '88', R)).toBe('88');
+    expect(clampAttitudeInput('', '88', R)).toBe('');
+    expect(clampAttitudeInput('-5', '', R)).toBe('5'); // below the floor: flagged, not typed away
+  });
+  it('follows a re-banded scale that reaches 100', () => {
+    const r = attitudeRange([{ min: 100, letter: 'P', label: 'Perfect' }]);
+    expect(r.max).toBe(100);
+    expect(clampAttitudeInput('100', '10', r)).toBe('100');
+    expect(clampAttitudeInput('101', '10', r)).toBe('10');
   });
 });

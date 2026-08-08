@@ -1,17 +1,18 @@
 import type { KeyboardEvent } from 'react';
 
-// Enter moves to the next cell — the habit every encoder brings from Excel,
-// where Tab and Enter both advance and only the direction differs. Attach it to
-// the <table> (or any wrapper around the fields); it works by delegation, so no
-// individual cell needs a listener of its own:
+// Enter moves DOWN a column — the habit every encoder brings from Excel, where
+// you work one column at a time and Enter walks you down the list. Tab still
+// moves across, so the two keys cover both directions. Attach it to the <table>
+// (or any wrapper around the rows); it works by delegation, so no individual
+// cell needs a listener of its own:
 //
-//   <table onKeyDown={enterMovesToNextCell}>
+//   <table onKeyDown={enterMovesDown}>
 //
-//   Enter        → next field on the same row, wrapping to the row below
-//   Shift+Enter  → back one field
+//   Enter        → same column, next row
+//   Shift+Enter  → same column, previous row
 //
-// Tab is untouched — this only borrows its order, so both keys now do the same
-// thing and a typist can use whichever one their fingers already know.
+// Rows with nothing to type in — group headers, totals, read-only rows — are
+// stepped over, so the caret lands on the next real input every time.
 
 const SKIP_TYPES = new Set(['button', 'submit', 'reset', 'file', 'hidden', 'image']);
 const FIELDS = 'input, select, textarea';
@@ -26,7 +27,16 @@ function isTabStop(el: HTMLElement): boolean {
   return el.offsetParent !== null;
 }
 
-export function enterMovesToNextCell(e: KeyboardEvent<HTMLElement>): void {
+function fieldsIn(row: HTMLElement): HTMLElement[] {
+  return Array.from(row.querySelectorAll<HTMLElement>(FIELDS)).filter(isTabStop);
+}
+
+function centerX(el: HTMLElement): number {
+  const r = el.getBoundingClientRect();
+  return r.left + r.width / 2;
+}
+
+export function enterMovesDown(e: KeyboardEvent<HTMLElement>): void {
   if (e.key !== 'Enter' || e.altKey || e.ctrlKey || e.metaKey) return;
 
   // A <textarea> keeps Enter for its newline and a <select> keeps it for
@@ -34,19 +44,42 @@ export function enterMovesToNextCell(e: KeyboardEvent<HTMLElement>): void {
   const from = e.target as HTMLElement;
   if (!(from instanceof HTMLInputElement) || SKIP_TYPES.has(from.type)) return;
 
-  const fields = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(FIELDS)).filter(isTabStop);
-  const i = fields.indexOf(from);
-  if (i === -1) return;
-
-  const next = fields[i + (e.shiftKey ? -1 : 1)];
-  if (!next) return; // last cell of the sheet: stay put rather than jump away
+  const scope = e.currentTarget;
+  const row = from.closest('tr');
+  if (!row || !scope.contains(row)) return;
 
   e.preventDefault(); // ...which also stops Enter from submitting a surrounding form
-  next.focus();
-  // Arriving with the value selected means typing replaces it, like a spreadsheet.
-  try {
-    (next as HTMLInputElement).select?.();
-  } catch {
-    /* number inputs refuse select() in some browsers — landing there is enough */
+
+  // "Same column" is decided by where the field actually sits, not by counting
+  // fields: a row can be missing an input where another row has one (Encode
+  // Grades shows a computed value instead once raw scores exist), and counting
+  // would then slide the caret one column sideways. Screen position cannot.
+  const x = centerX(from);
+  const rows = Array.from(scope.querySelectorAll('tr'));
+  const step = e.shiftKey ? -1 : 1;
+
+  for (let i = rows.indexOf(row) + step; i >= 0 && i < rows.length; i += step) {
+    const fields = fieldsIn(rows[i]);
+    if (!fields.length) continue; // header, MALE/FEMALE divider, totals row…
+
+    let next = fields[0];
+    let best = Math.abs(centerX(next) - x);
+    for (const f of fields.slice(1)) {
+      const d = Math.abs(centerX(f) - x);
+      if (d < best) {
+        best = d;
+        next = f;
+      }
+    }
+
+    next.focus();
+    // Arriving with the value selected means typing replaces it, like a spreadsheet.
+    try {
+      (next as HTMLInputElement).select?.();
+    } catch {
+      /* number inputs refuse select() in some browsers — landing there is enough */
+    }
+    return;
   }
+  // Bottom of the column: stay put rather than jump somewhere unexpected.
 }

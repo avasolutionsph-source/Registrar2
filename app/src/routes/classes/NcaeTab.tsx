@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { groupRosterBySex } from '@/lib/roster';
 import { saveStudentNcae } from '@/lib/db';
-import { enterMovesToNextCell } from '@/lib/gridKeys';
+import { enterMovesDown } from '@/lib/gridKeys';
 import { NCAE_AREAS, type NcaeKey } from '@/lib/forms';
 import type { ClassRecord, Student } from '@/types';
 
@@ -67,8 +67,9 @@ export function NcaeTab({ klass, roster }: { klass: ClassRecord; roster: Student
       <p className="text-[12.5px] text-ink-secondary mb-3">
         Enter each learner&apos;s NCAE score per area. Scores save when you leave a row, and appear
         in the JHS coordinator&apos;s Student Records straight away. Press{' '}
-        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> to move
-        to the next column on the same row.
+        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> to move down
+        to the next learner in the same column;{' '}
+        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Tab</kbd> moves across.
       </p>
       {error && (
         <p className="mb-3 text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">
@@ -77,7 +78,7 @@ export function NcaeTab({ klass, roster }: { klass: ClassRecord; roster: Student
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[12px]" onKeyDown={enterMovesToNextCell}>
+        <table className="w-full text-[12px]" onKeyDown={enterMovesDown}>
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
               <th className="py-1.5 pr-3">Name</th>

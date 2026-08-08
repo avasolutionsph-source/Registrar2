@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { formatLastFirstMiddle } from '@/lib/format';
 import { groupRosterBySex } from '@/lib/roster';
 import { listNatScores, saveNatRow, NAT_SUBJECTS, type NatRow, type NatSubjectKey } from '@/lib/db';
-import { enterMovesToNextCell } from '@/lib/gridKeys';
+import { enterMovesDown } from '@/lib/gridKeys';
 import type { ClassRecord, Student } from '@/types';
 
 // NAT is administered at the exit grades only (Grade 6, 10, 12).
@@ -83,7 +83,8 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
         Enter each learner's National Achievement Test score (0–100) per learning area. Scores save
         when you leave a row. The <span className="font-medium">MPS</span> row is the mean per subject.
         Press <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Enter</kbd> to
-        move to the next column on the same row.
+        move down to the next learner in the same column;{' '}
+        <kbd className="rounded border border-border bg-app px-1 py-0.5 text-[10.5px]">Tab</kbd> moves across.
       </p>
       {error && <p className="mb-3 text-[12.5px] text-nps-red bg-nps-red/10 border border-nps-red/20 rounded-md px-3 py-2">{error}</p>}
 
@@ -91,7 +92,7 @@ export function NatTab({ klass, roster }: { klass: ClassRecord; roster: Student[
         <p className="text-[12.5px] text-ink-secondary">Loading…</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]" onKeyDown={enterMovesToNextCell}>
+          <table className="w-full text-[12px]" onKeyDown={enterMovesDown}>
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                 <th className="py-1.5 pr-3 min-w-[200px]">Name</th>

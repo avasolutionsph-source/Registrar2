@@ -252,6 +252,35 @@ export function attitudeLetter(
   return ordered.find((b) => score >= b.min) ?? null;
 }
 
+// The typable span of the CONFIGURED scale. A band only carries a lower bound,
+// so the floor is the lowest band and the ceiling is the official 99 — the top
+// band has no upper edge, and attitudeLetter alone would happily read 234 as
+// the top descriptor. Derived (not hard-coded) so a re-banded scale moves it.
+export function attitudeRange(scale: AttitudeBand[] = DEFAULT_ATTITUDE_SCALE): {
+  min: number;
+  max: number;
+} {
+  const mins = (scale ?? []).map((b) => Number(b.min)).filter((n) => Number.isFinite(n));
+  if (!mins.length) return { min: 75, max: 99 };
+  return { min: Math.min(...mins), max: Math.max(99, ...mins) };
+}
+
+// Guard for an attitude cell AS IT IS TYPED: digits only, and never wider or
+// larger than the scale's ceiling. Returns the text the cell should keep — the
+// previous text when the keystroke would overshoot, so the extra digit simply
+// does not land. The floor cannot be enforced here (7 must be typable to reach
+// 75), so a too-low score is caught by the red flag and blocked on save.
+export function clampAttitudeInput(
+  raw: string,
+  prev: string,
+  range: { min: number; max: number },
+): string {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (digits === '') return '';
+  if (digits.length > String(range.max).length) return prev;
+  return Number(digits) > range.max ? prev : digits;
+}
+
 // ── Qualitative descriptors (KS2–KS4 numerical grades) ──────────────────────
 export interface Descriptor {
   min: number;

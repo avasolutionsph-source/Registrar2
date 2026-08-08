@@ -35,7 +35,7 @@ import {
 import type { AttitudeBand } from '@/lib/grading';
 import { periodsForSy, subjectFitsSection, MAPEH_COMPONENT_CODES } from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
-import { enterMovesToNextCell } from '@/lib/gridKeys';
+import { enterMovesDown } from '@/lib/gridKeys';
 import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
@@ -1707,7 +1707,7 @@ export default function ClassDetail() {
                     </Button>
                   </div>
                 </div>
-                <table className="w-full text-[12px]" onKeyDown={enterMovesToNextCell}>
+                <table className="w-full text-[12px]" onKeyDown={enterMovesDown}>
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
                       <th className="py-1.5 pr-3 w-[18%]">LRN</th>

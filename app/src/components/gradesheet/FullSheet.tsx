@@ -19,6 +19,8 @@ import {
   computeGradeWith,
   initialGrade,
   attitudeLetter,
+  attitudeRange,
+  clampAttitudeInput,
   DEFAULT_ATTITUDE_SCALE,
   type AttitudeBand,
   type TransmuteRow,
@@ -235,6 +237,10 @@ export function FullSheet({
   const sy = cls?.sy ?? '';
   const subjName = subject?.fullName ?? subjectCode ?? '';
   const readOnly = !editing;
+  // Floor/ceiling of the attitude scale in force for this SY — drives the cell
+  // guard, the red flag, and the save-time check so all three agree.
+  const attRange = useMemo(() => attitudeRange(attScale), [attScale]);
+  const attHint = `Attitude must be ${attRange.min}–${attRange.max}.`;
 
   const COMPONENTS: { key: CompKey; label: string }[] = [
     { key: 'ww', label: 'WWs' },
@@ -304,8 +310,15 @@ export function FullSheet({
     });
     setSaved(false);
   };
+  // Held to the configured scale as it is typed, so a slip like 234 never gets
+  // far enough to read as the top descriptor.
   const setAttitude = (lrn: string, v: string) => {
-    setAtt((a) => ({ ...a, [lrn]: { ...(a[lrn] ?? {}), [period]: v } }));
+    setAtt((a) => {
+      const prev = a[lrn]?.[period] ?? '';
+      const next = clampAttitudeInput(v, prev, attRange);
+      if (next === prev) return a;
+      return { ...a, [lrn]: { ...(a[lrn] ?? {}), [period]: next } };
+    });
     setSaved(false);
   };
 
@@ -359,11 +372,15 @@ export function FullSheet({
         const raw = att[stu.lrn]?.[p.key] ?? '';
         if (raw === '') return false;
         const n = num(raw);
-        return n == null || n >= 100 || !attitudeLetter(n, attScale);
+        return (
+          n == null || n < attRange.min || n > attRange.max || !attitudeLetter(n, attScale)
+        );
       }),
     );
     if (badAtt.length) {
-      setError(`Attitude must be within the scale (75–99). Please fix: ${badAtt.map((s) => `${s.lastName}, ${s.firstName}`).join('; ')}.`);
+      setError(
+        `Attitude must be within the scale (${attRange.min}–${attRange.max}). Please fix: ${badAtt.map((s) => `${s.lastName}, ${s.firstName}`).join('; ')}.`,
+      );
       return;
     }
     if (!window.confirm(
@@ -688,7 +705,11 @@ export function FullSheet({
                       const attRaw = att[stu.lrn]?.[period] ?? '';
                       const attVal = num(attRaw);
                       const band = attitudeLetter(attVal, attScale);
-                      const attBad = attVal != null && !band;
+                      // Out of range covers both edges: under the lowest band
+                      // (no descriptor) and over the ceiling, which the top
+                      // band would otherwise swallow silently.
+                      const attBad =
+                        attVal != null && (!band || attVal < attRange.min || attVal > attRange.max);
                       const stEarned = scores[stu.lrn]?.[period]?.st ?? [];
                       const stHps = acts[period]?.st ?? [];
                       return (
@@ -779,7 +800,9 @@ export function FullSheet({
                               value={attRaw}
                               onChange={(e) => setAttitude(stu.lrn, e.target.value)}
                               disabled={readOnly}
-                              title={attBad ? 'Attitude must be 75–99.' : ''}
+                              inputMode="numeric"
+                              maxLength={String(attRange.max).length}
+                              title={attBad ? attHint : `Attitude scale: ${attRange.min}–${attRange.max}.`}
                               className={`w-12 rounded border px-1 py-0.5 text-center disabled:bg-slate-100 disabled:text-slate-600 ${
                                 attBad ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200'
                               }`}
@@ -787,7 +810,11 @@ export function FullSheet({
                           </td>
                           <td
                             className={`px-2 py-1 text-center font-medium ${attBad ? 'text-red-600' : ''}`}
-                            title={attBad ? 'No descriptor: the Attitude scale is 75–99.' : band?.label ?? ''}
+                            title={
+                              attBad
+                                ? `No descriptor: the Attitude scale is ${attRange.min}–${attRange.max}.`
+                                : band?.label ?? ''
+                            }
                           >
                             {attBad ? 'out of range' : band?.letter ?? '—'}
                           </td>
