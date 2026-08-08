@@ -154,9 +154,17 @@ export default function StudentDetail() {
   // DepEd DO#58 s.2017 — which permanent-record template fits this learner's latest year.
   const recommended = recommendedFormVariant(student);
 
-  // Report card: which SY it covers + which term card to print. Defaults to
-  // the latest term that already has grades; the toolbar picker overrides it.
-  const cardSy = latestGradedSy(student) ?? student.currentSY;
+  // Report card: which SY it covers + which term card to print. A learner
+  // enrolled THIS year always gets the current-SY card — defaulting to the
+  // latest year WITH grades printed last year's card (4 quarters, old months)
+  // for anyone whose current year had nothing encoded yet. Past years only
+  // apply to learners with no current enrolment (graduated/transferred).
+  const hasCurrentEnrolment =
+    !!student.currentClassId ||
+    (student.enrolmentHistory ?? []).some((e) => e.sy === student.currentSY);
+  const cardSy = hasCurrentEnrolment
+    ? student.currentSY
+    : latestGradedSy(student) ?? student.currentSY;
   const cardPeriods = periodsForSy(cardSy);
   const cardTermN = cardUpto ?? latestPeriodWithData(gradesForSy(student, cardSy), cardPeriods);
   // Level of the card's year decides the template (Nursery/Kinder vs SF9).
