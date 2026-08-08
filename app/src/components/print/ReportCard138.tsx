@@ -334,7 +334,7 @@ export function ReportCard138({
   ];
 
   const bd = 'border border-black';
-  const cell = `${bd} px-1 py-[2px] text-center align-middle`;
+  const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
 
   // one FINAL letter for a deportment/program row from its 3 term marks
@@ -343,7 +343,7 @@ export function ReportCard138({
 
   return (
     <div
-      className="mx-auto w-full text-[9.5px] leading-[1.3] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="mx-auto w-full min-h-[10in] flex flex-col text-[10.5px] leading-[1.45] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
@@ -351,44 +351,47 @@ export function ReportCard138({
           a similar sans when it isn't installed. */}
       <style>{`@media print { @page { size: 8.5in 11in; margin: 0.45in; } }`}</style>
 
-      <div className="text-[8px]">School Form 9</div>
+      <div className="text-[8.5px]">School Form 9</div>
 
       {/* header */}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
         <div className="w-14 h-14 rounded-full border border-zinc-300 grid place-items-center text-[7px] text-zinc-400">
           DepEd
         </div>
-        <div className="text-center leading-[1.15]">
+        <div className="text-center leading-[1.3]">
           <div>REPUBLIC OF THE PHILIPPINES</div>
           <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
           <div>REGION V &middot; SCHOOLS DIVISIONS OFFICE OF NAGA CITY &middot; Naga North District</div>
-          <div className="text-[16px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
+          <div className="text-[17px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
           <div>Corner Bagumbayan Sur and Ateneo Avenue, Naga City</div>
-          <div className="text-[8.5px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
+          <div className="text-[9px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
         </div>
         <img src={npsLogo} alt="" className="w-14 h-14 object-contain" />
       </div>
 
-      {/* two columns */}
-      <div className="mt-2 grid grid-cols-2 gap-4 items-start">
+      {/* two columns — stretch to fill the page; the right column spreads its
+          blocks over the full height so the card never bunches up at the top,
+          and the left column parks the descriptors at the bottom (they slide
+          down out of the way when the subject list grows). */}
+      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch">
         {/* LEFT */}
-        <div>
-          <div className="text-center font-bold text-[11px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
+        <div className="flex flex-col">
+          <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
           <div className="text-center">School Year {formatSy(year)}</div>
 
-          <div className="mt-2">
+          <div className="mt-3 space-y-1">
             <div><b>Name:</b> {fullName} &nbsp; <b>Age:</b> {age ?? ''} &nbsp; <b>Gender:</b> {student.gender}</div>
             <div><b>LRN:</b> {displayLrn(student.lrn)} &nbsp; <b>Grade:</b> {gradeRoman || (gradeCode ?? '')} &nbsp; <b>Section:</b> {sectionName}</div>
             <div><b>Student Number:</b> {student.studentNo || ''} &nbsp; <b>TRACK (SHS only):</b> {isSHS ? track : '____________'}</div>
           </div>
 
-          <p className="mt-2 text-justify">
+          <p className="mt-3 text-justify leading-[1.55]">
             <b>Dear Parents,</b> The Performance Report shows the ability and progress your child has
             made in the different learning areas as well as his/her core values. The school welcomes
             you should you desire to know more about your child&rsquo;s progress.
           </p>
 
-          <div className="mt-2 text-center font-bold text-[10.5px]">LEARNING PROGRESS AND ACHIEVEMENT</div>
+          <div className="mt-4 mb-1 text-center font-bold text-[11px]">LEARNING PROGRESS AND ACHIEVEMENT</div>
           <table className="w-full border-collapse">
             <thead>
               <tr>
@@ -397,7 +400,7 @@ export function ReportCard138({
                 <th className={hcell} rowSpan={2}>Final Grade</th>
                 <th className={hcell} rowSpan={2}>Remarks</th>
               </tr>
-              <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
+              <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-9`}>{s}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((r) => {
@@ -405,7 +408,7 @@ export function ReportCard138({
                 const rLetterFinal = modal(pcols.map((q) => r.letters?.[q]));
                 return (
                   <tr key={r.subjectCode}>
-                    <td className={`${bd} px-1 py-[2px] ${r.isMapehComponent ? 'pl-4 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
+                    <td className={`${bd} px-1.5 py-[3px] ${r.isMapehComponent ? 'pl-4 italic' : ''} ${r.isMapehParent ? 'font-semibold' : ''}`}>
                       {r.name}
                     </td>
                     {pcols.map((q, i) => (
@@ -431,7 +434,7 @@ export function ReportCard138({
                 );
               })}
               <tr>
-                <td className={`${bd} px-1 py-[2px] font-semibold`}>Average</td>
+                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Average</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>
                     {shown(i) ? (descriptive ? periodAvgLetter(q) : periodAvgNum(q)) : ''}
@@ -440,14 +443,14 @@ export function ReportCard138({
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1 py-[2px] font-semibold`}>Conduct</td>
+                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Conduct</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>{shown(i) ? conductLetter(q) : ''}</td>
                 ))}
                 <td className={bd} colSpan={2} />
               </tr>
               <tr>
-                <td className={`${bd} px-1 py-[2px] text-right font-bold`} colSpan={periods.length + 1}>
+                <td className={`${bd} px-1.5 py-[3px] text-right font-bold`} colSpan={periods.length + 1}>
                   General Average
                 </td>
                 <td className={`${cell} font-bold`}>
@@ -458,33 +461,35 @@ export function ReportCard138({
             </tbody>
           </table>
 
-          <div className="mt-3 font-bold text-[10px]">PERFORMANCE DESCRIPTORS</div>
-          <table className="border-collapse text-[9px]">
-            <thead>
-              <tr>
-                <th className="pr-4 text-left font-bold">Grading Scale</th>
-                <th className="pr-4 text-left font-bold">Descriptions</th>
-                <th className="text-left font-bold">Remarks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DESCRIPTORS.map((d) => (
-                <tr key={d[0]}>
-                  <td className="pr-4">{d[0]}</td>
-                  <td className="pr-4">{d[1]}</td>
-                  <td>{d[2]}</td>
+          <div className="mt-auto pt-5">
+            <div className="font-bold text-[10.5px]">PERFORMANCE DESCRIPTORS</div>
+            <table className="mt-1 border-collapse text-[10px] leading-[1.6]">
+              <thead>
+                <tr>
+                  <th className="pr-6 text-left font-bold">Grading Scale</th>
+                  <th className="pr-6 text-left font-bold">Descriptions</th>
+                  <th className="text-left font-bold">Remarks</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {DESCRIPTORS.map((d) => (
+                  <tr key={d[0]}>
+                    <td className="pr-6">{d[0]}</td>
+                    <td className="pr-6">{d[1]}</td>
+                    <td>{d[2]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* RIGHT */}
-        <div className="flex flex-col gap-3">
+        {/* RIGHT — blocks share the leftover height evenly */}
+        <div className="flex flex-col justify-between gap-4">
           {/* SPECIAL PROGRAMS — not shown for Senior High (Grade 11-12) */}
           {!isSHS && (
           <div>
-            <div className="text-center font-bold text-[10.5px]">SPECIAL PROGRAMS</div>
+            <div className="mb-1 text-center font-bold text-[11px]">SPECIAL PROGRAMS</div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -492,12 +497,12 @@ export function ReportCard138({
                   <th className={hcell} colSpan={periods.length}>TERM</th>
                   <th className={hcell} rowSpan={2}>FINAL GRADE</th>
                 </tr>
-                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
+                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-9`}>{s}</th>)}</tr>
               </thead>
               <tbody>
                 {programRows.map((pr) => (
                   <tr key={pr.key}>
-                    <td className={`${bd} px-1 py-[2px]`}>{pr.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px]`}>{pr.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? programLetter(perQ(programs, q)?.[pr.key]) : ''}
@@ -508,13 +513,13 @@ export function ReportCard138({
                 ))}
               </tbody>
             </table>
-            <div className="text-[7.5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
+            <div className="mt-0.5 text-[8.5px]">MO-Most Outstanding O-Outstanding VS-Very Satisfactory S-Satisfactory FS-Fairly Satisfactory</div>
           </div>
           )}
 
           {/* DEPORTMENT */}
           <div>
-            <div className="text-center font-bold text-[10.5px]">DEPORTMENT</div>
+            <div className="mb-1 text-center font-bold text-[11px]">DEPORTMENT</div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -522,12 +527,12 @@ export function ReportCard138({
                   <th className={hcell} colSpan={periods.length}>TERM</th>
                   <th className={hcell} rowSpan={2}>FINAL GRADE</th>
                 </tr>
-                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-8`}>{s}</th>)}</tr>
+                <tr>{short.map((s, i) => <th key={i} className={`${hcell} w-9`}>{s}</th>)}</tr>
               </thead>
               <tbody>
                 {CORE_VALUES.map((cv) => (
                   <tr key={cv.key}>
-                    <td className={`${bd} px-1 py-[2px]`}>{cv.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px]`}>{cv.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(values, q)?.[cv.key]) : ''}
@@ -538,28 +543,28 @@ export function ReportCard138({
                 ))}
               </tbody>
             </table>
-            <div className="text-[7.5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
+            <div className="mt-0.5 text-[8.5px]">AO-Always Observed SO-Sometimes Observed RO-Rarely Observed NO-Not Observed</div>
           </div>
 
           {/* ATTENDANCE */}
           <div>
-            <div className="text-center font-bold text-[10.5px]">ATTENDANCE REPORT</div>
-            <table className="w-full border-collapse text-[8.5px]">
+            <div className="mb-1 text-center font-bold text-[11px]">ATTENDANCE REPORT</div>
+            <table className="w-full border-collapse text-[9.5px]">
               <thead>
                 <tr>
-                  <th className={`${bd} px-1`}> </th>
-                  {months.map((m) => <th key={m.key} className={`${bd} px-1`}>{m.label}</th>)}
-                  <th className={`${bd} px-1`}>Total</th>
+                  <th className={`${bd} px-1 py-[2px]`}> </th>
+                  {months.map((m) => <th key={m.key} className={`${bd} px-1 py-[2px]`}>{m.label}</th>)}
+                  <th className={`${bd} px-1 py-[2px]`}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {attRows.map((row) => (
                   <tr key={row.label}>
-                    <td className={`${bd} px-1 whitespace-nowrap`}>{row.label}</td>
+                    <td className={`${bd} px-1 py-[2px] whitespace-nowrap`}>{row.label}</td>
                     {months.map((m) => (
-                      <td key={m.key} className={`${bd} px-1 text-center`}>{attCell(row.get(m.key))}</td>
+                      <td key={m.key} className={`${bd} px-1 py-[2px] text-center`}>{attCell(row.get(m.key))}</td>
                     ))}
-                    <td className={`${bd} px-1 text-center font-semibold`}>{attCell(row.total)}</td>
+                    <td className={`${bd} px-1 py-[2px] text-center font-semibold`}>{attCell(row.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -567,33 +572,33 @@ export function ReportCard138({
           </div>
 
           {/* CERTIFICATE OF TRANSFER */}
-          <div className="mt-1">
-            <div className="text-center font-bold text-[10.5px]">CERTIFICATE OF TRANSFER</div>
-            <p className="text-justify">
+          <div>
+            <div className="mb-1 text-center font-bold text-[11px]">CERTIFICATE OF TRANSFER</div>
+            <p className="text-justify leading-[1.55]">
               This is to certify that the above-named learner has satisfactorily completed the
               requirements for the grade level indicated.
             </p>
-            <div className="mt-1">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
-            <div>Eligible for Admission to Grade: {complete ? nextRoman(gradeCode) : ''}</div>
-            <div className="mt-5 grid grid-cols-2 gap-2 text-center">
+            <div className="mt-2">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
+            <div className="mt-0.5">Eligible for Admission to Grade: {complete ? nextRoman(gradeCode) : ''}</div>
+            <div className="mt-6 grid grid-cols-2 gap-2 text-center">
               <div className="text-left pt-4"><i>Approved:</i></div>
               <div>
                 <div className="font-semibold uppercase">{adviser || ' '}</div>
-                <div className="border-t border-black">Class Adviser</div>
+                <div className="border-t border-black pt-0.5">Class Adviser</div>
               </div>
             </div>
-            <div className="mt-4">
+            <div className="mt-5">
               <div className="font-semibold uppercase">{PRINCIPAL}</div>
               <div>School Principal</div>
             </div>
           </div>
 
           {/* CANCELLATION */}
-          <div className="mt-2">
-            <div className="text-center font-bold text-[10.5px]">CANCELLATION OF ELIGIBILITY TO TRANSFER</div>
+          <div>
+            <div className="mb-1 text-center font-bold text-[11px]">CANCELLATION OF ELIGIBILITY TO TRANSFER</div>
             <div className="mt-2">Admitted in: ____________________ Date: __________</div>
-            <div className="mt-5 text-center">
-              <div className="inline-block border-t border-black px-10">School Principal</div>
+            <div className="mt-6 text-center">
+              <div className="inline-block border-t border-black px-10 pt-0.5">School Principal</div>
             </div>
           </div>
         </div>
