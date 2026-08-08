@@ -421,9 +421,12 @@ export function ReportCard138({
   const finalLetterFor = (get: (q: QuarterKey) => number | undefined, toLetter: (v?: number) => string) =>
     complete ? modal(pcols.map((q) => toLetter(get(q)))) : '';
 
+  // print:min-h-[10in] — the printable box at 0.4in margins is 10.2in, so the
+  // card's gold background fills the sheet without ever spilling onto a second
+  // page (min-height counts the padding: box-sizing is border-box).
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col ${bodyType} text-black bg-[#FCF7E6] p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a

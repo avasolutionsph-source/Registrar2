@@ -288,7 +288,7 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col text-[10px] leading-[1.35] text-black bg-[#FCF7E6] p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* Real 0.4in page margin — see ReportCard138 for why this must not be 0. */}
@@ -454,7 +454,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-zinc-200 text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px] bg-[#EDE2C2] text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
