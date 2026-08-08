@@ -354,27 +354,28 @@ export function ReportCardPreschool({
             <b>Performance Descriptors</b> &nbsp; B- Beginning &nbsp; D- Developing &nbsp; C- Consistent
           </div>
 
-          {/* ATTENDANCE RECORD */}
+          {/* ATTENDANCE RECORD — table-fixed so 13 columns can NEVER grow past
+              the half-page column and bleed into the deportment side */}
           <div className="mt-4 break-inside-avoid">
             <div className="mb-1 font-bold text-[11px]">ATTENDANCE RECORD</div>
-            <table className="w-full border-collapse text-[9px]">
+            <table className="w-full table-fixed border-collapse text-[8px] leading-[1.25]">
               <thead>
                 <tr>
-                  <th className={`${bd} px-1 py-[2px] text-left`}>ATTENDANCE</th>
+                  <th className={`${bd} w-[58px] px-0.5 py-[2px] text-left`}>ATTENDANCE</th>
                   {months.map((m) => (
-                    <th key={m.key} className={`${bd} px-1 py-[2px]`}>{MONTH_LONG[m.key] ?? m.label}</th>
+                    <th key={m.key} className={`${bd} px-0.5 py-[2px] break-words`}>{MONTH_LONG[m.key] ?? m.label}</th>
                   ))}
-                  <th className={`${bd} px-1 py-[2px]`}>TOTAL</th>
+                  <th className={`${bd} w-[30px] px-0.5 py-[2px]`}>TOTAL</th>
                 </tr>
               </thead>
               <tbody>
                 {attRows.map((row) => (
                   <tr key={row.label}>
-                    <td className={`${bd} px-1 py-[2px] whitespace-nowrap`}>{row.label}</td>
+                    <td className={`${bd} px-0.5 py-[2px]`}>{row.label}</td>
                     {months.map((m) => (
-                      <td key={m.key} className={`${bd} px-1 py-[2px] text-center`}>{attCell(row.get(m.key))}</td>
+                      <td key={m.key} className={`${bd} px-0.5 py-[2px] text-center`}>{attCell(row.get(m.key))}</td>
                     ))}
-                    <td className={`${bd} px-1 py-[2px] text-center font-semibold`}>{attCell(row.total)}</td>
+                    <td className={`${bd} px-0.5 py-[2px] text-center font-semibold`}>{attCell(row.total)}</td>
                   </tr>
                 ))}
               </tbody>

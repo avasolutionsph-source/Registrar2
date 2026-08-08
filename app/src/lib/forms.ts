@@ -567,7 +567,8 @@ export function adviserDisplayName(
   const last = (t.familyName ?? '').trim();
   const first = (t.firstName ?? '').trim();
   if (!last && !first) return '';
-  const mi = (t.middleInitial ?? '').trim();
+  // strip any stored trailing dot so "M." never prints as "M.."
+  const mi = (t.middleInitial ?? '').trim().replace(/\.+$/, '');
   const title = (t.title ?? '').trim();
   return `${title ? title + ' ' : ''}${last}${first ? ', ' + first : ''}${mi ? ' ' + mi + '.' : ''}`;
 }

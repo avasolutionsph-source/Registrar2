@@ -587,22 +587,23 @@ export function ReportCard138({
           {/* ATTENDANCE */}
           <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">ATTENDANCE REPORT</div>
-            <table className="w-full border-collapse text-[9.5px]">
+            {/* table-fixed: 13 columns must never outgrow the half-page column */}
+            <table className="w-full table-fixed border-collapse text-[8.5px] leading-[1.25]">
               <thead>
                 <tr>
-                  <th className={`${bd} px-1 py-[2px]`}> </th>
-                  {months.map((m) => <th key={m.key} className={`${bd} px-1 py-[2px]`}>{m.label}</th>)}
-                  <th className={`${bd} px-1 py-[2px]`}>Total</th>
+                  <th className={`${bd} w-[58px] px-0.5 py-[2px]`}> </th>
+                  {months.map((m) => <th key={m.key} className={`${bd} px-0.5 py-[2px]`}>{m.label}</th>)}
+                  <th className={`${bd} w-[30px] px-0.5 py-[2px]`}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {attRows.map((row) => (
                   <tr key={row.label}>
-                    <td className={`${bd} px-1 py-[2px] whitespace-nowrap`}>{row.label}</td>
+                    <td className={`${bd} px-0.5 py-[2px]`}>{row.label}</td>
                     {months.map((m) => (
-                      <td key={m.key} className={`${bd} px-1 py-[2px] text-center`}>{attCell(row.get(m.key))}</td>
+                      <td key={m.key} className={`${bd} px-0.5 py-[2px] text-center`}>{attCell(row.get(m.key))}</td>
                     ))}
-                    <td className={`${bd} px-1 py-[2px] text-center font-semibold`}>{attCell(row.total)}</td>
+                    <td className={`${bd} px-0.5 py-[2px] text-center font-semibold`}>{attCell(row.total)}</td>
                   </tr>
                 ))}
               </tbody>
