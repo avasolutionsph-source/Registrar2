@@ -277,7 +277,7 @@ export function ReportCardPreschool({
   const nextLevel = NEXT_LEVEL[gradeCode] ?? '';
 
   const bd = 'border border-black';
-  const cell = `${bd} px-1.5 py-[5px] text-center align-middle`;
+  const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
   const blank = (label: string, value: string, w = 'flex-1') => (
     <div className="flex items-end gap-2">
@@ -288,16 +288,17 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10.5px] leading-[1.45] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
 
-      {/* The grid IS the whole card (no shared header above it), so its floor
-          can claim nearly the full sheet — the page budget at 0.4in margins is
-          ~10.2in and the root padding eats ~0.17in, so 9.8in fills the paper
-          while staying safely on ONE page. */}
-      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[9.8in]">
+      {/* The grid IS the whole card (no shared header above it). Page budget at
+          0.4in margins is ~10.2in, less ~0.17in root padding. The floor only
+          STRETCHES the columns — the 28-row deportment table is what actually
+          sets the height, so its row padding is kept tight and the floor stays
+          under budget with headroom. Raising either one spills onto sheet 2. */}
+      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[9.2in]">
         {/* LEFT — letterhead, identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
           <div className="text-[8.5px]">School Form 9</div>
@@ -347,7 +348,7 @@ export function ReportCardPreschool({
             <tbody>
               {areas.map((a) => (
                 <tr key={a.code}>
-                  <td className={`${bd} px-1.5 py-[5px]`}>{a.name}</td>
+                  <td className={`${bd} px-1.5 py-[3px]`}>{a.name}</td>
                   {pcols.map((q, i) => (
                     <td key={q} className={cell}>{shown(i) ? (a.letters[q] ?? '') : ''}</td>
                   ))}
@@ -356,7 +357,7 @@ export function ReportCardPreschool({
                 </tr>
               ))}
               <tr>
-                <td className={`${bd} px-1.5 py-[5px] font-semibold`}>Over-All Progress</td>
+                <td className={`${bd} px-1.5 py-[3px] font-semibold`}>Over-All Progress</td>
                 {pcols.map((q, i) => (
                   <td key={q} className={cell}>{shown(i) ? termProgress(q) : ''}</td>
                 ))}
@@ -425,13 +426,14 @@ export function ReportCardPreschool({
           </div>
         </div>
 
-        {/* RIGHT — DEPORTMENT */}
-        <div className="flex flex-col">
-          <div className="mb-1.5 text-center font-bold text-[12.5px]">DEPORTMENT</div>
+        {/* RIGHT — DEPORTMENT (28 rows: it drives the card's height, so it runs
+            a notch smaller than the left column to keep the card on one page) */}
+        <div className="flex flex-col text-[9.5px] leading-[1.3]">
+          <div className="mb-1.5 text-center font-bold text-[12px]">DEPORTMENT</div>
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={`${bd} px-1.5 py-[5px]`}> </th>
+                <th className={`${bd} px-1.5 py-[3px]`}> </th>
                 {periods.map((p) => (
                   <th key={p.key} className={`${hcell} w-11 font-normal`}>{p.label}</th>
                 ))}
@@ -442,7 +444,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[5px] bg-zinc-200 text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px] bg-zinc-200 text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
@@ -454,7 +456,7 @@ export function ReportCardPreschool({
                   </tr>
                   {g.items.map((it) => (
                     <tr key={it.k}>
-                      <td className={`${bd} px-1.5 py-[5px]`}>{it.label}</td>
+                      <td className={`${bd} px-1.5 py-[3px]`}>{it.label}</td>
                       {pcols.map((q, i) => (
                         <td key={q} className={cell}>
                           {shown(i) ? preDep[it.k]?.[q] ?? '' : ''}
@@ -469,7 +471,7 @@ export function ReportCardPreschool({
               ))}
             </tbody>
           </table>
-          <div className="mt-2 text-[9.5px]">
+          <div className="mt-2 text-[9px]">
             <div className="font-bold">DEPORTMENT MARKING CODE</div>
             <div>AO-Always Observed &nbsp; SO- Sometimes Observed &nbsp; RO-Rarely Observed &nbsp; NO-Not Observed</div>
           </div>
