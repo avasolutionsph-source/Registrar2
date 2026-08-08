@@ -303,32 +303,36 @@ export function ReportCardPreschool({
         className="pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.07]"
       />
 
-      {/* The grid IS the whole card (no shared header above it). Page budget at
-          0.4in margins is ~10.2in, less ~0.17in root padding. The floor only
-          STRETCHES the columns — the 28-row deportment table is what actually
-          sets the height, so its row padding is kept tight and the floor stays
-          under budget with headroom. Raising either one spills onto sheet 2. */}
-      <div className="grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8.8in]">
-        {/* LEFT — letterhead, identity, scholarship, attendance, signatures */}
+      <div className="text-[8.5px]">School Form 9</div>
+      <div className="text-[8.5px]">
+        Student No.: {student.studentNo || '__________'} &nbsp; LRN: {displayLrn(student.lrn)}
+      </div>
+
+      {/* FULL-WIDTH letterhead, same as the SF9 card: school name centered with
+          a seal on each side, spanning the whole sheet instead of being squeezed
+          into the left column. */}
+      <div className="mt-2 flex items-center justify-center gap-5">
+        <img src={depedLogo} alt="" className="w-14 h-14 object-contain shrink-0" />
+        <div className="text-center leading-[1.35]">
+          <div>REPUBLIC OF THE PHILIPPINES</div>
+          <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
+          <div>REGION V</div>
+          <div className="text-[17px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
+          <div>Cor. Ateneo Avenue and Bagumbayan Sur, Naga City</div>
+          <div className="text-[9px]">Government Recognition No. 002 S. 2009</div>
+        </div>
+        <img src={npsLogo} alt="" className="w-20 h-20 object-contain shrink-0" />
+      </div>
+
+      {/* Page budget at 0.4in margins is ~10.2in, less ~0.17in root padding and
+          ~1.3in of letterhead. The floor only STRETCHES the columns — the
+          28-row deportment table is what actually sets the height, so its row
+          padding is kept tight and the floor stays under budget with headroom.
+          Raising either one spills onto sheet 2. */}
+      <div className="mt-3 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[7.5in]">
+        {/* LEFT — identity, scholarship, attendance, signatures */}
         <div className="flex flex-col">
-          <div className="text-[8.5px]">School Form 9</div>
-          <div className="text-[8.5px]">Student No.: {student.studentNo || '__________'} &nbsp; LRN: {displayLrn(student.lrn)}</div>
-
-          {/* letterhead — seals hug the centered text */}
-          <div className="mt-2 flex items-center justify-center gap-3">
-            <img src={depedLogo} alt="" className="w-14 h-14 object-contain shrink-0" />
-            <div className="text-center leading-[1.35]">
-              <div>REPUBLIC OF THE PHILIPPINES</div>
-              <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
-              <div>REGION V</div>
-              <div className="text-[16px] font-bold text-red-700 leading-tight">NAGA PAROCHIAL SCHOOL</div>
-              <div>Cor. Ateneo Avenue and Bagumbayan Sur, Naga City</div>
-              <div className="text-[9px]">Government Recognition No. 002 S. 2009</div>
-            </div>
-            <img src={npsLogo} alt="" className="w-[72px] h-[72px] object-contain shrink-0" />
-          </div>
-
-          <div className="mt-4 text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
+          <div className="text-center font-bold text-[12.5px]">NURSERY AND KINDERGARTEN PROGRESS REPORT</div>
           <div className="text-center font-semibold">SCHOOL YEAR {formatSy(year)}</div>
 
           <div className="mt-4 space-y-2">
