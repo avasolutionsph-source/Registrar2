@@ -491,7 +491,7 @@ export default function ClassDetail() {
   // filed. Computed once per learner, since priorSchool() reads enrolment history.
   const escGaps = (() => {
     if (!isEscClass || !klass) return [];
-    const priors = roster.map((s) => priorSchool(s, klass.sy));
+    const priors = roster.map((s) => priorSchool(s, klass.sy, klass.gradeLevel));
     return (
       [
         [roster.filter((s) => !hasFullLrn(s.lrn)).length, 'without a 12-digit LRN'],
@@ -1726,9 +1726,9 @@ export default function ClassDetail() {
                         { header: 'Gender', value: (s) => s.gender.toUpperCase() },
                         {
                           header: escSchoolHeader(klass.gradeLevel),
-                          value: (s) => priorSchool(s, klass.sy).school,
+                          value: (s) => priorSchool(s, klass.sy, klass.gradeLevel).school,
                         },
-                        { header: 'School Type', value: (s) => priorSchool(s, klass.sy).schoolType },
+                        { header: 'School Type', value: (s) => priorSchool(s, klass.sy, klass.gradeLevel).schoolType },
                         { header: 'LRN', value: (s) => (hasFullLrn(s.lrn) ? s.lrn : '') },
                       ]}
                       filename={`esc-grade-${klass.gradeLevel}-${klass.sectionName}-${klass.sy}`}
@@ -1782,7 +1782,7 @@ export default function ClassDetail() {
                           <Fragment key={grp.key}>
                             <SexRow grp={grp} colSpan={10} />
                             {grp.students.map((s, i) => {
-                              const p = priorSchool(s, klass.sy);
+                              const p = priorSchool(s, klass.sy, klass.gradeLevel);
                               return (
                                 <tr key={s.lrn} className="border-b border-border-soft last:border-0">
                                   <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">

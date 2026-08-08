@@ -31,20 +31,15 @@ export function prevSy(sy: string): string {
 export interface PriorSchool {
   school: string;
   schoolType: string;
-  // True when the value came off last year's enrolment record because the
-  // learner's own prior-school fields are blank. Flagged on screen so the
+  // True when the authoritative source for this grade level was empty and the
+  // value had to be taken from the other one. Flagged on screen so the
   // registrar can see what has still to be entered on the learner's record.
   derived: boolean;
 }
 
-// Where this learner came from. Their own record wins; when it is blank we fall
-// back to last school year's enrolment entry, which is the same fact recorded
-// from the other side.
-export function priorSchool(s: Student, sy: string): PriorSchool {
-  const own = (s.elemSchoolGraduatedFrom ?? '').trim();
-  const ownType = (s.schoolType ?? '').trim();
-  if (own) return { school: own, schoolType: ownType, derived: false };
-
+// The school this learner attended in the school year before `sy`, read off
+// their enrolment history.
+function lastYearSchool(s: Student, sy: string): string {
   const history = s.enrolmentHistory ?? [];
   const want = prevSy(sy);
   const entry =
@@ -52,12 +47,39 @@ export function priorSchool(s: Student, sy: string): PriorSchool {
     [...history]
       .filter((e) => e.sy < sy && (e.schoolName ?? '').trim())
       .sort((a, b) => b.sy.localeCompare(a.sy))[0];
+  return (entry?.schoolName ?? '').trim();
+}
 
-  const school = (entry?.schoolName ?? '').trim();
-  if (!school) return { school: '', schoolType: ownType, derived: false };
-  // NPS is the only school we can classify without being told — it is ours.
-  const type = ownType || (school === NPS_NAME ? 'Private' : '');
-  return { school, schoolType: type, derived: true };
+// What goes in the prior-school column, and where it comes from.
+//
+// The two grade bands ask DIFFERENT questions, so they read different sources:
+//
+//   Grade 7  — "elem. school graduated from". The learner's own record holds
+//              exactly that (the form calls it "Previous School Attended", the
+//              school they came to NPS from), so their record is authoritative.
+//   Grade 8-10 — "school last attended", which is last school year's enrolment
+//              entry. Their own record is NOT it: a learner who transferred in
+//              back at Grade 7 still carries that elementary school on their
+//              record, and by Grade 9 the school they last attended is NPS.
+//
+// Whichever source is authoritative is tried first; the other is a fallback and
+// is flagged as derived.
+export function priorSchool(s: Student, sy: string, gradeLevel?: string): PriorSchool {
+  const own = (s.elemSchoolGraduatedFrom ?? '').trim();
+  const ownType = (s.schoolType ?? '').trim();
+  const lastYear = lastYearSchool(s, sy);
+
+  const ownIsAuthoritative = !gradeLevel || gradeLevel === 'VII';
+  const [primary, fallback] = ownIsAuthoritative ? [own, lastYear] : [lastYear, own];
+
+  const school = primary || fallback;
+  if (!school) return { school: '', schoolType: '', derived: false };
+
+  // The recorded school type describes the learner's OWN prior school, so it
+  // only applies when that is the school being shown. NPS is the one school we
+  // can classify without being told — it is ours.
+  const schoolType = school === NPS_NAME ? 'Private' : school === own ? ownType : '';
+  return { school, schoolType, derived: !primary };
 }
 
 export const hasFullLrn = (lrn: string): boolean => /^\d{12}$/.test(lrn ?? '');

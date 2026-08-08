@@ -76,7 +76,7 @@ export function EscSheet({ klass, roster }: Props) {
                   </td>
                 </tr>
                 {grp.students.map((s, i) => {
-                  const p = priorSchool(s, klass.sy);
+                  const p = priorSchool(s, klass.sy, klass.gradeLevel);
                   return (
                     <tr key={s.lrn}>
                       <td className={`${td} text-center tabular-nums`}>{i + 1}.</td>
