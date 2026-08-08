@@ -33,7 +33,10 @@ export function PrintHost({ open, docTitle, onClose, children, controls }: Props
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-auto bg-zinc-800/60 p-4 sm:p-6 print:static print:overflow-visible print:bg-white print:p-0">
+    // print:bg-transparent — a document may paint the whole sheet (the report
+    // cards' gold ground comes from the page canvas); an opaque white wrapper
+    // here would cover it.
+    <div className="fixed inset-0 z-50 overflow-auto bg-zinc-800/60 p-4 sm:p-6 print:static print:overflow-visible print:bg-transparent print:p-0">
       {/* toolbar — never printed */}
       <div className="no-print sticky top-0 z-10 mx-auto mb-4 flex max-w-[210mm] items-center justify-between rounded-lg border border-border bg-panel px-3 py-2 shadow-lg">
         <div className="text-[13px] font-semibold text-ink-primary">{docTitle}</div>
@@ -51,7 +54,7 @@ export function PrintHost({ open, docTitle, onClose, children, controls }: Props
       {/* the document sheet */}
       <div
         id="print-root"
-        className="mx-auto bg-white text-black shadow-xl w-[210mm] p-[14mm] print:w-auto print:p-0 print:shadow-none"
+        className="mx-auto bg-white text-black shadow-xl w-[210mm] p-[14mm] print:w-auto print:p-0 print:shadow-none print:bg-transparent"
       >
         {children}
       </div>

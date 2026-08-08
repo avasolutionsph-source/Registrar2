@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
 import depedLogo from '@/assets/deped-logo.png';
 import { listGradeSubjects, listSchoolYears, listClassSubjects } from '@/lib/db';
+import { SHEET_GOLD } from './ReportCard138';
 import type { QuarterKey, SchoolYear, Student, Subject } from '@/types';
 import {
   subjectIndex,
@@ -288,11 +289,22 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col text-[10px] leading-[1.35] text-black bg-[#FCF7E6] p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
-      style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
+      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col text-[10px] leading-[1.35] text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      style={{
+        fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
+        background: SHEET_GOLD,
+      }}
     >
-      {/* Real 0.4in page margin — see ReportCard138 for why this must not be 0. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
+      {/* Real 0.4in page margin, and the gold ground on the root element so it
+          covers the WHOLE sheet including the margins — see ReportCard138. */}
+      <style>{`
+        @media print {
+          @page { size: 8.5in 11in; margin: 0.4in; }
+          html { background: ${SHEET_GOLD} !important;
+                 -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { background: transparent !important; }
+        }
+      `}</style>
 
       {/* School seal watermark — see ReportCard138: `isolate` + z-[-1] keeps it
           above the white sheet but behind every row. */}
@@ -458,7 +470,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-[#EDE2C2] text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px] bg-[#F2EAD2] text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}

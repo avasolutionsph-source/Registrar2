@@ -49,6 +49,10 @@ import { ageOnDate } from '@/lib/format';
 
 const PRINCIPAL = 'MRS. ROSARIO B. OLALIA';
 
+// The report cards' paper colour — a very light gold. Shared by both cards
+// (ReportCardPreschool imports it) so the two never drift apart.
+export const SHEET_GOLD = '#FEFBF0';
+
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 const ordOf = (code?: string) => {
   const i = ROMAN.indexOf((code ?? '').split('-')[0]);
@@ -426,8 +430,11 @@ export function ReportCard138({
   // page (min-height counts the padding: box-sizing is border-box).
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col ${bodyType} text-black bg-[#FCF7E6] p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
-      style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col ${bodyType} text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      style={{
+        fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
+        background: SHEET_GOLD,
+      }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
           rounded, highly legible sans) is used for readability; falls back to
@@ -436,8 +443,21 @@ export function ReportCard138({
           URL/page-number footer: with "Headers and footers" enabled Chrome
           still reserves room for them, so the zero margin only ADDS our own
           padding on top and pushes the card onto a second sheet. Suppressing
-          that footer is a browser setting, not a page-CSS one. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
+          that footer is a browser setting, not a page-CSS one.
+
+          The gold ground is painted on the ROOT ELEMENT, whose background CSS
+          propagates to the page canvas — that is what covers the WHOLE sheet,
+          margins included. Painting it on the card itself would stop at the
+          card's own box and leave a white frame. Costs no layout height, so
+          the one-page fit is untouched. */}
+      <style>{`
+        @media print {
+          @page { size: 8.5in 11in; margin: 0.4in; }
+          html { background: ${SHEET_GOLD} !important;
+                 -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { background: transparent !important; }
+        }
+      `}</style>
 
       {/* School seal watermark. `isolate` on the sheet makes it the stacking
           context, so z-[-1] paints ABOVE the white background but BELOW every
