@@ -288,13 +288,22 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* Zero PAGE margin, real margin as padding — see ReportCard138: this is
           what keeps the browser's URL/page-number header and footer off the
           printed card. */}
       <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
+
+      {/* School seal watermark — see ReportCard138: `isolate` + z-[-1] keeps it
+          above the white sheet but behind every row. */}
+      <img
+        src={npsLogo}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.07]"
+      />
 
       {/* The grid IS the whole card (no shared header above it). Page budget at
           0.4in margins is ~10.2in, less ~0.17in root padding. The floor only

@@ -419,7 +419,7 @@ export function ReportCard138({
 
   return (
     <div
-      className={`mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 print:p-[0.4in] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
@@ -431,6 +431,16 @@ export function ReportCard138({
           draw them, so they stop appearing without the user having to untick
           "Headers and footers" on every computer. Content area is unchanged. */}
       <style>{`@media print { @page { size: 8.5in 11in; margin: 0; } }`}</style>
+
+      {/* School seal watermark. `isolate` on the sheet makes it the stacking
+          context, so z-[-1] paints ABOVE the white background but BELOW every
+          row of the card — the tables stay fully readable. */}
+      <img
+        src={npsLogo}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none absolute left-1/2 top-1/2 z-[-1] w-[5.6in] max-w-[85%] -translate-x-1/2 -translate-y-1/2 opacity-[0.07]"
+      />
 
       <div className="text-[8.5px]">School Form 9</div>
 
