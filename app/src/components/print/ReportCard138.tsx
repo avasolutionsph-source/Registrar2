@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import npsLogo from '@/assets/nps-logo.png';
+import depedLogo from '@/assets/deped-logo.png';
 import {
   listGradeSubjects,
   listSchoolYears,
@@ -333,6 +334,12 @@ export function ReportCard138({
     { label: 'Times Tardy', get: tdOf, total: att?.totalTardy ?? sumOf(tdOf) },
   ];
 
+  // ONE PAGE, always. The page budget (0.45in margins on 11in) is ~10.1in;
+  // the header takes ~1.5in, so the content grid gets an 8in floor for the
+  // balanced look and NEVER stretches the total past a single sheet. A long
+  // subject list first eats the slack, then `dense` shrinks the type so even
+  // an outsized curriculum still lands on one page.
+  const dense = rows.length > 16;
   const bd = 'border border-black';
   const cell = `${bd} px-1.5 py-[3px] text-center align-middle`;
   const hcell = `${cell} font-bold`;
@@ -343,21 +350,19 @@ export function ReportCard138({
 
   return (
     <div
-      className="mx-auto w-full min-h-[10in] flex flex-col text-[10.5px] leading-[1.45] text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className={`mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${dense ? 'text-[9px] leading-[1.3]' : 'text-[10.5px] leading-[1.45]'} text-black bg-white p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{ fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}
     >
       {/* FULL short bond portrait (8.5 × 11in) for every level. Canva Sans (a
           rounded, highly legible sans) is used for readability; falls back to
           a similar sans when it isn't installed. */}
-      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.45in; } }`}</style>
+      <style>{`@media print { @page { size: 8.5in 11in; margin: 0.4in; } }`}</style>
 
       <div className="text-[8.5px]">School Form 9</div>
 
       {/* header */}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-        <div className="w-14 h-14 rounded-full border border-zinc-300 grid place-items-center text-[7px] text-zinc-400">
-          DepEd
-        </div>
+        <img src={depedLogo} alt="" className="w-14 h-14 object-contain" />
         <div className="text-center leading-[1.3]">
           <div>REPUBLIC OF THE PHILIPPINES</div>
           <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
@@ -373,7 +378,7 @@ export function ReportCard138({
           blocks over the full height so the card never bunches up at the top,
           and the left column parks the descriptors at the bottom (they slide
           down out of the way when the subject list grows). */}
-      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch">
+      <div className="mt-4 grid grid-cols-2 gap-6 flex-1 items-stretch min-h-[8in]">
         {/* LEFT */}
         <div className="flex flex-col">
           <div className="text-center font-bold text-[12px]">LEARNER&rsquo;S PERFORMANCE REPORT</div>
@@ -461,7 +466,7 @@ export function ReportCard138({
             </tbody>
           </table>
 
-          <div className="mt-auto pt-5">
+          <div className="mt-auto pt-5 break-inside-avoid">
             <div className="font-bold text-[10.5px]">PERFORMANCE DESCRIPTORS</div>
             <table className="mt-1 border-collapse text-[10px] leading-[1.6]">
               <thead>
@@ -488,7 +493,7 @@ export function ReportCard138({
         <div className="flex flex-col justify-between gap-4">
           {/* SPECIAL PROGRAMS — not shown for Senior High (Grade 11-12) */}
           {!isSHS && (
-          <div>
+          <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">SPECIAL PROGRAMS</div>
             <table className="w-full border-collapse">
               <thead>
@@ -518,7 +523,7 @@ export function ReportCard138({
           )}
 
           {/* DEPORTMENT */}
-          <div>
+          <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">DEPORTMENT</div>
             <table className="w-full border-collapse">
               <thead>
@@ -547,7 +552,7 @@ export function ReportCard138({
           </div>
 
           {/* ATTENDANCE */}
-          <div>
+          <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">ATTENDANCE REPORT</div>
             <table className="w-full border-collapse text-[9.5px]">
               <thead>
@@ -572,7 +577,7 @@ export function ReportCard138({
           </div>
 
           {/* CERTIFICATE OF TRANSFER */}
-          <div>
+          <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">CERTIFICATE OF TRANSFER</div>
             <p className="text-justify leading-[1.55]">
               This is to certify that the above-named learner has satisfactorily completed the
@@ -580,24 +585,24 @@ export function ReportCard138({
             </p>
             <div className="mt-2">Admitted to Grade: {gradeRoman || (gradeCode ?? '')}</div>
             <div className="mt-0.5">Eligible for Admission to Grade: {complete ? nextRoman(gradeCode) : ''}</div>
-            <div className="mt-6 grid grid-cols-2 gap-2 text-center">
-              <div className="text-left pt-4"><i>Approved:</i></div>
+            <div className="mt-5 grid grid-cols-2 gap-2 text-center">
+              <div className="text-left pt-3"><i>Approved:</i></div>
               <div>
                 <div className="font-semibold uppercase">{adviser || ' '}</div>
                 <div className="border-t border-black pt-0.5">Class Adviser</div>
               </div>
             </div>
-            <div className="mt-5">
+            <div className="mt-4">
               <div className="font-semibold uppercase">{PRINCIPAL}</div>
               <div>School Principal</div>
             </div>
           </div>
 
           {/* CANCELLATION */}
-          <div>
+          <div className="break-inside-avoid">
             <div className="mb-1 text-center font-bold text-[11px]">CANCELLATION OF ELIGIBILITY TO TRANSFER</div>
             <div className="mt-2">Admitted in: ____________________ Date: __________</div>
-            <div className="mt-6 text-center">
+            <div className="mt-4 text-center">
               <div className="inline-block border-t border-black px-10 pt-0.5">School Principal</div>
             </div>
           </div>
