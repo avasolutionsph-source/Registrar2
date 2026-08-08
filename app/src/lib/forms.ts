@@ -133,6 +133,12 @@ export function gradeCardLabel(code?: string): string {
   return `Grade ${code ?? ''}`;
 }
 
+// Which grade codes print the Nursery & Kindergarten Progress Report instead
+// of the SF9 report card. SNED (S) keeps the SF9 until its own template comes.
+export function isPreschoolCardLevel(code?: string): boolean {
+  return ['N1', 'N2', 'K', 'P'].includes(code ?? '');
+}
+
 // ── F137 → SF 10 effectivity (DepEd Order #58, s. 2017) ────────────────────
 // SF-10 replaced Form 137 on a staggered, per-grade basis. This maps a grade
 // code to the FIRST school-year start (e.g. 2022 = "SY 2022-2023") it used

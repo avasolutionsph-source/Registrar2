@@ -9,6 +9,7 @@ import { NatTab } from './NatTab';
 import { NcaeTab } from './NcaeTab';
 import { BatchReportCards } from '@/components/print/BatchReportCards';
 import { ReportCard138 } from '@/components/print/ReportCard138';
+import { ReportCardPreschool } from '@/components/print/ReportCardPreschool';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
 import { EntityRail } from '@/components/entity/EntityRail';
 import { SectionCard } from '@/components/entity/SectionCard';
@@ -37,6 +38,7 @@ import {
   latestPeriodWithData,
   gradesForSy,
   adviserDisplayName,
+  isPreschoolCardLevel,
   MAPEH_COMPONENT_CODES,
 } from '@/lib/forms';
 import { groupRosterBySex } from '@/lib/roster';
@@ -1969,19 +1971,34 @@ export default function ClassDetail() {
         ) : doc?.kind === 'esc' ? (
           <EscSheet klass={klass} roster={roster} />
         ) : doc?.kind === 'one' ? (
-          <ReportCard138
-            student={doc.student}
-            subjects={subjects}
-            sy={klass.sy}
-            upto={cardTermN}
-            attitudeScale={attitudeScale}
-            classTerms={cardTerms}
-            liveClass={{
-              gradeLevel: klass.gradeLevel,
-              sectionName: klass.sectionName,
-              adviserName: adviserDisplayName(klass.adviser),
-            }}
-          />
+          isPreschoolCardLevel(klass.gradeLevel) ? (
+            <ReportCardPreschool
+              student={doc.student}
+              subjects={subjects}
+              sy={klass.sy}
+              upto={cardTermN}
+              classTerms={cardTerms}
+              liveClass={{
+                gradeLevel: klass.gradeLevel,
+                sectionName: klass.sectionName,
+                adviserName: adviserDisplayName(klass.adviser),
+              }}
+            />
+          ) : (
+            <ReportCard138
+              student={doc.student}
+              subjects={subjects}
+              sy={klass.sy}
+              upto={cardTermN}
+              attitudeScale={attitudeScale}
+              classTerms={cardTerms}
+              liveClass={{
+                gradeLevel: klass.gradeLevel,
+                sectionName: klass.sectionName,
+                adviserName: adviserDisplayName(klass.adviser),
+              }}
+            />
+          )
         ) : null}
       </PrintHost>
     </>

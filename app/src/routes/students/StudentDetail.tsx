@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PrintHost } from '@/components/print/PrintHost';
 import { Form137 } from '@/components/print/Form137';
 import { ReportCard138 } from '@/components/print/ReportCard138';
+import { ReportCardPreschool } from '@/components/print/ReportCardPreschool';
 import { GoodMoral } from '@/components/print/GoodMoral';
 import { CertEnrollment } from '@/components/print/CertEnrollment';
 import { StudentId } from '@/components/print/StudentId';
@@ -36,6 +37,7 @@ import {
   formatSy,
   recommendedFormVariant,
   adviserDisplayName,
+  isPreschoolCardLevel,
 } from '@/lib/forms';
 import { formatLastFirstMiddle, formatBirthdate, ageOnDate } from '@/lib/format';
 import { displayLrn } from '@/lib/lrn';
@@ -157,6 +159,20 @@ export default function StudentDetail() {
   const cardSy = latestGradedSy(student) ?? student.currentSY;
   const cardPeriods = periodsForSy(cardSy);
   const cardTermN = cardUpto ?? latestPeriodWithData(gradesForSy(student, cardSy), cardPeriods);
+  // Level of the card's year decides the template (Nursery/Kinder vs SF9).
+  const cardGrade =
+    cardSy === student.currentSY && klass
+      ? klass.gradeLevel
+      : (student.enrolmentHistory ?? []).find((e) => e.sy === cardSy)?.gradeLevel;
+  const cardIsPreschool = isPreschoolCardLevel(cardGrade);
+  const cardLive =
+    cardSy === student.currentSY && klass
+      ? {
+          gradeLevel: klass.gradeLevel,
+          sectionName: klass.sectionName,
+          adviserName: adviserDisplayName(klass.adviser),
+        }
+      : undefined;
 
   const gradedSy = latestGradedSy(student);
   const gradePeriods = periodsForSy(gradedSy ?? student.currentSY);
@@ -543,23 +559,26 @@ export default function StudentDetail() {
         onClose={() => setDoc(null)}
       >
         {doc === 'card138' ? (
-          <ReportCard138
-            student={student}
-            subjects={subjects}
-            sy={cardSy}
-            upto={cardTermN}
-            attitudeScale={attitudeScale}
-            classId={cardSy === student.currentSY ? klass?.id : undefined}
-            liveClass={
-              cardSy === student.currentSY && klass
-                ? {
-                    gradeLevel: klass.gradeLevel,
-                    sectionName: klass.sectionName,
-                    adviserName: adviserDisplayName(klass.adviser),
-                  }
-                : undefined
-            }
-          />
+          cardIsPreschool ? (
+            <ReportCardPreschool
+              student={student}
+              subjects={subjects}
+              sy={cardSy}
+              upto={cardTermN}
+              classId={cardSy === student.currentSY ? klass?.id : undefined}
+              liveClass={cardLive}
+            />
+          ) : (
+            <ReportCard138
+              student={student}
+              subjects={subjects}
+              sy={cardSy}
+              upto={cardTermN}
+              attitudeScale={attitudeScale}
+              classId={cardSy === student.currentSY ? klass?.id : undefined}
+              liveClass={cardLive}
+            />
+          )
         ) : doc === 'gmc' ? (
           <GoodMoral student={student} />
         ) : doc === 'coe' ? (

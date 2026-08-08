@@ -1,7 +1,8 @@
 import type { ClassRecord, Student, Subject } from '@/types';
 import type { AttitudeBand } from '@/lib/grading';
-import { adviserDisplayName } from '@/lib/forms';
+import { adviserDisplayName, isPreschoolCardLevel } from '@/lib/forms';
 import { ReportCard138 } from './ReportCard138';
+import { ReportCardPreschool } from './ReportCardPreschool';
 
 interface Props {
   klass: ClassRecord;
@@ -31,19 +32,33 @@ export function BatchReportCards({ klass, roster, subjects, attitudeScale, upto,
     adviserName: adviserDisplayName(klass.adviser),
   };
 
+  // Nursery/Kinder sections print the Progress Report; everyone else the SF9.
+  const preschool = isPreschoolCardLevel(klass.gradeLevel);
+
   return (
     <div>
       {ordered.map((s, i) => (
         <div key={s.lrn} className={i < ordered.length - 1 ? 'break-after-page' : ''}>
-          <ReportCard138
-            student={s}
-            subjects={subjects}
-            sy={klass.sy}
-            upto={upto}
-            attitudeScale={attitudeScale}
-            classTerms={classTerms}
-            liveClass={liveClass}
-          />
+          {preschool ? (
+            <ReportCardPreschool
+              student={s}
+              subjects={subjects}
+              sy={klass.sy}
+              upto={upto}
+              classTerms={classTerms}
+              liveClass={liveClass}
+            />
+          ) : (
+            <ReportCard138
+              student={s}
+              subjects={subjects}
+              sy={klass.sy}
+              upto={upto}
+              attitudeScale={attitudeScale}
+              classTerms={classTerms}
+              liveClass={liveClass}
+            />
+          )}
         </div>
       ))}
     </div>

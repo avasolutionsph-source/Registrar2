@@ -3,6 +3,7 @@ import { render } from '@testing-library/react';
 import type { Student, Subject, ClassRecord } from '@/types';
 import { Form137 } from '../Form137';
 import { ReportCard138 } from '../ReportCard138';
+import { ReportCardPreschool } from '../ReportCardPreschool';
 import { GoodMoral } from '../GoodMoral';
 import { CertEnrollment } from '../CertEnrollment';
 import { StudentId } from '../StudentId';
@@ -115,6 +116,35 @@ describe('printable forms render with real-shaped data', () => {
     expect(text).toContain('88'); // general average (mean of 89,86,84,91)
     expect(text).toContain('Promoted');
     expect(text).toContain('Passed');
+  });
+
+  it('Nursery/Kinder Progress Report renders scholarship, deportment and attendance', () => {
+    const kinder: Student = {
+      ...student,
+      currentSY: '2026-2027',
+      grades: { '2026-2027': [{ subjectCode: 'LANG', letters: { q1: 'B', q2: 'D' } }] },
+      enrolmentHistory: [
+        { sy: '2026-2027', gradeLevel: 'K', sectionName: 'St. Therese', adviserName: 'Ms. Cruz, Ana B.' },
+      ],
+    };
+    const { container } = render(
+      <ReportCardPreschool
+        student={kinder}
+        subjects={[{ code: 'LANG', fullName: 'Language', abbreviation: '', category: 'Core', order: 1 }]}
+      />,
+    );
+    const text = container.textContent ?? '';
+    expect(text).toContain('NURSERY AND KINDERGARTEN PROGRESS REPORT');
+    expect(text).toContain('KINDERGARTEN:'); // level line
+    expect(text).toContain('SCHOLARSHIP');
+    expect(text).toContain('ACTION TAKEN');
+    expect(text).toContain('Language'); // the graded area appears
+    expect(text).toContain('B- Beginning'); // descriptors line
+    expect(text).toContain('DEPORTMENT');
+    expect(text).toContain('I make the sign of the Cross correctly.');
+    expect(text).toContain('ATTENDANCE RECORD');
+    expect(text).toContain('Days of School');
+    expect(text).toContain('Grade I'); // eligible-for-admission autofill (complete card)
   });
 
   it('Report Card printed as of Term 1 hides finals, GA and promotion', () => {
