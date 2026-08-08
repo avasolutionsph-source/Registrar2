@@ -360,9 +360,10 @@ export function ReportCard138({
 
       <div className="text-[8.5px]">School Form 9</div>
 
-      {/* header */}
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-        <img src={depedLogo} alt="" className="w-14 h-14 object-contain" />
+      {/* header — the seals hug the centered text block (not the paper edges),
+          with the NPS seal drawn larger */}
+      <div className="flex items-center justify-center gap-5">
+        <img src={depedLogo} alt="" className="w-14 h-14 object-contain shrink-0" />
         <div className="text-center leading-[1.3]">
           <div>REPUBLIC OF THE PHILIPPINES</div>
           <div className="font-semibold">DEPARTMENT OF EDUCATION</div>
@@ -371,7 +372,7 @@ export function ReportCard138({
           <div>Corner Bagumbayan Sur and Ateneo Avenue, Naga City</div>
           <div className="text-[9px]">GR. No. 002 S. 2009 &nbsp; GR. No. J-004 S. 2017</div>
         </div>
-        <img src={npsLogo} alt="" className="w-14 h-14 object-contain" />
+        <img src={npsLogo} alt="" className="w-20 h-20 object-contain shrink-0" />
       </div>
 
       {/* two columns — stretch to fill the page; the right column spreads its
