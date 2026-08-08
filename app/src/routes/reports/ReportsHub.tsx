@@ -10,7 +10,6 @@ import {
   Cake,
   Route as RouteIcon,
   ClipboardList,
-  FileSpreadsheet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Breadcrumb } from '@/components/shell/Breadcrumb';
@@ -77,12 +76,6 @@ const GROUPS: { heading: string; tiles: Tile[] }[] = [
         icon: UserMinus,
         label: 'Not Enrolled',
         desc: "Students from prior years' DB who haven't re-enrolled",
-      },
-      {
-        to: '/reports/esc',
-        icon: FileSpreadsheet,
-        label: 'ESC List (Grade 7–10)',
-        desc: 'Educational Service Contracting roster per section — name, birthdate, prior school, LRN',
       },
     ],
   },

@@ -45,12 +45,16 @@ import { groupRosterBySex } from '@/lib/roster';
 import { enterMovesDown } from '@/lib/gridKeys';
 import { useEnterGuide } from '@/lib/useEnterGuide';
 import { EnterKeyGuide } from '@/components/shell/EnterKeyGuide';
-import { formatLastFirstMiddle, formatBirthdate } from '@/lib/format';
+import { formatLastFirstMiddle, formatBirthdate, formatBirthdateMdy } from '@/lib/format';
+import { escSchoolHeader, hasFullLrn, isEscLevel, priorSchool } from '@/lib/esc';
+import { EscSheet } from '@/components/print/EscSheet';
+import { ExportCsvButton } from '@/components/ExportCsvButton';
 import type { ClassRecord, Student, Subject, Teacher } from '@/types';
 
 type ClassDoc =
   | { kind: 'sf1' }
   | { kind: 'batch' }
+  | { kind: 'esc' }
   | { kind: 'one'; student: Student };
 
 const TAB_KEYS = [
@@ -160,6 +164,9 @@ export default function ClassDetail() {
   const [escState, setEscState] = useState<Record<string, { grantee: boolean; escNo: string }>>({});
   const [escBusy, setEscBusy] = useState(false);
   const [escSaved, setEscSaved] = useState(false);
+  // ESC list scope: the whole section, or only the learners already marked as
+  // grantees. Affects the printed sheet and the CSV, never what is editable.
+  const [escGranteesOnly, setEscGranteesOnly] = useState(false);
   // TabsContent unmounts when inactive, so the guide below only ever opens on
   // the ESC tab — the one tab here that is typed into.
   const guide = useEnterGuide();
@@ -524,6 +531,24 @@ export default function ClassDetail() {
       setEscBusy(false);
     }
   }
+
+  // ESC (Educational Service Contracting) applies to Junior High only, so the
+  // full identity columns — birthdate, gender, prior school — are shown there.
+  // Other levels keep the short grantee/certificate table they already had.
+  const isEscClass = isEscLevel(klass?.gradeLevel);
+  const escRoster = escGranteesOnly
+    ? roster.filter((s) => escState[s.lrn]?.grantee)
+    : roster;
+  // What still has to be filled in on a learner's record before the list can be
+  // filed. Counted over the roster actually being listed.
+  const escGaps = [
+    [escRoster.filter((s) => !hasFullLrn(s.lrn)).length, 'without a 12-digit LRN'],
+    [escRoster.filter((s) => !s.birthdate).length, 'without a birthdate'],
+    [escRoster.filter((s) => !priorSchool(s, klass?.sy ?? '').school).length, 'without a prior school'],
+    [escRoster.filter((s) => !priorSchool(s, klass?.sy ?? '').schoolType).length, 'without a school type'],
+  ]
+    .filter(([n]) => (n as number) > 0)
+    .map(([n, what]) => `${n} ${what}`);
 
   const activeTeachers = teachers.filter((t) => t.yearEnded === 0);
   const teacherLabel = (t: Teacher) => `${t.title} ${t.familyName}, ${t.firstName} ${t.middleInitial}`.trim();
@@ -1753,57 +1778,190 @@ export default function ClassDetail() {
                     </Button>
                   </div>
                 </div>
-                <table className="w-full text-[12px]" onKeyDown={enterMovesDown}>
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
-                      <th className="py-1.5 pr-3 w-[18%]">LRN</th>
-                      <th className="py-1.5 pr-3">Learner's Name</th>
-                      <th className="py-1.5 pr-3 w-[12%] text-center">ESC Grantee</th>
-                      <th className="py-1.5 w-[26%]">ESC No.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roster.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-6 text-center text-ink-secondary">
-                          No learners in this section.
-                        </td>
-                      </tr>
-                    ) : (
-                      groupBySex(roster).map((grp) => (
-                        <Fragment key={grp.key}>
-                          <SexRow grp={grp} colSpan={4} />
-                          {grp.students.map((s) => {
-                            const e = escState[s.lrn] ?? { grantee: false, escNo: '' };
-                            return (
-                              <tr key={s.lrn} className="border-b border-border-soft last:border-0">
-                                <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
-                                <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
-                                <td className="py-1.5 pr-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={e.grantee}
-                                    onChange={(ev) => setEscGrantee(s.lrn, ev.target.checked)}
-                                    className="h-3.5 w-3.5 accent-nps-red align-middle"
-                                  />
-                                </td>
-                                <td className="py-1.5">
-                                  <input
-                                    value={e.escNo}
-                                    onChange={(ev) => setEscNo(s.lrn, ev.target.value)}
-                                    placeholder={e.grantee ? 'Certificate / QVR no.' : ''}
-                                    disabled={!e.grantee}
-                                    className="w-full max-w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
-                                  />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </Fragment>
-                      ))
+
+                {isEscClass && (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { v: false, l: 'All learners', n: roster.length },
+                          {
+                            v: true,
+                            l: 'ESC grantees only',
+                            n: roster.filter((s) => escState[s.lrn]?.grantee).length,
+                          },
+                        ].map((o) => (
+                          <button
+                            key={String(o.v)}
+                            type="button"
+                            onClick={() => setEscGranteesOnly(o.v)}
+                            className={`rounded border px-2.5 py-1 text-[12px] ${
+                              escGranteesOnly === o.v
+                                ? 'bg-accent text-white border-accent'
+                                : 'bg-panel text-ink-secondary border-border hover:bg-panel-alt'
+                            }`}
+                          >
+                            {o.l}
+                            <span className="ml-1.5 text-[10.5px] tabular-nums opacity-70">{o.n}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ExportCsvButton
+                          rows={escRoster}
+                          columns={[
+                            { header: 'First Name', value: (s) => s.firstName },
+                            { header: 'Middle Name', value: (s) => s.middleName },
+                            { header: 'Last Name', value: (s) => s.lastName },
+                            { header: 'Ext', value: (s) => s.extension },
+                            { header: 'Birthdate', value: (s) => formatBirthdateMdy(s.birthdate) },
+                            { header: 'Gender', value: (s) => s.gender.toUpperCase() },
+                            {
+                              header: escSchoolHeader(klass.gradeLevel),
+                              value: (s) => priorSchool(s, klass.sy).school,
+                            },
+                            { header: 'School Type', value: (s) => priorSchool(s, klass.sy).schoolType },
+                            { header: 'LRN', value: (s) => (hasFullLrn(s.lrn) ? s.lrn : '') },
+                            {
+                              header: 'ESC Grantee',
+                              value: (s) => (escState[s.lrn]?.grantee ? 'YES' : ''),
+                            },
+                            { header: 'ESC No.', value: (s) => escState[s.lrn]?.escNo ?? '' },
+                          ]}
+                          filename={`esc-grade-${klass.gradeLevel}-${klass.sectionName}-${klass.sy}`}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          disabled={escRoster.length === 0}
+                          onClick={() => setDoc({ kind: 'esc' })}
+                        >
+                          <Printer className="w-3.5 h-3.5" /> Print ESC list
+                        </Button>
+                      </div>
+                    </div>
+
+                    {escGaps.length > 0 && (
+                      <p className="mb-3 mx-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-ink-primary">
+                        <span className="font-semibold">Incomplete for submission:</span>{' '}
+                        {escGaps.join(', ')}. Fill these in on the learner's record. A school shown
+                        in <span className="italic text-ink-secondary">italics</span> was taken from
+                        last year's enrolment record, not from the learner's own.
+                      </p>
                     )}
-                  </tbody>
-                </table>
+                  </>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]" onKeyDown={enterMovesDown}>
+                    <thead>
+                      <tr className="text-left text-[11px] uppercase tracking-[0.04em] text-ink-muted border-b border-border">
+                        {isEscClass ? (
+                          <>
+                            <th className="py-1.5 pr-3 w-8 text-right">#</th>
+                            <th className="py-1.5 pr-3">First Name</th>
+                            <th className="py-1.5 pr-3">Middle Name</th>
+                            <th className="py-1.5 pr-3">Last Name</th>
+                            <th className="py-1.5 pr-3">Ext</th>
+                            <th className="py-1.5 pr-3 whitespace-nowrap">Birthdate</th>
+                            <th className="py-1.5 pr-3">Gender</th>
+                            <th className="py-1.5 pr-3">{escSchoolHeader(klass.gradeLevel)}</th>
+                            <th className="py-1.5 pr-3">School Type</th>
+                            <th className="py-1.5 pr-3">LRN</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="py-1.5 pr-3 w-[18%]">LRN</th>
+                            <th className="py-1.5 pr-3">Learner's Name</th>
+                          </>
+                        )}
+                        <th className="py-1.5 pr-3 w-[12%] text-center">ESC Grantee</th>
+                        <th className="py-1.5 w-[26%]">ESC No.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {escRoster.length === 0 ? (
+                        <tr>
+                          <td colSpan={isEscClass ? 12 : 4} className="py-6 text-center text-ink-secondary">
+                            {roster.length === 0
+                              ? 'No learners in this section.'
+                              : 'No learner in this section is marked as an ESC grantee yet.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        groupBySex(escRoster).map((grp) => (
+                          <Fragment key={grp.key}>
+                            <SexRow grp={grp} colSpan={isEscClass ? 12 : 4} />
+                            {grp.students.map((s, i) => {
+                              const e = escState[s.lrn] ?? { grantee: false, escNo: '' };
+                              const p = priorSchool(s, klass.sy);
+                              return (
+                                <tr key={s.lrn} className="border-b border-border-soft last:border-0">
+                                  {isEscClass ? (
+                                    <>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums text-ink-muted">
+                                        {i + 1}
+                                      </td>
+                                      <td className="py-1.5 pr-3 uppercase">{s.firstName}</td>
+                                      <td className="py-1.5 pr-3 uppercase">{s.middleName}</td>
+                                      <td className="py-1.5 pr-3 uppercase font-medium">{s.lastName}</td>
+                                      <td className="py-1.5 pr-3 uppercase">{s.extension}</td>
+                                      <td className="py-1.5 pr-3 tabular-nums whitespace-nowrap">
+                                        {formatBirthdateMdy(s.birthdate) || (
+                                          <span className="text-amber-700">— missing</span>
+                                        )}
+                                      </td>
+                                      <td className="py-1.5 pr-3 uppercase">{s.gender}</td>
+                                      <td
+                                        className={`py-1.5 pr-3 ${p.derived ? 'italic text-ink-secondary' : ''}`}
+                                        title={
+                                          p.derived
+                                            ? "Taken from last year's enrolment record — not yet on the learner's own record."
+                                            : undefined
+                                        }
+                                      >
+                                        {p.school || <span className="text-amber-700">— missing</span>}
+                                      </td>
+                                      <td className="py-1.5 pr-3">
+                                        {p.schoolType || <span className="text-amber-700">— missing</span>}
+                                      </td>
+                                      <td className="py-1.5 pr-3 font-mono">
+                                        {hasFullLrn(s.lrn) ? s.lrn : <span className="text-amber-700">— missing</span>}
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="py-1.5 pr-3 font-mono">{s.lrn}</td>
+                                      <td className="py-1.5 pr-3">{formatLastFirstMiddle(s)}</td>
+                                    </>
+                                  )}
+                                  <td className="py-1.5 pr-3 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={e.grantee}
+                                      onChange={(ev) => setEscGrantee(s.lrn, ev.target.checked)}
+                                      className="h-3.5 w-3.5 accent-nps-red align-middle"
+                                    />
+                                  </td>
+                                  <td className="py-1.5">
+                                    <input
+                                      value={e.escNo}
+                                      onChange={(ev) => setEscNo(s.lrn, ev.target.value)}
+                                      placeholder={e.grantee ? 'Certificate / QVR no.' : ''}
+                                      disabled={!e.grantee}
+                                      className="w-full max-w-[240px] rounded border border-border bg-panel px-2 py-1 text-[12.5px] text-ink-primary disabled:opacity-50"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </SectionCard>
             </TabsContent>
 
@@ -1907,9 +2065,11 @@ export default function ClassDetail() {
             ? `SF 1 (School Register) · Grade ${klass.gradeLevel} ${klass.sectionName}`
             : doc?.kind === 'batch'
               ? `Report Cards · Grade ${klass.gradeLevel} ${klass.sectionName}`
-              : doc?.kind === 'one'
-                ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
-                : ''
+              : doc?.kind === 'esc'
+                ? `ESC List · Grade ${klass.gradeLevel} ${klass.sectionName}`
+                : doc?.kind === 'one'
+                  ? `Report Card · ${doc.student.lastName}, ${doc.student.firstName}`
+                  : ''
         }
         controls={
           doc?.kind === 'batch' || doc?.kind === 'one' ? (
@@ -1940,6 +2100,8 @@ export default function ClassDetail() {
             upto={cardTermN}
             classTerms={cardTerms}
           />
+        ) : doc?.kind === 'esc' ? (
+          <EscSheet klass={klass} roster={escRoster} granteesOnly={escGranteesOnly} />
         ) : doc?.kind === 'one' ? (
           <ReportCard138
             student={doc.student}
