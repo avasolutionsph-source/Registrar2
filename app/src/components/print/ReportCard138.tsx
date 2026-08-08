@@ -63,9 +63,10 @@ export const sheetStyle = `
   #print-root { background: ${SHEET_GOLD} !important; }
   @media print {
     @page { size: 8.5in 11in; margin: 0.4in; }
-    html { background: ${SHEET_GOLD} !important;
-           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { background: transparent !important; }
+    html, body {
+      background: ${SHEET_GOLD} !important;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
   }
 `;
 
@@ -441,12 +442,13 @@ export function ReportCard138({
   const finalLetterFor = (get: (q: QuarterKey) => number | undefined, toLetter: (v?: number) => string) =>
     complete ? modal(pcols.map((q) => toLetter(get(q)))) : '';
 
-  // print:min-h-[10in] — the printable box at 0.4in margins is 10.2in, so the
-  // card's gold background fills the sheet without ever spilling onto a second
-  // page (min-height counts the padding: box-sizing is border-box).
+  // print:min-h-0 — the gold comes from the PAGE CANVAS now, so the card no
+  // longer has to stretch to the full sheet to be coloured. Forcing it to 10in
+  // left no rounding room inside the 10.2in printable box and could emit a
+  // blank second page; its natural height plus the grid floor is enough.
   return (
     <div
-      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col ${bodyType} text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
+      className={`relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col ${bodyType} text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]`}
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,

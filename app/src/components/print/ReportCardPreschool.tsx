@@ -289,7 +289,7 @@ export function ReportCardPreschool({
 
   return (
     <div
-      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-[10in] flex flex-col text-[10px] leading-[1.35] text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+      className="relative isolate mx-auto w-full min-h-[10in] print:min-h-0 flex flex-col text-[10px] leading-[1.35] text-black p-2 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
       style={{
         fontFamily: "'Canva Sans', 'Quicksand', ui-sans-serif, system-ui, 'Segoe UI', sans-serif",
         background: SHEET_GOLD,
