@@ -49,9 +49,9 @@ import { ageOnDate } from '@/lib/format';
 
 const PRINCIPAL = 'MRS. ROSARIO B. OLALIA';
 
-// The report cards' paper colour — a whisper of gold. Shared by both cards
-// (ReportCardPreschool imports it) so the two never drift apart.
-export const SHEET_GOLD = '#FFFCF4';
+// The report cards' paper colour — gold, but a hair off white. Shared by both
+// cards (ReportCardPreschool imports it) so the two never drift apart.
+export const SHEET_GOLD = '#FFFDF8';
 
 // Paints the WHOLE sheet, on screen and on paper. Two targets are needed:
 //   html   — its background propagates to the page canvas, which is the only

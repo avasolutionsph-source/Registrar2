@@ -463,7 +463,7 @@ export function ReportCardPreschool({
               {DEPORTMENT_GROUPS.map((g) => (
                 <Fragment key={g.key}>
                   <tr>
-                    <td className={`${bd} px-1.5 py-[3px] bg-[#F6F0E0] text-center font-bold`}>{g.label}</td>
+                    <td className={`${bd} px-1.5 py-[3px] bg-[#F8F4E8] text-center font-bold`}>{g.label}</td>
                     {pcols.map((q, i) => (
                       <td key={q} className={cell}>
                         {shown(i) ? deportmentLetter(perQ(q)?.[g.key]) : ''}
